@@ -1,3 +1,4 @@
+import SapDateInput from '../components/common/SapDateInput';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SapLookupModal from "../components/common/SapLookupModal";
@@ -665,15 +666,15 @@ function PurchaseRequestReportPage() {
                   <div className="prr-label">Posting Date</div>
                   <div className="prr-inline-range prr-range-no-button">
                     <span className="prr-sub-label">From</span>
-                    <input
-                      type="date"
+                    <SapDateInput
+                      
                       className="prr-input"
                       value={criteria.postingDateRange.from}
                       onChange={(event) => updateCodeRange("postingDateRange", "from", event.target.value)}
                     />
                     <span className="prr-sub-label">To</span>
-                    <input
-                      type="date"
+                    <SapDateInput
+                      
                       className="prr-input"
                       value={criteria.postingDateRange.to}
                       onChange={(event) => updateCodeRange("postingDateRange", "to", event.target.value)}
@@ -683,15 +684,15 @@ function PurchaseRequestReportPage() {
                   <div className="prr-label">Valid Until</div>
                   <div className="prr-inline-range prr-range-no-button">
                     <span className="prr-sub-label">From</span>
-                    <input
-                      type="date"
+                    <SapDateInput
+                      
                       className="prr-input"
                       value={criteria.validUntilRange.from}
                       onChange={(event) => updateCodeRange("validUntilRange", "from", event.target.value)}
                     />
                     <span className="prr-sub-label">To</span>
-                    <input
-                      type="date"
+                    <SapDateInput
+                      
                       className="prr-input"
                       value={criteria.validUntilRange.to}
                       onChange={(event) => updateCodeRange("validUntilRange", "to", event.target.value)}
@@ -701,15 +702,15 @@ function PurchaseRequestReportPage() {
                   <div className="prr-label">Document Date</div>
                   <div className="prr-inline-range prr-range-no-button">
                     <span className="prr-sub-label">From</span>
-                    <input
-                      type="date"
+                    <SapDateInput
+                      
                       className="prr-input"
                       value={criteria.documentDateRange.from}
                       onChange={(event) => updateCodeRange("documentDateRange", "from", event.target.value)}
                     />
                     <span className="prr-sub-label">To</span>
-                    <input
-                      type="date"
+                    <SapDateInput
+                      
                       className="prr-input"
                       value={criteria.documentDateRange.to}
                       onChange={(event) => updateCodeRange("documentDateRange", "to", event.target.value)}
@@ -719,15 +720,15 @@ function PurchaseRequestReportPage() {
                   <div className="prr-label">Required Date</div>
                   <div className="prr-inline-range prr-range-no-button">
                     <span className="prr-sub-label">From</span>
-                    <input
-                      type="date"
+                    <SapDateInput
+                      
                       className="prr-input"
                       value={criteria.requiredDateRange.from}
                       onChange={(event) => updateCodeRange("requiredDateRange", "from", event.target.value)}
                     />
                     <span className="prr-sub-label">To</span>
-                    <input
-                      type="date"
+                    <SapDateInput
+                      
                       className="prr-input"
                       value={criteria.requiredDateRange.to}
                       onChange={(event) => updateCodeRange("requiredDateRange", "to", event.target.value)}

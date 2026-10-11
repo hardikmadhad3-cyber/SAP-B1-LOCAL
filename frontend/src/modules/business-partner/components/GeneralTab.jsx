@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from "react";
 import LookupField from "../../item-master/components/LookupField";
 
@@ -255,8 +256,8 @@ export default function GeneralTab({
           </label>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <label style={{ fontSize: "12px", color: "#444" }}>From:</label>
-            <input 
-              type="date" 
+            <SapDateInput 
+               
               className="im-field__input"
               name="ValidFrom" 
               value={form.ValidFrom || ""} 
@@ -264,8 +265,8 @@ export default function GeneralTab({
               style={{ width: "140px" }}
             />
             <label style={{ fontSize: "12px", color: "#444" }}>To:</label>
-            <input 
-              type="date" 
+            <SapDateInput 
+               
               className="im-field__input"
               name="ValidTo" 
               value={form.ValidTo || ""} 
@@ -291,8 +292,8 @@ export default function GeneralTab({
           </label>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <label style={{ fontSize: "12px", color: "#444" }}>From:</label>
-            <input 
-              type="date" 
+            <SapDateInput 
+               
               className="im-field__input"
               name="FrozenFrom" 
               value={form.FrozenFrom || ""} 
@@ -300,8 +301,8 @@ export default function GeneralTab({
               style={{ width: "140px" }}
             />
             <label style={{ fontSize: "12px", color: "#444" }}>To:</label>
-            <input 
-              type="date" 
+            <SapDateInput 
+               
               className="im-field__input"
               name="FrozenTo" 
               value={form.FrozenTo || ""} 

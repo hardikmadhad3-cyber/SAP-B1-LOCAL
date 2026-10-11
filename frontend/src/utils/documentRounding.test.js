@@ -1,4 +1,4 @@
-import { calculateDocumentRounding, getDocumentRoundingPolicy, formatDocumentRoundingAmount } from './documentRounding';
+import { calculateDocumentRounding, getDocumentRoundingPolicy, getDocumentRoundingPayloadAmount, formatDocumentRoundingAmount } from './documentRounding';
 
 test.each([[0.003,2,'0.003'],[-0.00001,2,'-0.00001'],[0,2,'0.00'],[0.01,4,'0.0100'],[-0.416,4,'-0.4160']])('saved rounding stays visible (%s)', (value,decimals,expected)=>{
  expect(formatDocumentRoundingAmount(value,decimals)).toBe(expected);
@@ -20,6 +20,26 @@ describe('calculateDocumentRounding', () => {
       total: 31220.3776,
     });
   });
+});
+
+test('a manually entered difference overrides currency rounding and updates the total', () => {
+  const header = { rounding: true, roundingAmount: '-0.15', roundingAmountIsManual: true };
+  const policy = { method: 'Y', roundingSystem: 2 };
+  expect(calculateDocumentRounding(100.4, true, 2, header, policy)).toEqual({
+    totalBeforeRounding: 100.4, roundingAmount: -0.15, total: 100.25,
+  });
+  expect(calculateDocumentRounding(100.4, false, 2, header, policy).roundingAmount).toBe(0);
+});
+
+test('keeps the exact manual difference even when the displayed total has fewer decimals', () => {
+  expect(calculateDocumentRounding(100, true, 2, {
+    roundingAmount: '-0.416', roundingAmountIsManual: true,
+  })).toEqual({ totalBeforeRounding: 100, roundingAmount: -0.416, total: 99.58 });
+});
+
+test('sends the exact entered difference instead of the displayed rounded amount', () => {
+  expect(getDocumentRoundingPayloadAmount({ roundingAmountIsManual: true, roundingAmount: '-0.416' }, '-0.42')).toBe('-0.416');
+  expect(getDocumentRoundingPayloadAmount({ roundingAmountIsManual: false, roundingAmount: '-0.416' }, '-0.42')).toBe('-0.42');
 });
 
 test('preserves the saved SAP delivery difference and total without losing precision', () => {

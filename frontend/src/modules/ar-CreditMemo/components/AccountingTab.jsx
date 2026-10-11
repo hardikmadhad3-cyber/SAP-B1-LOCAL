@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from 'react';
 
 export default function AccountingTab({
@@ -102,7 +103,7 @@ export default function AccountingTab({
             <div className="sap-inline-row sap-due-date-controls">
               <input type="radio" name="dueDateCalc" id="creditMemoDueDateSelected" disabled={!isEditable} />
               <label className="sap-inline-label" htmlFor="creditMemoDueDateSelected">Selected Date</label>
-              <input type="date" className="del-field__input sap-inline-control sap-inline-control--date" disabled={!isEditable} />
+              <SapDateInput  className="del-field__input sap-inline-control sap-inline-control--date" disabled={!isEditable} />
             </div>
           </div>
 

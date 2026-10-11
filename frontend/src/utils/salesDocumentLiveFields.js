@@ -138,16 +138,16 @@ export const buildSalesDocumentLiveFields = ({
   const safeFallbackColumns = Array.isArray(safeFallbackMatrixColumns) && safeFallbackMatrixColumns.length
     ? safeFallbackMatrixColumns
     : sapStandardColumns;
-  // The physical schema belongs to the selected company and is authoritative.
-  // A page-specific safe list is only an outage fallback; it must never mask a
-  // successfully loaded company schema just because no SAP layout was saved.
+  // The current-company schema validates field identity. When SAP supplies an
+  // explicit form layout, show only its columns; otherwise use the live schema.
+  // A page-specific safe list is only an outage fallback.
   const matrixColumns = effectiveLayoutColumns.length
       ? buildSalesOrderMatrixColumnsFromLayout({
         layoutColumns: effectiveLayoutColumns,
         liveMatrixColumns: verifiedColumns,
         rowUdfFields,
         includeLineNumber,
-        appendMissingLiveColumns: true,
+        appendMissingLiveColumns: false,
       })
     : schemaMatrixColumns.length
       ? buildSalesOrderMatrixColumnsFromLayout({

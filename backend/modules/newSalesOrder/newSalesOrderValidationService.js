@@ -311,6 +311,7 @@ const validatePrimitiveValue = (field, value, path, errors) => {
 };
 
 const needsLookupValidation = (field) => {
+  if (field.lookup?.source === 'sap-user-values' && field.lookup.allowFreeText) return false;
   const renderer = upper(field.renderer);
   const type = upper(field.type);
   return Boolean(field.lookup) || renderer === 'LOOKUP' || renderer === 'ITEM-LOOKUP' || type === 'LOOKUP';

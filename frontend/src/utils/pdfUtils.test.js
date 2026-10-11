@@ -1,9 +1,11 @@
 import {
   downloadPdfBlob,
+  downloadPdfUrl,
   PDF_SAVE_PICKER_ID,
 } from './pdfUtils';
 
 const originalShowSaveFilePicker = window.showSaveFilePicker;
+const originalFetch = global.fetch;
 
 afterEach(() => {
   Object.defineProperty(window, 'showSaveFilePicker', {
@@ -11,6 +13,17 @@ afterEach(() => {
     value: originalShowSaveFilePicker,
   });
   jest.restoreAllMocks();
+  global.fetch = originalFetch;
+});
+
+test('report Save As opens before fetching bytes and cancellation leaves the file untouched', async () => {
+  global.fetch = jest.fn();
+  const cancelled = Object.assign(new Error('cancelled'), { name: 'AbortError' });
+  Object.defineProperty(window, 'showSaveFilePicker', {
+    configurable: true, value: jest.fn().mockRejectedValue(cancelled),
+  });
+  await expect(downloadPdfUrl('blob:report', 'Report.pdf')).resolves.toEqual({ saved: false, cancelled: true });
+  expect(global.fetch).not.toHaveBeenCalled();
 });
 
 test('opens native Save As and writes the PDF to the selected file', async () => {

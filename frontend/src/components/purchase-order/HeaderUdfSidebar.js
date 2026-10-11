@@ -1,3 +1,4 @@
+import SapInput from '../common/SapInput';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getBP, searchBP } from '../../api/businessPartnerApi';
 import { createPredefinedText, fetchPredefinedTexts } from '../../api/predefinedTextApi';
@@ -12,6 +13,10 @@ const SELLER_ADDRESS_ID_KEY = 'U_Seller_AddressId';
 const SELLER_ADDRESS_KEY = 'U_Seller_Address';
 const SELLER_BP_TYPE = 'cSupplier';
 const BILL_TO_PARTY_BP_TYPE = 'cCustomer';
+const fetchSupplierPartners = (query, { skip = 0, top = 200 } = {}) =>
+  searchBP(query, SELLER_BP_TYPE, top, skip);
+const fetchCustomerPartners = (query, { skip = 0, top = 200 } = {}) =>
+  searchBP(query, BILL_TO_PARTY_BP_TYPE, top, skip);
 
 const normalizeFieldText = (value) =>
   String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -222,13 +227,6 @@ const sortHeaderUdfFields = (fields = []) => {
 
   nextFields.splice(nextSellerAddressIndex + 1, 0, sellerContactField);
   return nextFields;
-};
-
-const normalizeBPCardType = (cardType) => {
-  if (cardType === 'cCustomer') return 'C';
-  if (cardType === 'cSupplier') return 'S';
-  if (cardType === 'cLead') return 'L';
-  return cardType || '';
 };
 
 const getAddressId = (address) =>
@@ -499,7 +497,7 @@ function renderField(field = {}, value, disabled, onChange, onLookup) {
   }
 
   const input = (
-    <input
+    <SapInput
       type={fieldType === 'date' ? 'date' : fieldType === 'number' ? 'number' : 'text'}
       className="form-control form-control-sm"
       value={value}
@@ -641,23 +639,17 @@ function HeaderUdfSidebar({
   onLoadLookupOptions,
 }) {
   const [sellerLookupOpen, setSellerLookupOpen] = useState(false);
-  const [sellerPartners, setSellerPartners] = useState([]);
-  const [sellerLookupLoading, setSellerLookupLoading] = useState(false);
   const [sellerAddressLookupOpen, setSellerAddressLookupOpen] = useState(false);
   const [sellerAddresses, setSellerAddresses] = useState([]);
   const [sellerAddressLoading, setSellerAddressLoading] = useState(false);
   const [sellerAddressError, setSellerAddressError] = useState('');
   const [toVendorLookupOpen, setToVendorLookupOpen] = useState(false);
-  const [toVendorPartners, setToVendorPartners] = useState([]);
-  const [toVendorLookupLoading, setToVendorLookupLoading] = useState(false);
   const [toVendorAddressLookupOpen, setToVendorAddressLookupOpen] = useState(false);
   const [toVendorAddresses, setToVendorAddresses] = useState([]);
   const [toVendorAddressLoading, setToVendorAddressLoading] = useState(false);
   const [toVendorAddressError, setToVendorAddressError] = useState('');
   const lastLoadedToVendorCodeRef = useRef('');
   const [billToPartyLookupOpen, setBillToPartyLookupOpen] = useState(false);
-  const [billToPartyPartners, setBillToPartyPartners] = useState([]);
-  const [billToPartyLookupLoading, setBillToPartyLookupLoading] = useState(false);
   const [billToPartyAddresses, setBillToPartyAddresses] = useState([]);
   const [billToPartyAddressLookupOpen, setBillToPartyAddressLookupOpen] = useState(false);
   const [billToPartyAddressLoading, setBillToPartyAddressLoading] = useState(false);
@@ -783,6 +775,9 @@ function HeaderUdfSidebar({
   const toVendorNameValue = String(toVendorNameField?.key ? values?.[toVendorNameField.key] : '').trim();
   const toVendorAddressIdValue = String(toVendorAddressIdField?.key ? values?.[toVendorAddressIdField.key] : '').trim();
   const toVendorAddressTextValue = String(toVendorAddressField?.key ? values?.[toVendorAddressField.key] : '').trim();
+  const sellerCodeValue = String(values?.[SELLER_CODE_KEY] || '').trim();
+  const sellerAddressIdValue = String(values?.[SELLER_ADDRESS_ID_KEY] || '').trim();
+  const sellerAddressTextValue = String(values?.[SELLER_ADDRESS_KEY] || '').trim();
   const billToPartyCodeField = orderedFields.find(isBillToPartyCodeField);
   const billToPartyCode = String(billToPartyCodeField?.key ? values?.[billToPartyCodeField.key] : '').trim();
   const billToPartyNameField = orderedFields.find(isBillToPartyNameField);
@@ -836,6 +831,38 @@ function HeaderUdfSidebar({
 
     return { vendor, addresses: usableAddresses };
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || !sellerCodeValue || !sellerAddressIdValue || sellerAddressTextValue) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const loadSavedSellerAddress = async () => {
+      try {
+        const seller = await getBP(sellerCodeValue);
+        if (cancelled) return;
+
+        const address = (seller?.BPAddresses || []).find(
+          (entry) => String(getAddressId(entry)).trim() === sellerAddressIdValue
+        );
+        const currentValues = valuesRef.current || {};
+        if (
+          address &&
+          String(currentValues[SELLER_CODE_KEY] || '').trim() === sellerCodeValue &&
+          String(currentValues[SELLER_ADDRESS_ID_KEY] || '').trim() === sellerAddressIdValue &&
+          !String(currentValues[SELLER_ADDRESS_KEY] || '').trim()
+        ) {
+          changeField(SELLER_ADDRESS_KEY, formatSellerAddress(address));
+        }
+      } catch (error) {
+        if (!cancelled) console.error('Failed to load saved seller address:', error);
+      }
+    };
+
+    loadSavedSellerAddress();
+    return () => { cancelled = true; };
+  }, [isOpen, sellerCodeValue, sellerAddressIdValue, sellerAddressTextValue, changeField]);
 
   useEffect(() => {
     if (!isOpen || !toVendorCodeField?.key || !toVendorCode) {
@@ -1025,58 +1052,16 @@ function HeaderUdfSidebar({
     return null;
   }
 
-  const openSellerLookup = async () => {
+  const openSellerLookup = () => {
     setSellerLookupOpen(true);
-    setSellerLookupLoading(true);
-
-    try {
-      const rows = await searchBP('', SELLER_BP_TYPE, 5000, 0);
-      setSellerPartners((Array.isArray(rows) ? rows : []).map((bp) => ({
-        ...bp,
-        CardType: normalizeBPCardType(bp.CardType),
-      })));
-    } catch (error) {
-      console.error('Failed to load business partners for seller lookup:', error);
-      setSellerPartners([]);
-    } finally {
-      setSellerLookupLoading(false);
-    }
   };
 
-  const openToVendorLookup = async () => {
+  const openToVendorLookup = () => {
     setToVendorLookupOpen(true);
-    setToVendorLookupLoading(true);
-
-    try {
-      const rows = await searchBP('', SELLER_BP_TYPE, 5000, 0);
-      setToVendorPartners((Array.isArray(rows) ? rows : []).map((bp) => ({
-        ...bp,
-        CardType: normalizeBPCardType(bp.CardType),
-      })));
-    } catch (error) {
-      console.error('Failed to load business partners for To Vendor lookup:', error);
-      setToVendorPartners([]);
-    } finally {
-      setToVendorLookupLoading(false);
-    }
   };
 
-  const openBillToPartyLookup = async () => {
+  const openBillToPartyLookup = () => {
     setBillToPartyLookupOpen(true);
-    setBillToPartyLookupLoading(true);
-
-    try {
-      const rows = await searchBP('', BILL_TO_PARTY_BP_TYPE, 5000, 0);
-      setBillToPartyPartners((Array.isArray(rows) ? rows : []).map((bp) => ({
-        ...bp,
-        CardType: normalizeBPCardType(bp.CardType),
-      })));
-    } catch (error) {
-      console.error('Failed to load business partners for Bill To Party lookup:', error);
-      setBillToPartyPartners([]);
-    } finally {
-      setBillToPartyLookupLoading(false);
-    }
   };
 
   const openTermsOfSupplyLookup = async (field) => {
@@ -1547,15 +1532,6 @@ function HeaderUdfSidebar({
                 </div>
               );
             })}
-            {sellerLookupLoading ? (
-              <small className="text-muted">Loading business partners...</small>
-            ) : null}
-            {toVendorLookupLoading ? (
-              <small className="text-muted">Loading vendors...</small>
-            ) : null}
-            {billToPartyLookupLoading ? (
-              <small className="text-muted">Loading bill-to parties...</small>
-            ) : null}
           </div>
         </div>
       </div>
@@ -1563,7 +1539,7 @@ function HeaderUdfSidebar({
         isOpen={sellerLookupOpen}
         onClose={() => setSellerLookupOpen(false)}
         onSelect={handleSellerSelect}
-        businessPartners={sellerPartners}
+        fetchPartners={fetchSupplierPartners}
         title="Ven(Code)FMS"
         variant="seller"
       />
@@ -1571,7 +1547,7 @@ function HeaderUdfSidebar({
         isOpen={toVendorLookupOpen}
         onClose={() => setToVendorLookupOpen(false)}
         onSelect={handleToVendorSelect}
-        businessPartners={toVendorPartners}
+        fetchPartners={fetchSupplierPartners}
         title="Vendor Code"
         variant="seller"
       />
@@ -1579,7 +1555,7 @@ function HeaderUdfSidebar({
         isOpen={billToPartyLookupOpen}
         onClose={() => setBillToPartyLookupOpen(false)}
         onSelect={handleBillToPartySelect}
-        businessPartners={billToPartyPartners}
+        fetchPartners={fetchCustomerPartners}
         title="Bill To Party Code"
       />
       <SellerAddressModal

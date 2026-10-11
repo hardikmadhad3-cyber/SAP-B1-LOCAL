@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -46,7 +47,7 @@ import {
   isManualDocumentSeries,
   isValidManualDocumentNumber,
 } from '../../utils/documentSeries';
-import { useCompanyScopedFormSettings } from '../../utils/formSettingsStorage';
+import { useStandardSalesFormSettings } from '../../utils/standardSalesFormSettings';
 import { buildCompanyFormQueryContext } from '../../utils/companyFormQueryContext';
 import { updateFormSettingPreference } from '../../utils/formSettingsPreferences';
 import { buildVisibleEnteredRowUdfPayload } from '../../utils/rowUdfPayload';
@@ -72,7 +73,6 @@ import { fetchSalesDocumentLookup, fetchSalesDocumentSchema } from '../../api/sa
 import {
   buildSalesDocumentLiveFields,
   getSalesDocumentCompanyScopeKey,
-  isSalesDocumentFieldMetadataReady,
   loadSalesDocumentFieldLookupOptions,
   stripSalesDocumentTopLevelUdfs,
 } from '../../utils/salesDocumentLiveFields';
@@ -328,18 +328,18 @@ function SalesQuotation() {
   const [attachments] = useState(INIT_ATTACH);
   const [activeTab, setActiveTab] = useState('Contents');
   const [headerUdfs, setHeaderUdfs] = useState({});
-  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings, formSettingsStatus] = useCompanyScopedFormSettings(
-    FORM_SETTINGS_STORAGE_KEY,
+  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings,
+    formSettingsStatus, effectiveMatrixColumnDefinitions, companyFormSettingsReady] = useStandardSalesFormSettings({
+    formKey: FORM_SETTINGS_STORAGE_KEY,
     readSavedFormSettings,
-    [headerUdfDefinitions, rowUdfDefinitions, matrixColumnDefinitions],
-    { saveMode: 'explicit' },
-  );
-  const companyFormSettingsReady = formSettingsStatus.loaded && isSalesDocumentFieldMetadataReady({
+    headerUdfDefinitions,
+    rowUdfDefinitions,
+    matrixColumnDefinitions,
     companyId: activeCompanyId,
     companyDb: activeCompanyDb,
-    hydratedScope: hydratedFieldMetadataScope,
+    hydratedFieldMetadataScope,
   });
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [refData, setRefData] = useState({
     company: '', vendors: [], contacts: [], pay_to_addresses: [], ship_to_addresses: [], bill_to_addresses: [], items: [],
@@ -420,6 +420,8 @@ function SalesQuotation() {
     setRefData,
     setLines,
     createLookupValue: createSalesQuotationLookupValue,
+    documentType: 'SALES_QUOTATION',
+    lineTable: 'QUT1',
   });
 
   const loadDynamicLineLookupOptions = useCallback((source, field = {}, line = {}) => (
@@ -745,10 +747,10 @@ function SalesQuotation() {
     replaceFormSettings(readSavedFormSettings(
       headerUdfDefinitions,
       rowUdfDefinitions,
-      matrixColumnDefinitions,
+      effectiveMatrixColumnDefinitions,
       formSettingsStorageKey,
     ));
-  }, [companyFormSettingsReady, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, matrixColumnDefinitions, replaceFormSettings, rowUdfDefinitions]);
+  }, [companyFormSettingsReady, effectiveMatrixColumnDefinitions, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, replaceFormSettings, rowUdfDefinitions]);
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ load existing order Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
@@ -2810,20 +2812,20 @@ function SalesQuotation() {
                     {/* Posting Date */}
                     <div className="so-field">
                       <label className="so-field__label">Posting Date *</label>
-                      <input type="date" name="postingDate" className="so-field__input" value={header.postingDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="postingDate" className="so-field__input" value={header.postingDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Delivery Date */}
                     <div className="so-field">
                       <label className="so-field__label">Delivery Date</label>
-                      <input type="date" name="deliveryDate" className="so-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="deliveryDate" className="so-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Document Date */}
                     <div className="so-field">
                       <label className="so-field__label">Document Date *</label>
-                      <input 
-                        type="date" 
+                      <SapDateInput 
+                         
                         name="documentDate" 
                         className="so-field__input" 
                         value={header.documentDate} 
@@ -2880,7 +2882,7 @@ function SalesQuotation() {
                 getBranchName={getBranchName}
                 formSettings={formSettings}
                 formSettingsReady={companyFormSettingsReady}
-                matrixFields={matrixColumnDefinitions}
+                matrixFields={effectiveMatrixColumnDefinitions}
                 useSapMatrixOrder={Boolean(refData.line_field_metadata?.sap_form?.preferenceRows)}
                 rowUdfFields={visibleRowUdfs}
                 onRowUdfChange={handleRowUdfChange}
@@ -3078,7 +3080,7 @@ function SalesQuotation() {
             className="so-layout__sidebar"
             isOpen={formSettingsOpen}
             onClose={() => setFormSettingsOpen(false)}
-            matrixFields={matrixColumnDefinitions}
+            matrixFields={effectiveMatrixColumnDefinitions}
             headerUdfFields={headerUdfDefinitions}
             rowUdfFields={rowUdfDefinitions}
             formSettings={formSettings}

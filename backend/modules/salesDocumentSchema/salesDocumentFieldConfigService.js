@@ -8,7 +8,7 @@ const { createHttpError } = require('../newSalesOrder/newSalesOrderContextServic
 
 const text = (value) => String(value ?? '').trim();
 const upper = (value) => text(value).toUpperCase();
-const DYNAMIC_LOOKUP_SOURCES = new Set(['udf-valid-values', 'udf-linked-table', 'udo']);
+const DYNAMIC_LOOKUP_SOURCES = new Set(['udf-valid-values', 'sap-user-values', 'udf-linked-table', 'udo']);
 
 const LOOKUP_SOURCE_LABELS = Object.freeze({
   items: 'Items',
@@ -24,6 +24,7 @@ const LOOKUP_SOURCE_LABELS = Object.freeze({
   owners: 'Owners',
   'shipping-types': 'Shipping Types',
   'udf-valid-values': 'UDF Valid Values',
+  'sap-user-values': 'SAP Form User-Defined Values',
   'udf-linked-table': 'UDF Linked Table',
   udo: 'User-Defined Object',
 });
@@ -32,6 +33,7 @@ const getAllowedLookupSources = (field = {}, customSources = []) => {
   const allowed = LOOKUP_SOURCES.filter((source) => !DYNAMIC_LOOKUP_SOURCES.has(source));
   const isUdf = upper(field.storage) === 'UDF' || upper(field.databaseField).startsWith('U_');
   if (isUdf && Array.isArray(field.options) && field.options.length) allowed.push('udf-valid-values');
+  if (Array.isArray(field.userValueOptions)) allowed.push('sap-user-values');
   if (isUdf && text(field.linkedTable)) allowed.push('udf-linked-table');
   if (isUdf && text(field.relUDO)) allowed.push('udo');
   return [...allowed, ...customSources];

@@ -1,3 +1,12 @@
+# Local development
+
+1. Copy `backend/.env.example` to `backend/.env`. Set `PORT` and a strong `SETUP_ADMIN_PASSWORD` there. Install backend dependencies and start it with `npm start` from `backend`.
+2. Install frontend dependencies and start it with `npm start` from `frontend`. Open `http://localhost:3000/admin-login`.
+
+The frontend development server forwards `/api` requests to the port in `backend/.env` (5001 if the file has no `PORT`). A frontend `.env` is not required for local login. Restart the frontend server after changing the backend port.
+
+For a separately hosted API, set `REACT_APP_API_BASE_URL` in `frontend/.env.local` to its full URL ending in `/api`. That overrides the local proxy. `REACT_APP_API_PORT` also bypasses the proxy and should only be set when the backend port is fixed.
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

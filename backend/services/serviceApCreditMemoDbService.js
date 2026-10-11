@@ -3,6 +3,7 @@ const { createTableColumnDetailsReader } = require('./salesDocumentDbCompatibili
 const apInvoiceDb = require('./apInvoiceDbService');
 const apCreditMemoDb = require('./apCreditMemoDbService');
 const masterDataDbService = require('./masterDataDbService');
+const { getServiceDocumentAccounts } = require('./serviceDocumentAccountDbService');
 const hsnCodeDbService = require('./hsnCodeDbService');
 const { getHeaderUdfValues, getLineUdfValues, getMarketingDocumentUdfs } = require('./udfMetadataService');
 
@@ -105,7 +106,7 @@ const lookupServiceItems = async () => {
 const getReferenceData = async () => {
   const base = await apInvoiceDb.getReferenceData();
   const [accounts, distributionRules, withholdingTaxCodes] = await Promise.all([
-    masterDataDbService.searchAccounts('', '', 5000, 0),
+    getServiceDocumentAccounts(),
     masterDataDbService.lookupDistributionRules(),
     masterDataDbService.lookupWithholdingTaxCodes('', 200),
   ]);
@@ -124,15 +125,7 @@ const getReferenceData = async () => {
     items: serviceItems,
     locations,
     business_partners: businessPartners,
-    gl_accounts: accounts
-      .filter((account) => account.ActiveAccount !== 'tNO' && account.IsTitleAccount !== 'tYES')
-      .map((account) => ({
-        code: account.Code,
-        name: account.Name,
-        accountType: account.AccountType,
-        balance: account.Balance ?? 0,
-        inactive: account.ActiveAccount === 'tNO' ? 'Yes' : 'No',
-      })),
+    gl_accounts: accounts,
     distribution_rules: distributionRules,
     withholding_tax_codes: withholdingTaxCodes,
     sac_codes: sacCodes.map((sac) => ({
@@ -768,7 +761,6 @@ module.exports = {
   getDocumentSeries: getServiceAPDocumentSeries,
   getNextNumber,
   getVendorValidation: apInvoiceDb.getVendorValidation,
-  getPostingPeriodValidation: apInvoiceDb.getPostingPeriodValidation,
   getBranchEnabled: apInvoiceDb.getBranchEnabled,
   getTaxCodeValidation: apInvoiceDb.getTaxCodeValidation,
   isDuplicateVendorInvoiceNumber,

@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import LazyLoadErrorBoundary from "./components/LazyLoadErrorBoundary";
 import RelationshipMapHost from "./components/relationship-map/RelationshipMapHost";
 import RouteLoadingFallback from "./components/RouteLoadingFallback";
+import SapFindShortcutManager from "./components/SapFindShortcutManager";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import {
   RequireAdminAuth,
@@ -111,6 +112,7 @@ const JournalEntryList = lazyWithRetry(() => import("./pages/JournalEntryList"))
 const SalesQuotation = lazyWithRetry(() => import("./pages/SalesQuotation"));
 const SalesQuotationList = lazyWithRetry(() => import("./pages/SalesQuotationList"));
 const SalesAnalysisReportPage = lazyWithRetry(() => import("./pages/SalesAnalysisReportPage"));
+const CompanyReportsPage = lazyWithRetry(() => import("./pages/CompanyReportsPage"));
 const BillOfMaterialsReportPage = lazyWithRetry(() => import("./pages/BillOfMaterialsReportPage"));
 const OpportunitiesForecastReportPage = lazyWithRetry(() => import("./pages/OpportunitiesForecastReportPage"));
 const OpportunitiesForecastOverTimeReportPage = lazyWithRetry(() => import("./pages/OpportunitiesForecastOverTimeReportPage"));
@@ -201,6 +203,7 @@ function App() {
       <AuthProvider>
         <CompanyTitleManager />
         <SapInitialFocusManager />
+        <SapFindShortcutManager />
         <LazyLoadErrorBoundary>
           <RelationshipMapHost />
           <Suspense fallback={<RouteLoadingFallback />}>
@@ -297,7 +300,7 @@ function App() {
                   <Route path="/reportlayoutmanager" element={<ReportsStudioPage />} />
                   <Route path="/reportlayoutmanager/menu/:menuId" element={<ReportRunnerPage />} />
                   <Route path="/reportlayoutmanager/report/:reportId" element={<ReportRunnerPage />} />
-                  <Route path="/reports" element={<ReportsStudioPage />} />
+                  <Route path="/reports" element={<Navigate to="/reportlayoutmanager" replace />} />
                   <Route path="/reports/menu/:menuId" element={<ReportRunnerPage />} />
                   <Route path="/reports/report/:reportId" element={<ReportRunnerPage />} />
                   <Route path="/query-manager" element={<QueryManagerPage />} />
@@ -311,6 +314,7 @@ function App() {
                   <Route path="/gate-pass/gate-in" element={<GateInPage />} />
                   <Route path="/gate-pass/gate-out" element={<GateOutPage />} />
                   <Route path="/reports/sales/analysis" element={<SalesAnalysisReportPage />} />
+                  <Route path="/reports/company" element={<CompanyReportsPage />} />
                   <Route path="/reports/crm/opportunities/forecast" element={<OpportunitiesForecastReportPage />} />
                   <Route path="/reports/crm/opportunities/forecast-over-time" element={<OpportunitiesForecastOverTimeReportPage />} />
                   <Route path="/reports/crm/opportunities/statistics" element={<OpportunitiesStatisticsReportPage />} />

@@ -480,19 +480,6 @@ function ReportsStudioPage() {
     window.open(pdfPreview.previewUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const downloadPreviewPdf = () => {
-    if (!pdfPreview.previewUrl) {
-      return;
-    }
-
-    const link = document.createElement('a');
-    link.href = pdfPreview.previewUrl;
-    link.download = pdfPreview.fileName || `${selectedReport?.reportCode || 'report'}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
-
   const handleOpenPreviewModal = () => {
     if (!pdfPreview.previewUrl) {
       applyMessage('info', 'Run a report first to preview the PDF.');
@@ -631,7 +618,6 @@ function ReportsStudioPage() {
         previewUrl={pdfPreview.previewUrl}
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
-        onDownload={downloadPreviewPdf}
         onOpen={openPreviewInNewTab}
       />
 

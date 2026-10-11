@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React, { useState } from 'react';
 
 export default function EWayBillModal({ isOpen, onClose, onSave, initialData = {} }) {
@@ -148,12 +149,12 @@ export default function EWayBillModal({ isOpen, onClose, onSave, initialData = {
 
                   <div className="im-field">
                     <label className="im-field__label">E-Way Bill Date</label>
-                    <input type="date" className="im-field__input" name="ewayBillDate" value={formData.ewayBillDate} onChange={handleChange} />
+                    <SapDateInput  className="im-field__input" name="ewayBillDate" value={formData.ewayBillDate} onChange={handleChange} />
                   </div>
 
                   <div className="im-field">
                     <label className="im-field__label">EWB Expiration Date</label>
-                    <input type="date" className="im-field__input" name="ewbExpirationDate" value={formData.ewbExpirationDate} onChange={handleChange} />
+                    <SapDateInput  className="im-field__input" name="ewbExpirationDate" value={formData.ewbExpirationDate} onChange={handleChange} />
                   </div>
                 </div>
 
@@ -308,7 +309,7 @@ export default function EWayBillModal({ isOpen, onClose, onSave, initialData = {
 
                   <div className="im-field">
                     <label className="im-field__label">Transporter Doc. Date</label>
-                    <input type="date" className="im-field__input" name="transporterDocDate" value={formData.transporterDocDate} onChange={handleChange} />
+                    <SapDateInput  className="im-field__input" name="transporterDocDate" value={formData.transporterDocDate} onChange={handleChange} />
                   </div>
                 </div>
               </div>

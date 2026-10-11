@@ -45,3 +45,23 @@ test('keeps Sales Order metadata authoritative except for saved line visibility'
 
   window.localStorage.removeItem(storageKey);
 });
+
+test('Sales Order keeps only current-company header UDFs and their saved visibility', () => {
+  const storageKey = 'sales-order-header-udfs-test';
+  window.localStorage.setItem(storageKey, JSON.stringify({
+    headerUdfs: {
+      U_Buyer: { visible: false, active: false },
+      U_OtherCompany: { visible: true },
+    },
+  }));
+
+  const settings = readSavedFormSettings(
+    [{ key: 'U_Buyer', visible: true, active: true, sapControlled: true }],
+    [], [], storageKey,
+  );
+
+  expect(settings.headerUdfs.U_Buyer.visible).toBe(false);
+  expect(settings.headerUdfs.U_Buyer.active).toBe(true);
+  expect(settings.headerUdfs.U_OtherCompany).toBeUndefined();
+  window.localStorage.removeItem(storageKey);
+});

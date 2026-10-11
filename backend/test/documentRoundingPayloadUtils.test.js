@@ -51,3 +51,14 @@ test('delegates calculated or loaded differences to SAP for each company policy'
     });
   }
 });
+
+test('rejects an incomplete manual amount instead of silently using automatic rounding', () => {
+  for (const amount of ['', '-', '.', 'not a number']) {
+    assert.throws(() => buildDocumentRoundingPayload({
+      rounding: true, roundingAmount: amount, roundingAmountIsManual: true,
+    }), /valid rounding amount/);
+  }
+  assert.deepEqual(buildDocumentRoundingPayload({
+    rounding: true, roundingAmount: '0', roundingAmountIsManual: true,
+  }), { Rounding: 'tYES', RoundingDiffAmount: 0 });
+});

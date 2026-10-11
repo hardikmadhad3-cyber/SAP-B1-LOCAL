@@ -2,6 +2,10 @@ import { buildSalesDocumentLiveFields } from '../../../utils/salesDocumentLiveFi
 import { fireEvent, render, screen } from '@testing-library/react';
 import ContentsTab from './ContentsTab';
 
+jest.mock('../../../components/sales-document/LiveUdfValueInput', () => ({ field, value, onChange }) => (
+  <input aria-label={field.label || field.key} value={value} onChange={(event) => onChange(event.target.value)} />
+));
+
 test('renders and edits a current-company Purchase Quotation row UDF', () => {
   const onRowUdfChange = jest.fn();
   render(

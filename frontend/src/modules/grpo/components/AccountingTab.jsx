@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from 'react';
 
 export default function AccountingTab({
@@ -86,11 +87,11 @@ export default function AccountingTab({
         </div>
         <div className="po-field">
           <label className="po-field__label">Expiry Date</label>
-          <input type="date" className="po-field__input" name="expiryDate" value={header.expiryDate} onChange={onHeaderChange} />
+          <SapDateInput  className="po-field__input" name="expiryDate" value={header.expiryDate} onChange={onHeaderChange} />
         </div>
         <div className="po-field">
           <label className="po-field__label">Advance Date</label>
-          <input type="date" className="po-field__input" name="advanceDate" value={header.advanceDate} onChange={onHeaderChange} />
+          <SapDateInput  className="po-field__input" name="advanceDate" value={header.advanceDate} onChange={onHeaderChange} />
         </div>
         <div className="po-field">
           <label className="po-field__label">Within Days</label>
@@ -110,11 +111,11 @@ export default function AccountingTab({
         </div>
         <div className="po-field">
           <label className="po-field__label">Cancellation Date</label>
-          <input type="date" className="po-field__input" name="cancellationDate" value={header.cancellationDate} onChange={onHeaderChange} />
+          <SapDateInput  className="po-field__input" name="cancellationDate" value={header.cancellationDate} onChange={onHeaderChange} />
         </div>
         <div className="po-field">
           <label className="po-field__label">Required Date</label>
-          <input type="date" className="po-field__input" name="requiredDate" value={header.requiredDate} onChange={onHeaderChange} />
+          <SapDateInput  className="po-field__input" name="requiredDate" value={header.requiredDate} onChange={onHeaderChange} />
         </div>
         <div className="po-field">
           <label className="po-field__label">Indicator</label>

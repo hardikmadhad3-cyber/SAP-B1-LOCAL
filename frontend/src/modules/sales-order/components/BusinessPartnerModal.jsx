@@ -26,7 +26,10 @@ const getBillToStreet = (bp) =>
   '';
 
 const getBpTypeLabel = (type) =>
-  type === 'C' ? 'Customer' : type === 'S' ? 'Supplier' : type === 'L' ? 'Lead' : type || 'Customer';
+  type === 'C' || type === 'cCustomer' ? 'Customer'
+    : type === 'S' || type === 'cSupplier' ? 'Supplier'
+      : type === 'L' || type === 'cLead' ? 'Lead'
+        : type || 'Customer';
 
 export default function BusinessPartnerModal({
   isOpen,
@@ -37,6 +40,7 @@ export default function BusinessPartnerModal({
   title = 'List of Business Partners',
   variant = 'default',
   initialQuery = '',
+  fetchPartners,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
@@ -83,6 +87,11 @@ export default function BusinessPartnerModal({
     onClose();
   };
 
+  const handleClose = () => {
+    onClose();
+    window.SapB1TabNavigation?.restoreLookup?.();
+  };
+
   const columns = isSellerVariant
     ? [
       { key: 'CardCode', label: 'BP Code', width: 130 },
@@ -114,17 +123,20 @@ export default function BusinessPartnerModal({
       open={isOpen}
       title={title}
       columns={columns}
-      rows={visiblePartners}
+      rows={fetchPartners ? undefined : visiblePartners}
+      fetchOptions={fetchPartners}
+      pageSize={fetchPartners ? PAGE_SIZE : undefined}
       initialQuery={searchTerm}
+      consumePendingQuery={false}
       searchPlaceholder={isSellerVariant ? '' : 'Search by code, name, or type...'}
       emptyMessage="No business partners found"
-      footerNote={`Showing ${filteredPartners.length === 0 ? 0 : pageStart + 1}-${pageEnd} of ${filteredPartners.length} business partners`}
-      footerControls={footerControls}
+      footerNote={fetchPartners ? undefined : `Showing ${filteredPartners.length === 0 ? 0 : pageStart + 1}-${pageEnd} of ${filteredPartners.length} business partners`}
+      footerControls={fetchPartners ? undefined : footerControls}
       onQueryChange={(query) => {
         setSearchTerm(query);
         setPage(0);
       }}
-      onClose={onClose}
+      onClose={handleClose}
       onSelect={handleSelect}
       onNew={onCreateNew}
       getRowKey={(bp, index) => `${bp.CardCode || 'bp'}-${pageStart + index}`}

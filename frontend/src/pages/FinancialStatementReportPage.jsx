@@ -1,3 +1,4 @@
+import SapDateInput from '../components/common/SapDateInput';
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { fetchFinancialStatement, fetchFinancialStatementLookups } from "../api/financialStatementsApi";
@@ -430,9 +431,9 @@ function CashFlowCriteria({ criteria, lookups, setField, setNestedField, openMod
           <div className="cf-date-row">
             <span>Date</span>
             <span>From</span>
-            <input type="date" value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
+            <SapDateInput  value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
             <span>To</span>
-            <input type="date" value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
+            <SapDateInput  value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
           </div>
           <label className="cf-interval-row">
             <span>Time Interval</span>
@@ -583,9 +584,9 @@ function CashFlowReferenceCriteria({ criteria, message, setField }) {
     <div className="fac-criteria cfr-criteria sales-analysis-window__body">
       <div className="cfr-date-row">
         <span>Date From</span>
-        <input type="date" value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
+        <SapDateInput  value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
         <span>To</span>
-        <input type="date" value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
+        <SapDateInput  value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
       </div>
 
       <div className="cfr-radio-stack">
@@ -711,9 +712,9 @@ function ProfitLossCriteria({ criteria, lookups, setField, openModal, message })
           {lookups.dateTypes.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
         </select>
         <span>From</span>
-        <input type="date" value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
+        <SapDateInput  value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
         <span>To</span>
-        <input type="date" value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
+        <SapDateInput  value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
       </div>
 
       <div className="fac-pl-main">
@@ -953,7 +954,7 @@ export default function FinancialStatementReportPage() {
                 <label>Date</label>
                 <select value={criteria.dateType} onChange={(event) => setField("dateType", event.target.value)}>{lookups.dateTypes.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select>
                 <span>To</span>
-                <input type="date" value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
+                <SapDateInput  value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
               </div>
 
               <div className="fac-bs-main">
@@ -996,10 +997,10 @@ export default function FinancialStatementReportPage() {
                 <select value={criteria.dateType} onChange={(event) => setField("dateType", event.target.value)}>{lookups.dateTypes.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select>
                 {reportKey !== "balance-sheet" ? <span>From</span> : <span />}
                 {reportKey !== "balance-sheet" ? (
-                  <input type="date" value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
+                  <SapDateInput  value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
                 ) : <span />}
                 <span>To</span>
-                <input type="date" value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
+                <SapDateInput  value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
               </div>
 
               <div className="fac-criteria-layout">

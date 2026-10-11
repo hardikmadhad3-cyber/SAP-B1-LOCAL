@@ -3,6 +3,7 @@ const { createTableColumnDetailsReader } = require('./salesDocumentDbCompatibili
 const arInvoiceDb = require('./arInvoiceDbService');
 const arCreditMemoDb = require('./arCreditMemoDbService');
 const masterDataDbService = require('./masterDataDbService');
+const { getServiceDocumentAccounts } = require('./serviceDocumentAccountDbService');
 const hsnCodeDbService = require('./hsnCodeDbService');
 const { getHeaderUdfValues, getLineUdfValues, getMarketingDocumentUdfs } = require('./udfMetadataService');
 
@@ -105,7 +106,7 @@ const lookupServiceItems = async () => {
 const getReferenceData = async () => {
   const [base, accounts, distributionRules, withholdingTaxCodes, sacCodes, locations, businessPartners, serviceItems, creditMemoUdfMetadata] = await Promise.all([
     arInvoiceDb.getReferenceData(),
-    masterDataDbService.searchAccounts('', '', 5000, 0),
+    getServiceDocumentAccounts(),
     masterDataDbService.lookupDistributionRules(),
     masterDataDbService.lookupWithholdingTaxCodes('', 200),
     hsnCodeDbService.getSACCodes('', 5000, 0),
@@ -120,15 +121,7 @@ const getReferenceData = async () => {
     items: serviceItems,
     locations,
     business_partners: businessPartners,
-    gl_accounts: accounts
-      .filter((account) => account.ActiveAccount !== 'tNO' && account.IsTitleAccount !== 'tYES')
-      .map((account) => ({
-        code: account.Code,
-        name: account.Name,
-        accountType: account.AccountType,
-        balance: account.Balance ?? 0,
-        inactive: account.ActiveAccount === 'tNO' ? 'Yes' : 'No',
-      })),
+    gl_accounts: accounts,
     distribution_rules: distributionRules,
     withholding_tax_codes: withholdingTaxCodes,
     sac_codes: sacCodes.map((sac) => ({
@@ -732,16 +725,6 @@ const getCustomerValidation = async (cardCode) => {
   return rows[0] || null;
 };
 
-const getPostingPeriodValidation = async (docDate) => {
-  const rows = await safe(db.query(`
-    SELECT TOP 1 AbsEntry, PeriodStat
-    FROM OFPR
-    WHERE @docDate BETWEEN F_RefDate AND T_RefDate
-      AND ISNULL(PeriodStat, 'N') <> 'C'
-  `, { docDate }));
-  return rows[0] || null;
-};
-
 const getBranchEnabled = async () => {
   const rows = await safe(db.query('SELECT COUNT(*) AS BranchCount FROM OBPL'));
   return Number(rows[0]?.BranchCount || 0) > 0;
@@ -777,7 +760,6 @@ module.exports = {
   getDocumentSeries: getServiceARCreditMemoDocumentSeries,
   getNextNumber,
   getCustomerValidation,
-  getPostingPeriodValidation,
   getBranchEnabled,
   getTaxCodeValidation,
   getServiceARCreditMemoList,

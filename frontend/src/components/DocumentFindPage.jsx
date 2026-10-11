@@ -1,3 +1,4 @@
+import SapDateInput from './common/SapDateInput';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -302,8 +303,8 @@ function DocumentFindPage({
 
           <div className="sap-find-field">
             <label className="form-label mb-1">Posting Date From</label>
-            <input
-              type="date"
+            <SapDateInput
+              
               className="form-control"
               name="postingDateFrom"
               value={filters.postingDateFrom}
@@ -314,8 +315,8 @@ function DocumentFindPage({
 
           <div className="sap-find-field">
             <label className="form-label mb-1">Posting Date To</label>
-            <input
-              type="date"
+            <SapDateInput
+              
               className="form-control"
               name="postingDateTo"
               value={filters.postingDateTo}

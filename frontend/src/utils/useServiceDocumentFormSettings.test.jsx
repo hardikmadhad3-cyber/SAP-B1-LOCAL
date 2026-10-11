@@ -162,4 +162,38 @@ describe('useServiceDocumentFormSettings company/schema lifecycle', () => {
     expect(result.current.formSettings.rowUdfs.U_CompanyB).toBeDefined();
     expect(saveFormSettings).not.toHaveBeenCalled();
   });
+
+  test('published service fields use only the active company SQL layout', async () => {
+    fetchFormSettings.mockImplementation(async () => ({
+      companyId: mockAuthState.company.companyId,
+      userId: 10,
+      settings: {},
+      queryLayout: {
+        formKey: FORM_KEY, version: 1, isPublished: true,
+        columns: [
+          { key: 'Description', fieldName: 'Dscription' },
+          { key: 'Agent', fieldName: mockAuthState.company.companyId === 7 ? 'U_CompanyA' : 'U_CompanyB' },
+        ],
+      },
+    }));
+    const propsForCompany = () => ({
+      company: mockAuthState.company,
+      headerUdfDefinitions: [],
+      rowUdfDefinitions: [{ key: mockAuthState.company.companyId === 7 ? 'U_CompanyA' : 'U_CompanyB' }],
+      matrixColumnDefinitions: [{ key: 'description', fieldName: 'Dscription', label: 'Description' }],
+    });
+    const { result, rerender } = renderHook((props) => useServiceDocumentFormSettings({
+      ...props, baseStorageKey: FORM_KEY, readSavedFormSettings: readSettings,
+    }), { initialProps: propsForCompany() });
+    act(() => result.current.hydrateFormSettings([], propsForCompany().rowUdfDefinitions, propsForCompany().matrixColumnDefinitions));
+    await waitFor(() => expect(result.current.formSettingsReady).toBe(true));
+    expect(result.current.effectiveMatrixColumns.map((field) => field.valueKey)).toEqual(['description', 'U_CompanyA']);
+
+    mockAuthState = { ...mockAuthState, company: companyB };
+    rerender(propsForCompany());
+    expect(result.current.formSettingsReady).toBe(false);
+    act(() => result.current.hydrateFormSettings([], propsForCompany().rowUdfDefinitions, propsForCompany().matrixColumnDefinitions));
+    await waitFor(() => expect(result.current.formSettingsReady).toBe(true));
+    expect(result.current.effectiveMatrixColumns.map((field) => field.valueKey)).toEqual(['description', 'U_CompanyB']);
+  });
 });

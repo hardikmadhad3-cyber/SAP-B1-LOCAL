@@ -35,6 +35,7 @@ export const SALES_DOCUMENT_SCHEMA_LOOKUP_SOURCES = new Set([
   'hsn-codes',
   'countries',
   'udf-valid-values',
+  'sap-user-values',
   'udf-linked-table',
   'udo',
 ]);

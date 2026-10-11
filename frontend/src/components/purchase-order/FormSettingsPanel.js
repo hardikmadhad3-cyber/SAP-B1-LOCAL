@@ -18,7 +18,8 @@ export const filterDuplicateRowUdfFields = (matrixFields = [], rowUdfFields = []
 
 export default function FormSettingsPanel(props) {
   const {
-    isOpen, onClose, matrixFields = [], rowUdfFields = [], formSettings = {},
+    isOpen, onClose, matrixFields = [], rowUdfFields = [], headerUdfFields = [],
+    showHeaderUdfSettings = false, formSettings = {},
     onSettingChange, onColumnOrderChange, isRefreshing = false, settingsLoaded = true,
     isSaving = false, hasUnsavedChanges = false, saveError = '', onSave, onCancel,
     settingsScopeLabel = '', variant = 'floating', className = '', style, showClose = true,
@@ -64,7 +65,7 @@ export default function FormSettingsPanel(props) {
           <div>
             <h6 className="mb-1">Form Settings</h6>
             <small className="text-muted">
-              {loading ? 'Loading company Form Settings...' : `Content Columns for ${settingsScopeLabel || 'the selected scope'}`}
+              {loading ? 'Loading company Form Settings...' : `${showHeaderUdfSettings ? 'Fields' : 'Content Columns'} for ${settingsScopeLabel || 'the selected scope'}`}
             </small>
           </div>
           {showClose ? <button type="button" onClick={close} aria-label="Close Form Settings"
@@ -117,6 +118,29 @@ export default function FormSettingsPanel(props) {
                   </div>
                 );
               })}
+
+              {showHeaderUdfSettings && headerUdfFields.length > 0 && (
+                <>
+                  <h6 className="border-bottom pb-2 mt-3 mb-2">Header User-Defined Fields</h6>
+                  {headerUdfFields.map((field) => {
+                    const setting = formSettings.headerUdfs?.[field.key] || {};
+                    const inputId = `form-setting-visible-headerUdfs-${field.key}`;
+                    return (
+                      <div key={field.key} className="d-flex align-items-center gap-2 border rounded px-2 py-2 mb-2">
+                        <span className="small flex-grow-1 text-truncate" title={field.label || field.key}>
+                          {field.label || field.key}
+                        </span>
+                        <div className="form-check mb-0">
+                          <input id={inputId} type="checkbox" className="form-check-input"
+                            checked={setting.visible !== undefined ? setting.visible !== false : field.visible !== false}
+                            onChange={(event) => onSettingChange?.('headerUdfs', field.key, 'visible', event.target.checked)} />
+                          <label className="form-check-label small" htmlFor={inputId}>Visible</label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </>
           )}
         </div>
@@ -125,8 +149,8 @@ export default function FormSettingsPanel(props) {
             {saveError ? <div className="small text-danger mb-2" role="alert">{saveError}</div> : (
               <div className="small text-muted mb-2" aria-live="polite">
                 {isSaving ? 'Saving for this user and company...' : hasUnsavedChanges
-                  ? 'Content-column visibility or order has unsaved changes.'
-                  : 'Content-column settings are saved.'}
+                  ? 'Field visibility or order has unsaved changes.'
+                  : 'Form settings are saved.'}
               </div>
             )}
             <div className="d-flex gap-2">

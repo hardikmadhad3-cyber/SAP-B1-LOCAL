@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -211,7 +212,7 @@ export default function PaymentMeansModal({
             {activeTab === "cheque" ? (
               <>
                 <label><span>G/L Account</span>{renderAccountField("cheque")}</label>
-                <label><span>Due Date</span><input type="date" value={means.cheque?.dueDate || today} onChange={(event) => updateSection("cheque", "dueDate", event.target.value)} /></label>
+                <label><span>Due Date</span><SapDateInput  value={means.cheque?.dueDate || today} onChange={(event) => updateSection("cheque", "dueDate", event.target.value)} /></label>
                 <label><span>Amount</span><input value={means.cheque?.amount || ""} onChange={(event) => updateSection("cheque", "amount", event.target.value)} /></label>
                 <label><span>Country/Region</span><input value={means.cheque?.country || ""} onChange={(event) => updateSection("cheque", "country", event.target.value)} /></label>
                 <label><span>Bank Name</span><input value={means.cheque?.bankName || ""} onChange={(event) => updateSection("cheque", "bankName", event.target.value)} /></label>
@@ -223,7 +224,7 @@ export default function PaymentMeansModal({
             {activeTab === "transfer" ? (
               <>
                 <label><span>G/L Account</span>{renderAccountField("transfer")}</label>
-                <label><span>Transfer Date</span><input type="date" value={means.transfer?.date || today} onChange={(event) => updateSection("transfer", "date", event.target.value)} /></label>
+                <label><span>Transfer Date</span><SapDateInput  value={means.transfer?.date || today} onChange={(event) => updateSection("transfer", "date", event.target.value)} /></label>
                 <label><span>Reference</span><input value={means.transfer?.reference || ""} onChange={(event) => updateSection("transfer", "reference", event.target.value)} /></label>
                 <label><span>Total</span><input value={means.transfer?.amount || ""} onChange={(event) => updateSection("transfer", "amount", event.target.value)} /></label>
               </>
@@ -234,7 +235,7 @@ export default function PaymentMeansModal({
                 <label><span>Credit Card Name</span><input value={means.creditCard?.cardName || ""} onChange={(event) => updateSection("creditCard", "cardName", event.target.value)} /></label>
                 <label><span>G/L Account</span>{renderAccountField("creditCard")}</label>
                 <label><span>Credit Card No.</span><input value={means.creditCard?.cardNumber || ""} onChange={(event) => updateSection("creditCard", "cardNumber", event.target.value)} /></label>
-                <label><span>Valid Until</span><input type="date" value={means.creditCard?.validUntil || ""} onChange={(event) => updateSection("creditCard", "validUntil", event.target.value)} /></label>
+                <label><span>Valid Until</span><SapDateInput  value={means.creditCard?.validUntil || ""} onChange={(event) => updateSection("creditCard", "validUntil", event.target.value)} /></label>
                 <label><span>ID No.</span><input value={means.creditCard?.idNumber || ""} onChange={(event) => updateSection("creditCard", "idNumber", event.target.value)} /></label>
                 <label><span>Telephone No.</span><input value={means.creditCard?.telephone || ""} onChange={(event) => updateSection("creditCard", "telephone", event.target.value)} /></label>
                 <label><span>Payment Method</span><input value={means.creditCard?.paymentMethod || ""} onChange={(event) => updateSection("creditCard", "paymentMethod", event.target.value)} /></label>

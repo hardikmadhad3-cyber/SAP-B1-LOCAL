@@ -1,7 +1,18 @@
 const CompressionPlugin = require("compression-webpack-plugin");
 const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer");
+const fs = require("fs");
+const path = require("path");
 
 const shouldAnalyze = process.env.ANALYZE === "true";
+
+const getBackendDevPort = () => {
+  const envPath = path.resolve(__dirname, "../backend/.env");
+  if (!fs.existsSync(envPath)) return 5001;
+
+  const portLine = fs.readFileSync(envPath, "utf8").match(/^\s*PORT\s*=\s*["']?(\d+)["']?\s*(?:#.*)?$/m);
+  const port = Number(portLine?.[1] || 5001);
+  return port > 0 && port <= 65535 ? port : 5001;
+};
 
 module.exports = {
   webpack: {
@@ -14,6 +25,13 @@ module.exports = {
           maxInitialRequests: 30,
           maxAsyncRequests: 30,
           cacheGroups: {
+            pdfVendor: {
+              test: /[\\/]node_modules[\\/]pdfjs-dist[\\/]/,
+              name: "vendor-pdf",
+              chunks: "async",
+              priority: 40,
+              enforce: true,
+            },
             reactVendor: {
               test: /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom)[\\/]/,
               name: "vendor-react",
@@ -88,6 +106,14 @@ module.exports = {
     },
   },
   devServer: (devServerConfig) => {
+    // Keep browser API calls same-origin in development, using the backend's
+    // configured port even when the frontend has no local .env file.
+    devServerConfig.proxy = [{
+      context: ["/api"],
+      target: `http://localhost:${getBackendDevPort()}`,
+      changeOrigin: true,
+    }];
+
     const onBeforeSetupMiddleware = devServerConfig.onBeforeSetupMiddleware;
     const onAfterSetupMiddleware = devServerConfig.onAfterSetupMiddleware;
     const existingSetupMiddlewares = devServerConfig.setupMiddlewares;

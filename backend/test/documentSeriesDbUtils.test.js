@@ -52,6 +52,14 @@ for (const dialect of ['hana', 'sqlserver']) {
     assert.equal(result.manualAllowed, false);
     assert.match(result.reason, /No posting period/);
   });
+  test(dialect + ': closing period keeps its series for SAP to authorize at submission', async () => {
+    const f = fixture(dialect);
+    f.tables.OFPR[0].PeriodStat = 'C';
+    const result = await run(f, { purpose: 'posting' });
+    assert.equal(result.postingPeriodValid, true);
+    assert.deepEqual(result.series.map(row => row.Series), [127]);
+    assert.equal(result.series[0].PostingEligible, true);
+  });
   test(dialect + ': display after calendar end uses last configured period, never series names', async () => {
     const f = fixture(dialect);
     f.tables.OFPR.push({Indicator:'OLD',F_RefDate:'2024-07-01',T_RefDate:'2025-06-30',Name:'Old period'});
@@ -96,9 +104,44 @@ for (const dialect of ['hana', 'sqlserver']) {
   test(dialect + ': requires selected branch and exact series branch', async () => {
     const f = fixture(dialect);
     f.tables.OADM[0].MltpBrnchs = 'Y'; f.tables.NNM1[0].BPLId = 2;
-    assert.equal((await run(f)).series.length, 0);
+    f.tables.OBPL = [{BPLId:1,Disabled:'N'}, {BPLId:2,Disabled:'N'}];
+    assert.deepEqual((await run(f)).series.map(row => row.Series), [127]);
+    assert.equal((await run(f)).reason, '');
     assert.equal((await run(f,{branch:1})).series.length, 0);
     assert.equal((await run(f,{branch:2})).series.length, 1);
+    assert.equal((await run(f,{purpose:'posting'})).series.length, 0);
+  });
+  test(dialect + ': blank document branch displays current series from assigned active branches', async () => {
+    const f = fixture(dialect);
+    f.tables.OADM[0].MltpBrnchs = 'Y';
+    f.tables.OBPL = [{ BPLId: 1, Disabled: 'N' }, { BPLId: 2, Disabled: 'Y' }, { BPLId: 3, Disabled: 'N' }, {BPLId:4,Disabled:'N'}];
+    f.tables.USR6 = [{ UserCode: 'manager', BPLId: 1 }, { UserCode: 'manager', BPLId: 3 }];
+    f.tables.NNM1 = [
+      {...f.tables.NNM1[0],Series:237,SeriesName:'TRA-2627',BPLId:1,NextNumber:1001,LastNum:9999},
+      {...f.tables.NNM1[0],Series:238,SeriesName:'BS-2627',BPLId:3,NextNumber:2007,LastNum:9999},
+      {...f.tables.NNM1[0],Series:239,SeriesName:'PI-2627',BPLId:3,NextNumber:3001,LastNum:9999},
+      {...f.tables.NNM1[0],Series:240,BPLId:2},
+      {...f.tables.NNM1[0],Series:241,BPLId:4},
+      {...f.tables.NNM1[0],Series:140,BPLId:null,Indicator:'OLD'},
+    ];
+    const userAccess = async () => ({ ...await access(), userCode: 'manager', superuser: true });
+    const result = await run(f, { accessLoader: userAccess });
+    assert.deepEqual(result.series.map(row => row.Series), [237,238,239]);
+    assert.equal(result.defaultSeries, 237);
+    assert.equal(result.series[0].NextNumber, 1001);
+    assert.equal(result.manualAllowed, true);
+    assert.equal(result.reason, '');
+    assert.deepEqual((await run(f, { branch: 1, accessLoader: userAccess })).series.map(row => row.Series), [237]);
+    assert.deepEqual((await run(f, { branch: 3, accessLoader: userAccess })).series.map(row => row.Series), [238,239]);
+    assert.deepEqual((await run(f, { branch: 4, accessLoader: userAccess })).series, []);
+    assert.deepEqual((await run(f, { purpose:'posting', accessLoader: userAccess })).series, []);
+  });
+  test(dialect + ': unassigned series remain available to every assigned branch when none have a branch', async () => {
+    const f = fixture(dialect);
+    f.tables.OADM[0].MltpBrnchs = 'Y';
+    f.tables.OBPL = [{BPLId:1,Disabled:'N'}, {BPLId:2,Disabled:'N'}];
+    assert.deepEqual((await run(f)).series.map(row => row.Series), [127]);
+    assert.deepEqual((await run(f,{branch:2})).series.map(row => row.Series), [127]);
   });
   test(dialect + ': optional columns are projected with safe defaults', async () => {
     const f = fixture(dialect);

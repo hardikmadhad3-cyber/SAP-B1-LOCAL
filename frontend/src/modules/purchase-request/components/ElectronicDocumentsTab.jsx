@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from 'react';
 
 export default function ElectronicDocumentsTab({ header, onHeaderChange }) {
@@ -46,8 +47,8 @@ export default function ElectronicDocumentsTab({ header, onHeaderChange }) {
 
           <div className="mb-2">
             <label className="form-label">Date Received</label>
-            <input
-              type="date"
+            <SapDateInput
+              
               className="form-control form-control-sm"
               name="dateReceived"
               value={header.dateReceived}

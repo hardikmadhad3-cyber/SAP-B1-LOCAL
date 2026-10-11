@@ -1,3 +1,4 @@
+import SapInput from '../components/common/SapInput';
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { fetchAccountingTransactionLookups, fetchAccountingTransactionReport } from "../api/accountingTransactionReportsApi";
@@ -217,9 +218,9 @@ function FinancialAccountingReportPage() {
   const range = (label, fromField, toField, type = "text", list) => (
     <div className="atr-range">
       <label>{label}</label><span>From</span>
-      <input type={type} list={list} value={criteria[fromField]} onChange={(event) => setField(fromField, event.target.value)} />
+      <SapInput type={type} list={list} value={criteria[fromField]} onChange={(event) => setField(fromField, event.target.value)} />
       <span>To</span>
-      <input type={type} list={list} value={criteria[toField]} onChange={(event) => setField(toField, event.target.value)} />
+      <SapInput type={type} list={list} value={criteria[toField]} onChange={(event) => setField(toField, event.target.value)} />
     </div>
   );
 

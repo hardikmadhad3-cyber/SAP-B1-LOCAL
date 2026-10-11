@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
@@ -3248,20 +3249,20 @@ function SODASalesOrder() {
                                         {/* Posting Date */}
                                         <div className="so-field">
                                             <label className="so-field__label">Posting Date *</label>
-                                            <input type="date" name="postingDate" className="so-field__input" value={header.postingDate} onChange={handleHeaderChange} />
+                                            <SapDateInput  name="postingDate" className="so-field__input" value={header.postingDate} onChange={handleHeaderChange} />
                                         </div>
 
                                         {/* Delivery Date */}
                                         <div className="so-field">
                                             <label className="so-field__label">Delivery Date</label>
-                                            <input type="date" name="deliveryDate" className="so-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
+                                            <SapDateInput  name="deliveryDate" className="so-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
                                         </div>
 
                                         {/* Document Date */}
                                         <div className="so-field">
                                             <label className="so-field__label">Document Date *</label>
-                                            <input
-                                                type="date"
+                                            <SapDateInput
+                                                
                                                 name="documentDate"
                                                 className="so-field__input"
                                                 value={header.documentDate}

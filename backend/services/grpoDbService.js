@@ -54,7 +54,7 @@ const getUdfValue = (udfs = {}, aliases = []) => {
 // ── REFERENCE DATA QUERIES ────────────────────────────────────────────────────
 
 const getVendors = () => safe(db.query(`
-  SELECT CardCode, CardName, CardType, Currency,
+  SELECT CardCode, CardName, CardType, Currency, Balance,
          VatGroup, GroupNum AS PayTermsGrpCode, ListNum
   FROM   OCRD
   WHERE  CardType = 'S'

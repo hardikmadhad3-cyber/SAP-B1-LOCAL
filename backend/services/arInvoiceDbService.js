@@ -121,6 +121,9 @@ const AR_INVOICE_MATRIX_COLUMN_DEFS = [
   { key: 'itemDescription', label: 'Item Description', minWidth: 240, sapField: 'Dscription', sapColumnIds: ['3', 'Dscription', 'ItemDescription', 'Item Description'] },
   { key: 'quantity', label: 'Quantity', minWidth: 90, numeric: true, sapField: 'Quantity', sapColumnIds: ['11', 'Quantity', 'Qty'] },
   { key: 'unitPrice', label: 'Unit Price', minWidth: 105, numeric: true, sapField: 'Price', alternativeFields: ['PriceBefDi'], sapColumnIds: ['14', 'Price', 'PriceBefDi', 'UnitPrice', 'Unit Price'] },
+  { key: 'noOfPackages', label: 'No. of Packages', minWidth: 120, numeric: true, sapField: 'PackQty', sapColumnIds: ['PackQty', 'No. of Packages', 'No Of Packages'] },
+  { key: 'priceAfterDiscount', label: 'Price after Discount', minWidth: 130, numeric: true, readOnly: true, sapField: 'Price', sapColumnIds: ['Price after Discount', 'PriceAfterDiscount'] },
+  { key: 'itemsPerUnit', label: 'Items per Unit', minWidth: 120, numeric: true, sapField: 'NumPerMsr', sapColumnIds: ['NumPerMsr', 'Items per Unit'] },
   { key: 'stdDiscount', label: 'Discount %', minWidth: 95, numeric: true, sapField: 'DiscPrcnt', sapColumnIds: ['15', 'DiscPrcnt', 'DiscountPercent', 'Discount %', 'Disc%'] },
   { key: 'taxCode', label: 'Tax Code', minWidth: 120, sapField: 'TaxCode', sapColumnIds: ['234000377', 'TaxCode', 'Tax Code'] },
   { key: 'wTaxLiable', label: 'WTax Liable', minWidth: 100, type: 'yesNo', sapField: 'WTLiable', sapColumnIds: ['18', 'WTLiable', 'WTax Liable'] },
@@ -136,7 +139,6 @@ const AR_INVOICE_MATRIX_COLUMN_DEFS = [
   { key: 'countryOfOrigin', label: 'Country/Region of Origin', minWidth: 185, sapField: 'CountryOrg', sapColumnIds: ['10002037', 'CountryOrg', 'Country/Region of Origin'] },
   { key: 'loc', label: 'Loc.', minWidth: 115, readOnly: true, sapField: 'LocCode', alternativeFields: ['WhsCode', 'BPLId'], sapColumnIds: ['10002047', 'LocCode', 'Location', 'Loc.'] },
   { key: 'qtyInventoryUom', label: 'Qty(Inventory UoM)', minWidth: 140, sapField: 'InvQty', sapColumnIds: ['38', 'InvQty', 'Qty(Inventory UoM)'] },
-  { key: 'changeQtyInvUomIndependently', label: 'Change Qty (Inv. UoM) Independently', minWidth: 230, type: 'checkbox', sapField: 'NumPerMsr', sapColumnIds: ['58', 'NumPerMsr', 'Change Qty (Inv. UoM) Independently'] },
   { key: 'uomGroup', label: 'UoM Group', minWidth: 125, readOnly: true, sapField: 'UomEntry', alternativeFields: ['UomCode'], sapColumnIds: ['82', 'UomEntry', 'UoM Group'] },
   { key: 'hsnCode', label: 'HSN', minWidth: 115, sapField: 'HsnEntry', sapColumnIds: ['254000391', 'HsnEntry', 'HSN', 'HSN/SAC'] },
   { key: 'sacCode', label: 'SAC', minWidth: 95, sapField: 'SacEntry', sapColumnIds: ['254000393', 'SacEntry', 'SAC'] },
@@ -523,7 +525,7 @@ const buildOptionalHeaderTextExpression = (metadata = {}, candidates = [], fallb
 // ── queries ───────────────────────────────────────────────────────────────────
 
 const getCustomers = () => safe(db.query(`
-  SELECT CardCode, CardName, CardType, Currency,
+  SELECT CardCode, CardName, CardType, Currency, Balance,
          VatGroup, GroupNum AS PayTermsGrpCode
   FROM   OCRD
   WHERE  CardType = 'C'
@@ -1340,6 +1342,9 @@ const getARInvoice = async (docEntry) => {
       T0.OpenQty AS OpenQuantity,
       ${optionalColumn(lineFieldMetadata, 'T0', 'ShipDate', 'ShipDate', 'NULL')},
       ${await getDocumentUnitPriceSql(db, 'INV1', 'T0')} AS UnitPrice,
+      ${optionalColumn(lineFieldMetadata, 'T0', 'Price', 'PriceAfterDiscount', 'NULL')},
+      ${optionalColumn(lineFieldMetadata, 'T0', 'PackQty', 'NoOfPackages', 'NULL')},
+      ${optionalColumn(lineFieldMetadata, 'T0', 'NumPerMsr', 'ItemsPerUnit', 'NULL')},
       T0.DiscPrcnt AS DiscountPercent,
       ${lineTaxExpression} AS TaxCode,
       T0.LineTotal,
@@ -1388,6 +1393,9 @@ const getARInvoice = async (docEntry) => {
         T0.Quantity AS OpenQuantity,
         ${optionalColumn(lineFieldMetadata, 'T0', 'ShipDate', 'ShipDate', 'NULL')},
         ${await getDocumentUnitPriceSql(db, 'INV1', 'T0')} AS UnitPrice,
+        ${optionalColumn(lineFieldMetadata, 'T0', 'Price', 'PriceAfterDiscount', 'NULL')},
+        ${optionalColumn(lineFieldMetadata, 'T0', 'PackQty', 'NoOfPackages', 'NULL')},
+        ${optionalColumn(lineFieldMetadata, 'T0', 'NumPerMsr', 'ItemsPerUnit', 'NULL')},
         T0.DiscPrcnt AS DiscountPercent,
         ${lineTaxExpression} AS TaxCode,
         T0.LineTotal,
@@ -1553,6 +1561,9 @@ const getARInvoice = async (docEntry) => {
         ...buildLineDeliveryDateFields(line),
         openQty: line.OpenQuantity != null ? String(line.OpenQuantity) : (line.Quantity != null ? String(line.Quantity) : ''),
         unitPrice: line.UnitPrice != null ? String(line.UnitPrice) : '',
+        priceAfterDiscount: line.PriceAfterDiscount != null ? String(line.PriceAfterDiscount) : '',
+        noOfPackages: line.NoOfPackages != null ? String(line.NoOfPackages) : '',
+        itemsPerUnit: line.ItemsPerUnit != null ? String(line.ItemsPerUnit) : '',
         UnitPrice: line.UnitPrice != null ? String(line.UnitPrice) : '',
         stdDiscount: line.DiscountPercent != null ? String(line.DiscountPercent) : '',
         DiscountPercent: line.DiscountPercent != null ? String(line.DiscountPercent) : '',

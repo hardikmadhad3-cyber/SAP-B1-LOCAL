@@ -1,3 +1,4 @@
+import SapInput from '../components/common/SapInput';
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -516,7 +517,7 @@ const renderField = (column, value, selectedRecord, isCreating, lookups, handleF
         />
       ) : isPasswordField ? (
         <div className="admin-input-with-action admin-password-field">
-          <input
+          <SapInput
             id={fieldId}
             className="admin-panel-input"
             type={isPasswordVisible ? 'text' : 'password'}
@@ -535,7 +536,7 @@ const renderField = (column, value, selectedRecord, isCreating, lookups, handleF
           </button>
         </div>
       ) : (
-        <input
+        <SapInput
           id={fieldId}
           className="admin-panel-input"
           type={column.inputType}

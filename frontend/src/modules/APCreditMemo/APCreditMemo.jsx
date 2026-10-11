@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
@@ -40,7 +41,7 @@ import {
   isManualDocumentSeries,
   isValidManualDocumentNumber,
 } from '../../utils/documentSeries';
-import { useCompanyScopedFormSettings } from '../../utils/formSettingsStorage';
+import { useStandardSalesFormSettings } from '../../utils/standardSalesFormSettings';
 import { buildCompanyFormQueryContext } from '../../utils/companyFormQueryContext';
 import { getDocumentLayout } from '../../api/sapLayoutApi';
 import { fetchSalesDocumentSchema } from '../../api/salesDocumentSchemaApi';
@@ -48,7 +49,8 @@ import { buildSalesDocumentLiveFields } from '../../utils/salesDocumentLiveField
 import { readGeneralSettings } from '../../utils/generalSettingsStorage';
 import { buildVisibleEnteredRowUdfPayload } from '../../utils/rowUdfPayload';
 import { getStateCodeValue, getStateDisplayName } from '../../utils/stateDisplay';
-import { calculateDocumentRounding, getDocumentRoundingPolicy } from '../../utils/documentRounding';
+import { calculateDocumentRounding, getDocumentRoundingPolicy, getDocumentRoundingPayloadAmount } from '../../utils/documentRounding';
+import DocumentRoundingInput from '../../components/sales-document/DocumentRoundingInput';
 import useSalesEmployeeSetup from '../../hooks/useSalesEmployeeSetup';
 import useDocumentDraftTask from '../../hooks/useDocumentDraftTask';
 import useValidationHighlights from '../../utils/useValidationHighlights';
@@ -501,13 +503,18 @@ function APCreditMemo() {
   const [attachments] = useState(INIT_ATTACH);
   const [activeTab, setActiveTab] = useState('Contents');
   const [headerUdfs, setHeaderUdfs] = useState(() => createUdfState(HEADER_UDF_DEFINITIONS));
-  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings, formSettingsStatus] = useCompanyScopedFormSettings(
-    FORM_SETTINGS_STORAGE_KEY,
+  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings,
+    formSettingsStatus, effectiveMatrixColumnDefinitions] = useStandardSalesFormSettings({
+    formKey: FORM_SETTINGS_STORAGE_KEY,
     readSavedFormSettings,
-    [headerUdfDefinitions, rowUdfDefinitions, matrixColumnDefinitions],
-    { saveMode: 'explicit', followPublishedVersion: true },
-  );
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+    headerUdfDefinitions,
+    rowUdfDefinitions,
+    matrixColumnDefinitions,
+    companyId: activeCompanyId,
+    companyDb: company?.dbName || '',
+    includeLineNumber: false,
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [refData, setRefData] = useState({
     company: '',
@@ -1189,7 +1196,7 @@ function APCreditMemo() {
     const rounding = calculateDocumentRounding(
       discSub + freight + taxAmt,
       header.rounding,
-      numDec.totalPaymentDue, currentDocEntry ? header : null, getDocumentRoundingPolicy(refData, header));
+      numDec.totalPaymentDue, (currentDocEntry || header.roundingAmountIsManual) ? header : null, getDocumentRoundingPolicy(refData, header));
     return { subtotal, discAmt, discSub, freight, freightTaxAmt, taxAmt, ...rounding, taxBreakdown: Array.from(taxMap.values()) };
   };
 
@@ -2194,7 +2201,8 @@ function APCreditMemo() {
       const prep = {
         ...header,
         deliveryDate: header.deliveryDate || header.postingDate || header.documentDate,
-        roundingAmount: totals.roundingAmount,
+        roundingAmount: getDocumentRoundingPayloadAmount(header, totals.roundingAmount),
+        roundingAmountIsManual: header.roundingAmountIsManual === true,
         series: isManualDocumentSeries(header.series) ? SAP_MANUAL_SERIES_VALUE : (header.series ? Number(header.series) : undefined),
         gstType: inferredGstType,
         allowGstOverride: false,
@@ -2486,17 +2494,17 @@ function APCreditMemo() {
                   </div>
                   <div className="po-field">
                     <label className="po-field__label">Posting Date *</label>
-                    <input type="date" name="postingDate" className={`po-field__input${valErrors.header.postingDate ? ' po-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} />
+                    <SapDateInput  name="postingDate" className={`po-field__input${valErrors.header.postingDate ? ' po-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} />
                     {valErrors.header.postingDate && <span className="po-error-feedback">{valErrors.header.postingDate}</span>}
                   </div>
                   <div className="po-field">
                     <label className="po-field__label">Due Date</label>
-                    <input type="date" name="deliveryDate" className={`po-field__input${valErrors.header.deliveryDate ? ' po-field__input--error' : ''}`} value={header.deliveryDate} onChange={handleHeaderChange} />
+                    <SapDateInput  name="deliveryDate" className={`po-field__input${valErrors.header.deliveryDate ? ' po-field__input--error' : ''}`} value={header.deliveryDate} onChange={handleHeaderChange} />
                     {valErrors.header.deliveryDate && <span className="po-error-feedback">{valErrors.header.deliveryDate}</span>}
                   </div>
                   <div className="po-field">
                     <label className="po-field__label">Document Date *</label>
-                    <input type="date" name="documentDate" className={`po-field__input${valErrors.header.documentDate ? ' po-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} />
+                    <SapDateInput  name="documentDate" className={`po-field__input${valErrors.header.documentDate ? ' po-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} />
                     {valErrors.header.documentDate && <span className="po-error-feedback">{valErrors.header.documentDate}</span>}
                   </div>
                 </div>
@@ -2533,7 +2541,7 @@ function APCreditMemo() {
                 onOpenLineLookup={openLineLookup}
                 getBranchName={getBranchName}
                 locationLookupOptions={locationLookupOptions}
-                matrixFields={matrixColumnDefinitions}
+                matrixFields={effectiveMatrixColumnDefinitions}
                 formSettings={formSettings}
                 rowUdfFields={rowUdfDefinitions}
                 onRowUdfChange={handleRowUdfChange}
@@ -2652,7 +2660,7 @@ function APCreditMemo() {
                             Rounding
                           </label>
                         </td>
-                        <td><input className="po-grid__input" value={fmtDec(totals.roundingAmount, numDec.totalPaymentDue)} readOnly style={{ background: '#f5f8fc' }} /></td>
+                        <td><DocumentRoundingInput className="po-grid__input" header={header} setHeader={setHeader} formattedAmount={fmtDec(totals.roundingAmount, numDec.totalPaymentDue)} disabled={!isDocumentEditable} onManualChange={markDirty} /></td>
                       </tr>
                       <tr>
                         <td style={{ fontWeight: 600 }}>Tax</td>
@@ -2745,7 +2753,7 @@ function APCreditMemo() {
             className="po-layout__sidebar"
             isOpen={formSettingsOpen}
             onClose={() => setFormSettingsOpen(false)}
-            matrixFields={matrixColumnDefinitions}
+            matrixFields={effectiveMatrixColumnDefinitions}
             headerUdfFields={sidebarHeaderUdfDefinitions}
             rowUdfFields={[]}
             formSettings={formSettings}

@@ -1324,7 +1324,7 @@ export default function IncomingPaymentsPage() {
           className="po-btn sap-document-toolbar__journal-preview"
         />
         <button type="button" className="po-btn" onClick={resetForm} disabled={posting}>Cancel</button>
-        <button type="button" className="po-btn" onClick={openFind}>Find</button>
+<button type="button" className="po-btn" data-sap-find-action onClick={openFind}>Find</button>
         <button type="button" className="po-btn sap-document-toolbar__settings" onClick={toggleFormSettings}>Form Settings</button>
         <button type="button" className="po-btn" onClick={deselectAll} disabled={posting || isFoundDocument}>Deselect All</button>
         <button type="button" className="po-btn" onClick={selectAll} disabled={posting || isFoundDocument}>Select All</button>

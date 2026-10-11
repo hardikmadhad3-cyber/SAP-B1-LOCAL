@@ -1,3 +1,4 @@
+import SapDateInput from '../components/common/SapDateInput';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
@@ -691,9 +692,9 @@ function InventoryPostingListReportPage() {
       <span>From</span>
       <div className="ipl-date-field">
         <input value={formState.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
-        <input
+        <SapDateInput
           ref={getDateNativeInputRef("dateFrom")}
-          type="date"
+          
           className="ipl-date-native-input"
           tabIndex={-1}
           value={parseSapDateToIso(formState.dateFrom)}
@@ -704,9 +705,9 @@ function InventoryPostingListReportPage() {
       <span>To</span>
       <div className="ipl-date-field">
         <input value={formState.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
-        <input
+        <SapDateInput
           ref={getDateNativeInputRef("dateTo")}
-          type="date"
+          
           className="ipl-date-native-input"
           tabIndex={-1}
           value={parseSapDateToIso(formState.dateTo)}

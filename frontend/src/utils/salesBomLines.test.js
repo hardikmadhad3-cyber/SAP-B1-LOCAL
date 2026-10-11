@@ -1,11 +1,19 @@
 import {
   calculateSalesBomComponentQuantity,
   expandSalesBomLines,
+  isSalesBomDefinition,
   isSalesBomComponentLine,
   normalizeSalesBomDocumentLines,
 } from './salesBomLines';
 
 describe('salesBomLines', () => {
+  test('treats a missing BOM response as a normal inventory item', () => {
+    expect(isSalesBomDefinition(null)).toBe(false);
+    expect(isSalesBomDefinition(undefined)).toBe(false);
+    const lines = [{ itemNo: 'D474', quantity: '1' }];
+    expect(expandSalesBomLines({ lines, lineIndex: 0, parentLine: lines[0], bom: null })).toBe(lines);
+  });
+
   test('calculates component quantities from the BOM parent ratio', () => {
     expect(calculateSalesBomComponentQuantity(3, 8, 2)).toBe(12);
     expect(calculateSalesBomComponentQuantity(3, 4, 2)).toBe(6);

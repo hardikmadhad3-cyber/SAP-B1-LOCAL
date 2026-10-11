@@ -1,6 +1,8 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
 import { calculateDocumentRounding, getDocumentRoundingPolicy } from '../../utils/documentRounding';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
+import { getWarehouseLocationCode } from '../../utils/warehouseLocation';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import './styles/Delivery.css';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -644,7 +646,7 @@ function NCDelivery() {
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [refData, setRefData] = useState({
     company: '', vendors: [], contacts: [], pay_to_addresses: [], ship_to_addresses: [], bill_to_addresses: [], items: [],
-    warehouses: [], warehouse_addresses: [], company_address: {}, tax_codes: [],
+    warehouses: [], locations: [], warehouse_addresses: [], company_address: {}, tax_codes: [],
     payment_terms: [], shipping_types: [], branches: [], uom_groups: [],
     distribution_rules: [], sales_employees: [], quality_options: { buyer: [], seller: [] }, price_options: { buyer: [], seller: [] },
     defaults: { toVendorCode: '' },
@@ -914,6 +916,7 @@ function NCDelivery() {
             bill_to_addresses: refDataRes.data.bill_to_addresses || [],
             items: refDataRes.data.items || [],
             warehouses: refDataRes.data.warehouses || [],
+            locations: refDataRes.data.locations || [],
             warehouse_addresses: refDataRes.data.warehouse_addresses || [],
             company_address: refDataRes.data.company_address || {},
             tax_codes: refDataRes.data.tax_codes || [],
@@ -1037,7 +1040,7 @@ function NCDelivery() {
         
         setLines(
           loadedLines.length
-            ? loadedLines.map(l => hydrateLoadedLine(l))
+            ? loadedLines.map(l => hydrateLoadedLine({ ...l, branch: l.branch || so.header?.branch || '' }))
             : [createLine(rowUdfDefinitions)]
         );
         
@@ -1212,7 +1215,7 @@ function NCDelivery() {
           taxCode: normalizedLine.taxCode || l.taxCode || l.TaxCode || l.VatGroup || '',
           stcode: normalizedLine.stcode || l.stcode || '',
           branch: normalizedLine.branch || copiedLocation.branch,
-          loc: normalizedLine.loc || copiedLocation.branch,
+          loc: normalizedLine.loc || getWarehouseLocationCode(refData.warehouses, normalizedLine.whse || l.whse || l.WarehouseCode || l.WhsCode || copiedLocation.warehouse),
           whse: normalizedLine.whse || l.whse || l.WarehouseCode || l.WhsCode || copiedLocation.warehouse || DEFAULT_WAREHOUSE,
           commission: normalizedLine.commission || l.commission || l.Commission || DEFAULT_COMMISSION_PERCENT,
           baseEntry,
@@ -2216,14 +2219,14 @@ function NCDelivery() {
     
     console.log('âž• [NC Delivery] Adding new line with header values:', {
       branch: header.branch,
-      loc: header.branch,
+      loc: getWarehouseLocationCode(refData.warehouses, header.warehouse),
       whse: header.warehouse
     });
     
     setLines(p => [...p, { 
       ...createLine(rowUdfDefinitions), 
       branch: header.branch || '', 
-      loc: header.branch || '',
+      loc: getWarehouseLocationCode(refData.warehouses, header.warehouse),
       whse: header.warehouse || ''
     }]);
   };
@@ -3016,8 +3019,7 @@ function NCDelivery() {
         console.log('ðŸ”„ [NC Delivery] Previous lines:', prev.map(l => ({ itemNo: l.itemNo, branch: l.branch, loc: l.loc })));
         const updated = prev.map(l => ({ 
           ...l, 
-          branch: String(header.branch), 
-          loc: String(header.branch)
+          branch: String(header.branch)
         }));
         console.log('âœ… [NC Delivery] Updated lines:', updated.map(l => ({ itemNo: l.itemNo, branch: l.branch, loc: l.loc })));
         return updated;
@@ -3036,8 +3038,7 @@ function NCDelivery() {
         console.log('ðŸ”„ [NC Delivery] Initial branch sync needed');
         setLines(prev => prev.map(l => ({ 
           ...l, 
-          branch: String(header.branch), 
-          loc: String(header.branch)
+          branch: String(header.branch)
         })));
       }
     }
@@ -3498,7 +3499,7 @@ function NCDelivery() {
         taxCode: normalizedLine.taxCode || line.taxCode || line.TaxCode || line.VatGroup || '',
         stcode: normalizedLine.stcode || line.stcode || '',
         branch: normalizedLine.branch || copiedLocation.branch,
-        loc: normalizedLine.loc || copiedLocation.branch,
+        loc: normalizedLine.loc || getWarehouseLocationCode(refData.warehouses, normalizedLine.whse || line.whse || line.WarehouseCode || line.WhsCode || copiedLocation.warehouse),
         whse: normalizedLine.whse || line.whse || line.WarehouseCode || line.WhsCode || copiedLocation.warehouse || DEFAULT_WAREHOUSE,
         commission: normalizedLine.commission || line.commission || line.Commission || DEFAULT_COMMISSION_PERCENT,
         inventoryManaged,
@@ -4159,19 +4160,19 @@ function NCDelivery() {
                     {/* Posting Date */}
                     <div className="del-field">
                       <label className="del-field__label">Posting Date *</label>
-                      <input type="date" name="postingDate" className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="postingDate" className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Delivery Date */}
                     <div className="del-field">
                       <label className="del-field__label">Delivery Date</label>
-                      <input type="date" name="deliveryDate" className="del-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="deliveryDate" className="del-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Document Date */}
                     <div className="del-field">
                       <label className="del-field__label">Document Date *</label>
-                      <input type="date" name="documentDate" className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="documentDate" className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} />
                     </div>
 
                   </div>
@@ -4198,6 +4199,7 @@ function NCDelivery() {
             {/* â•â• TAB CONTENT â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
             {activeTab === 'Contents' && (
               <ContentsTab
+                locations={refData.locations || []}
                 lines={lines}
                 onLineChange={handleLineChange}
                 onNumBlur={handleNumBlur}

@@ -25,6 +25,11 @@ const buildDocumentRoundingPayload = (header = {}) => {
   const roundingAmount = toOptionalRoundingAmount(
     header.roundingAmount ?? header.RoundingDiffAmount ?? header.RoundDif,
   );
+  if (header.roundingAmountIsManual === true && roundingAmount === undefined) {
+    const error = new Error('Enter a valid rounding amount.');
+    error.statusCode = 400;
+    throw error;
+  }
 
   return {
     Rounding,

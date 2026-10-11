@@ -5,6 +5,7 @@ const createHttpError = (statusCode, message) => {
 };
 
 const authDbService = require('./authDbService');
+const { syncStandardSalesRoleRights } = require('./standardSalesRoleRightsService');
 
 const APP_MENU_DEFINITIONS = [
   { key: 'dashboard', menuName: 'Dashboard', menuPath: '/dashboard', icon: 'dashboard', sortOrder: -1 },
@@ -125,6 +126,7 @@ const APP_MENU_DEFINITIONS = [
 
   { key: 'reports', menuName: 'Reports', icon: 'reports', sortOrder: 8 },
   { key: 'report-layout-manager', parentKey: 'reports', menuName: 'Report Layout Manager', menuPath: '/reportlayoutmanager', icon: 'report', sortOrder: 0, enforceSortOrder: true, enforceMenuName: true },
+  { key: 'company-reports', parentKey: 'reports', menuName: 'Company Reports', menuPath: '/reports/company', icon: 'report', sortOrder: 1 },
   { key: 'sales-analysis', parentKey: 'reports', menuName: 'Sales Analysis', menuPath: '/reports/sales/analysis', icon: 'report', sortOrder: 1 },
   { key: 'item-list-report', parentKey: 'reports', menuName: 'Item List', menuPath: '/reports/item-list', icon: 'report', sortOrder: 2 },
   { key: 'inventory-in-warehouse-report', parentKey: 'reports', menuName: 'Inventory in Warehouse Report', menuPath: '/reports/inventory/in-warehouse', icon: 'report', sortOrder: 3 },
@@ -213,13 +215,10 @@ const findExistingMenu = (menus, definition, parentId) => {
   }
 
   const menuNames = new Set([definition.menuName, ...(definition.aliases || [])].map(normalizeName));
-  return menus.find((menu) =>
-    menuNames.has(normalizeName(menu.MenuName))
-    && (menu.ParentId ?? null) === (parentId ?? null),
-  ) || menus.find((menu) =>
-    menuNames.has(normalizeName(menu.MenuName))
-    && Number(menu.ParentId) === Number(menu.MenuId),
-  ) || null;
+  const matchingMenus = menus.filter((menu) => menuNames.has(normalizeName(menu.MenuName)));
+  return matchingMenus.find((menu) => (menu.ParentId ?? null) === (parentId ?? null))
+    || matchingMenus.find((menu) => Number(menu.ParentId) === Number(menu.MenuId))
+    || (matchingMenus.length === 1 ? matchingMenus[0] : null);
 };
 
 const insertMenu = async (db, definition, parentId) => {
@@ -250,7 +249,7 @@ const insertMenu = async (db, definition, parentId) => {
   return inserted.recordset?.[0] || null;
 };
 
-const updateMenuMetadata = async (db, menu, definition, parentId, shouldUseCanonicalPath) => {
+const updateMenuMetadata = async (db, menu, definition, shouldUseCanonicalPath) => {
   const nextMenuName = definition.enforceMenuName
     ? normalizeText(definition.menuName)
     : (normalizeText(menu.MenuName) || normalizeText(definition.menuName));
@@ -262,7 +261,9 @@ const updateMenuMetadata = async (db, menu, definition, parentId, shouldUseCanon
   const nextSortOrder = definition.enforceSortOrder
     ? definitionSortOrder
     : (Number.isFinite(Number(menu.SortOrder)) ? Number(menu.SortOrder) : definitionSortOrder);
-  const nextParentId = parentId ?? null;
+  // Admin > Menus owns the placement of existing entries. The definition only
+  // supplies a parent when a menu is first inserted.
+  const nextParentId = menu.ParentId ?? null;
 
   if (
     normalizeText(menu.MenuName) === nextMenuName
@@ -467,7 +468,7 @@ const syncApplicationSidebarMenus = async (db) => {
       && normalizePath(existingMenu.MenuPath) !== normalizePath(definition.menuPath),
     );
     const syncedMenu = existingMenu
-      ? await updateMenuMetadata(db, existingMenu, definition, parentId, shouldUseCanonicalPath)
+      ? await updateMenuMetadata(db, existingMenu, definition, shouldUseCanonicalPath)
       : await insertMenu(db, definition, parentId);
 
     if (!existingMenu) {
@@ -523,36 +524,7 @@ const syncApplicationSidebarMenus = async (db) => {
     syncCount += await restrictMenuToAdminRoles(db, menuByKey.get(menuKey)?.MenuId);
   }
 
-  syncCount += await cloneRoleRightsForDuplicateMenu(
-    db,
-    menuByKey.get('sales-order')?.MenuId,
-    menuByKey.get('dc-sales-order')?.MenuId,
-  );
-  syncCount += await cloneRoleRightsForDuplicateMenu(
-    db,
-    menuByKey.get('sales-order')?.MenuId,
-    menuByKey.get('nc-sales-order')?.MenuId,
-  );
-  syncCount += await cloneRoleRightsForDuplicateMenu(
-    db,
-    menuByKey.get('sales-order')?.MenuId,
-    menuByKey.get('soda-sales-order')?.MenuId,
-  );
-  syncCount += await cloneRoleRightsForDuplicateMenu(
-    db,
-    menuByKey.get('delivery')?.MenuId,
-    menuByKey.get('dc-delivery')?.MenuId,
-  );
-  syncCount += await cloneRoleRightsForDuplicateMenu(
-    db,
-    menuByKey.get('delivery')?.MenuId,
-    menuByKey.get('nc-delivery')?.MenuId,
-  );
-  syncCount += await cloneRoleRightsForDuplicateMenu(
-    db,
-    menuByKey.get('delivery')?.MenuId,
-    menuByKey.get('soda-delivery')?.MenuId,
-  );
+  // Variant rights are migrated below, never cloned back from standard pages.
   syncCount += await cloneRoleRightsForDuplicateMenu(
     db,
     menuByKey.get('sales-analysis')?.MenuId,
@@ -658,6 +630,8 @@ const syncApplicationSidebarMenus = async (db) => {
     db,
     menuByKey.get('report-layout-manager')?.MenuId,
   );
+
+  if (await hasRoleRightsTable(db)) syncCount += await syncStandardSalesRoleRights(db);
 
   return syncCount;
 };

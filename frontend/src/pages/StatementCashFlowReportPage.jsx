@@ -1,3 +1,4 @@
+import SapDateInput from '../components/common/SapDateInput';
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
@@ -193,9 +194,9 @@ function StatementCashFlowReportPage() {
                   {DATE_TYPES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
                 </select>
                 <span>From</span>
-                <input type="date" value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
+                <SapDateInput  value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
                 <span>To</span>
-                <input type="date" value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
+                <SapDateInput  value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
                 <button type="button" className="scf-picker" aria-label="Open picker">=</button>
                 <span>Template</span>
                 <select className="scf-template" value={criteria.templateCode} onChange={(event) => setField("templateCode", event.target.value)}>
@@ -216,9 +217,9 @@ function StatementCashFlowReportPage() {
                   {DATE_TYPES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
                 </select>
                 <span>From</span>
-                <input type="date" value={criteria.previousDateFrom} onChange={(event) => setField("previousDateFrom", event.target.value)} />
+                <SapDateInput  value={criteria.previousDateFrom} onChange={(event) => setField("previousDateFrom", event.target.value)} />
                 <span>To</span>
-                <input type="date" value={criteria.previousDateTo} onChange={(event) => setField("previousDateTo", event.target.value)} />
+                <SapDateInput  value={criteria.previousDateTo} onChange={(event) => setField("previousDateTo", event.target.value)} />
                 <button type="button" className="scf-picker" aria-label="Open picker">=</button>
               </div>
 

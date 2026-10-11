@@ -9,6 +9,7 @@ import {
   supportsMultipleMenuWindows,
 } from '../utils/menuWindowNavigation';
 import { matchesSapSearchText } from '../utils/sapSearch';
+import { mergeReportSidebarRoots } from '../utils/mergeReportSidebarRoots';
 import '../styles/sidebar.css';
 
 const DASHBOARD_PATH = '/dashboard';
@@ -347,6 +348,7 @@ const mergeReportLayoutManagerIntoReports = (menus = []) => {
 
 const buildSidebarMenus = (menus = []) => {
   const { dashboardMenu, remainingMenus } = extractDashboardMenu(menus);
+  const mergedMenus = mergeReportSidebarRoots(remainingMenus);
 
   const shouldShowMasterChild = (item, menuPath) =>
     MASTER_VISIBLE_CHILDREN.has(normalizeMenuPriorityName(item?.menuName)) ||
@@ -380,7 +382,7 @@ const buildSidebarMenus = (menus = []) => {
 
   const visibleMenus = sortSalesMenuChildren(
     mergeReportLayoutManagerIntoReports(
-      normalizeReportSidebarTree(removeHiddenSidebarItems(remainingMenus)),
+      normalizeReportSidebarTree(removeHiddenSidebarItems(mergedMenus)),
     ),
   );
   return [

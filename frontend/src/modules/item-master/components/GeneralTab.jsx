@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from "react";
 import LookupField from "./LookupField";
 import ManageItemBySection from "./ManageItemBySection";
@@ -122,9 +123,9 @@ export default function GeneralTab({ form, onChange, onDefineManufacturer, mode 
             
             <div style={{ marginTop: "10px", marginLeft: "25px", display: "flex", gap: "10px", alignItems: "center" }}>
               <span>From</span>
-              <input type="date" className="im-field__input" style={{ width: "120px" }} name="ValidFrom" value={form.ValidFrom || ""} onChange={onChange} />
+              <SapDateInput  className="im-field__input" style={{ width: "120px" }} name="ValidFrom" value={form.ValidFrom || ""} onChange={onChange} />
               <span>To</span>
-              <input type="date" className="im-field__input" style={{ width: "120px" }} name="ValidTo" value={form.ValidTo || ""} onChange={onChange} />
+              <SapDateInput  className="im-field__input" style={{ width: "120px" }} name="ValidTo" value={form.ValidTo || ""} onChange={onChange} />
             </div>
           </div>
 

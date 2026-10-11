@@ -1,8 +1,33 @@
 import { useEffect, useRef } from 'react';
 import apiClient from '../api/client';
 import { getActiveToken } from '../auth/storage';
-import { pickDocumentSeries } from '../utils/seriesDefaults';
+import { getSapVisibleDocumentSeries, pickDocumentSeries } from '../utils/seriesDefaults';
 import { isManualDocumentSeries } from '../utils/documentSeries';
+import { readGeneralSettings } from '../utils/generalSettingsStorage';
+
+const seriesSettingKeys = {
+  '/sales-order': 'salesSeries',
+  '/delivery': 'deliverySeries',
+  '/dc-sales-order': 'dcSalesSeries',
+  '/nc-sales-order': 'ncSalesSeries',
+  '/soda-sales-order': 'sodaSalesSeries',
+  '/dc-delivery': 'dcDeliverySeries',
+  '/nc-delivery': 'ncDeliverySeries',
+  '/soda-delivery': 'sodaDeliverySeries',
+  '/sales-quotation': 'salesQuotationSeries',
+  '/ar-invoice': 'arInvoiceSeries',
+  '/ar-credit-memo': 'arCreditMemoSeries',
+  '/purchase-request': 'purchaseRequestSeries',
+  '/purchase-quotation': 'purchaseQuotationSeries',
+  '/purchase-order': 'purchaseOrderSeries',
+  '/grpo': 'grpoSeries',
+  '/ap-invoice': 'apInvoiceSeries',
+  '/ap-credit-memo': 'apCreditMemoSeries',
+  '/services/ar-invoice': 'arInvoiceSeries',
+  '/services/ar-credit-memo': 'arCreditMemoSeries',
+  '/services/ap-invoice': 'apInvoiceSeries',
+  '/services/ap-credit-memo': 'apCreditMemoSeries',
+};
 
 // A single owner for new-document series. Lookup responses belong to one
 // company/user, posting date, branch and subtype; superseded responses are ignored.
@@ -24,8 +49,10 @@ export default function useDocumentSeries({ endpoint, companyKey, currentDocEntr
       return undefined;
     }
     if (!ready) return undefined;
-    const companyScope = JSON.stringify([companyKey, token]);
+    const companyScope = JSON.stringify([companyKey, token, endpoint]);
     const previousSelection = lastCompany.current === companyScope ? selection.current : '';
+    // Read the active user's company settings afresh, never a previous page's header.
+    const configuredSeries = readGeneralSettings()[seriesSettingKeys[endpoint]] || '';
     lastCompany.current = companyScope;
     const requestId = ++generation.current;
     const controller = new AbortController();
@@ -46,7 +73,8 @@ export default function useDocumentSeries({ endpoint, companyKey, currentDocEntr
         setRefData((prev) => ({ ...prev, series: rows, manualAllowed: data.manualAllowed === true, defaultSeries: data.defaultSeries }));
         setHeader((prev) => {
           if (isManualDocumentSeries(previousSelection) && data.manualAllowed === true) return { ...prev, series: previousSelection };
-          const selected = pickDocumentSeries(rows, previousSelection);
+          const selected = getSapVisibleDocumentSeries(rows).find(row => String(row.Series) === String(previousSelection))
+            || pickDocumentSeries(rows, configuredSeries);
           return { ...prev, series: selected ? String(selected.Series) : '', nextNumber: selected ? String(selected.NextNumber ?? '') : '' };
         });
         setPageState((prev) => ({

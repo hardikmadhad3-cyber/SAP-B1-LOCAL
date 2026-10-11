@@ -16,8 +16,8 @@ export const DECIMAL_CONFIG = {
 // ─── HEADER FIELDS ────────────────────────────────────────────────────────────
 export const HEADER_FIELDS = {
   // Customer Section
-  customerCode: { label: 'Customer Code', required: true, type: 'select', section: 'customer' },
-  customerName: { label: 'Customer Name', required: true, type: 'text', section: 'customer' },
+  customerCode: { label: 'Buyer Code', required: true, type: 'select', section: 'customer' },
+  customerName: { label: 'Buyer Name', required: true, type: 'text', section: 'customer' },
   contactPerson: { label: 'Contact Person', required: false, type: 'select', section: 'customer' },
   customerRefNo: { label: 'Customer Ref. No.', required: false, type: 'text', section: 'customer' },
   

@@ -230,6 +230,7 @@ export const normaliseDocumentLine = (line, idx, docEntry, baseType, headerBranc
   itemDescription: firstString(line.itemDescription, line.ItemDescription, line.Dscription),
   requiredDate:    formatDateForInput(firstValue(line.requiredDate, line.RequiredDate, line.ReqDate, line.udf?.U_Required_Date, line.udf?.U_ReqDate)),
   noOfPackages:    firstString(line.noOfPackages, line.NoOfPackages, line.PackageQuantity, line.PackQty, line.Packages, line.NumOfPacks),
+  itemsPerUnit:     firstString(line.itemsPerUnit, line.ItemsPerUnit, line.NumPerMsr),
   quotedDate:      formatDateForInput(firstValue(line.quotedDate, line.QuotedDate, line.ShipDate, line.udf?.U_Quoted_Date, line.udf?.U_QuoteDate)),
   requiredQty:     firstString(line.requiredQty, line.RequiredQty, line.RequiredQuantity, line.udf?.U_Req_Qty, line.udf?.U_ReqQty),
   sellerQuality:   firstString(line.sellerQuality, line.SellerQuality),

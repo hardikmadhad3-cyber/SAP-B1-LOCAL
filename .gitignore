@@ -3,6 +3,7 @@ node_modules/
 build/
 dist/
 coverage/
+frontend/public/pdfjs-assets/
 .cache/
 
 # Local configuration and credentials
@@ -12,6 +13,7 @@ coverage/
 !.env.example
 
 # Runtime data and user uploads
+/backend/data/
 *.sqlite
 *.sqlite3
 *.db

@@ -11,6 +11,16 @@ export const roundDocumentValue = (value, decimals = 2) => {
 
 export const calculateDocumentRounding = (value, enabled, decimals = 2, savedHeader = null, policy = null) => {
   const totalBeforeRounding = roundDocumentValue(value, decimals);
+  const manualAmount = savedHeader?.roundingAmount;
+  if (enabled && savedHeader?.roundingAmountIsManual === true
+      && manualAmount !== '' && manualAmount !== null && manualAmount !== undefined
+      && Number.isFinite(Number(manualAmount))) {
+    return {
+      totalBeforeRounding,
+      roundingAmount: Number(manualAmount),
+      total: roundDocumentValue(totalBeforeRounding + Number(manualAmount), decimals),
+    };
+  }
   // RoundDif and DocTotal are SAP-owned values, not a whole-currency-unit rule.
   // Reuse a saved result only while its monetary basis still matches the form.
   const savedAmount = savedHeader?.roundingAmount ?? savedHeader?.RoundingDiffAmount ?? savedHeader?.RoundDif;
@@ -40,6 +50,10 @@ export const getDocumentRoundingPolicy = (referenceData = {}, header = {}) => {
   const currency = rows.find(row => String(row.CurrCode || row.code || '').toUpperCase() === code);
   return { method: referenceData.rounding_settings?.method, roundingSystem: currency?.RoundSys };
 };
+
+export const getDocumentRoundingPayloadAmount = (header, calculatedAmount) => (
+  header?.roundingAmountIsManual === true ? header.roundingAmount : calculatedAmount
+);
 
 // Small saved SAP adjustments must not disappear at the document's display precision.
 export const formatDocumentRoundingAmount = (value, decimals = 2) => {

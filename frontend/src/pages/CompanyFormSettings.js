@@ -1,3 +1,4 @@
+import SapInput from '../components/common/SapInput';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -272,7 +273,7 @@ export default function CompanyFormSettings() {
                 ['branchId', 'Branch ID', 'number'],
               ].map(([name, label, type]) => (
                 <label key={name}>{label}
-                  <input
+                  <SapInput
                     className="admin-panel-input"
                     type={type}
                     value={context[name]}

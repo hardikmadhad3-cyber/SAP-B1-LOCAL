@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import useDocumentSeries from './useDocumentSeries';
 import apiClient from '../api/client';
 import { getActiveToken } from '../auth/storage';
+import { readGeneralSettings } from '../utils/generalSettingsStorage';
+jest.mock('../utils/generalSettingsStorage', () => ({ readGeneralSettings: jest.fn() }));
 jest.mock('../api/client', () => ({ get: jest.fn() }));
 jest.mock('../auth/storage', () => ({ getActiveToken: jest.fn() }));
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => {resolve=a;reject=b;});return {promise,resolve,reject}; };
@@ -10,18 +12,77 @@ function useHarness(props) {
   const [header,setHeader]=useState({postingDate:'2026-02-15',series:'',nextNumber:'',branch:''});
   const [refData,setRefData]=useState({});
   const [pageState,setPageState]=useState({});
-  useDocumentSeries({endpoint:'/sales-order',companyKey:props.company,currentDocEntry:props.docEntry,
+  useDocumentSeries({endpoint:props.endpoint || '/sales-order',companyKey:props.company,currentDocEntry:props.docEntry,
     refreshKey:props.revision,header,setHeader,setRefData,setPageState});
   return {header,refData,pageState,setHeader};
 }
 const response = (id,name='Series',extra={}) => ({data:{series:[{Series:id,SeriesName:name,NextNumber:335,IsDefault:true}],manualAllowed:true,...extra}});
-beforeEach(()=>{jest.clearAllMocks();getActiveToken.mockReturnValue('company-a-token');});
+beforeEach(()=>{jest.clearAllMocks();getActiveToken.mockReturnValue('company-a-token');readGeneralSettings.mockReturnValue({});});
+
+test.each([
+ ['/sales-order','salesSeries',443], ['/delivery','deliverySeries',445],
+ ['/sales-quotation','salesQuotationSeries',446], ['/ar-invoice','arInvoiceSeries',447],
+ ['/ar-credit-memo','arCreditMemoSeries',448], ['/purchase-order','purchaseOrderSeries',449],
+ ['/grpo','grpoSeries',450], ['/ap-invoice','apInvoiceSeries',451],
+ ['/ap-credit-memo','apCreditMemoSeries',452], ['/services/ar-invoice','arInvoiceSeries',447],
+])('applies saved user preference on %s instead of SAP default',async(endpoint,key,id)=>{
+ readGeneralSettings.mockReturnValue({[key]:String(id)});
+ apiClient.get.mockResolvedValue({data:{series:[{Series:1,IsDefault:true,NextNumber:10},{Series:id,NextNumber:20}]}});
+ const {result}=renderHook(useHarness,{initialProps:{company:'A',endpoint}});
+ await waitFor(()=>expect(result.current.header.series).toBe(String(id)));
+ expect(result.current.header.nextNumber).toBe('20');
+});
+
+test.each([{Series:443,Locked:'Y'},{Series:443,Eligible:false},{Series:443,IsLoadedDocumentSeries:true},null])('falls back when configured series is unavailable: %s',async(row)=>{
+ readGeneralSettings.mockReturnValue({salesSeries:'443'});
+ apiClient.get.mockResolvedValue({data:{series:[{Series:1,IsDefault:true},...(row?[row]:[])]}});
+ const {result}=renderHook(useHarness,{initialProps:{company:'A'}});
+ await waitFor(()=>expect(result.current.header.series).toBe('1'));
+});
+
+test('preserves an eligible user choice on refresh and restores preference for a new blank document',async()=>{
+ readGeneralSettings.mockReturnValue({salesSeries:'443'});
+ apiClient.get.mockResolvedValue({data:{series:[{Series:1,IsDefault:true},{Series:443},{Series:444}]}});
+ const {result,rerender}=renderHook(useHarness,{initialProps:{company:'A',revision:0}});
+ await waitFor(()=>expect(result.current.header.series).toBe('443'));
+ act(()=>result.current.setHeader(h=>({...h,series:'444'})));
+ rerender({company:'A',revision:1});
+ await waitFor(()=>expect(result.current.header.series).toBe('444'));
+ act(()=>result.current.setHeader(h=>({...h,series:''})));
+ rerender({company:'A',revision:2});
+ await waitFor(()=>expect(result.current.header.series).toBe('443'));
+});
+
+test('switching company or user reads their own preference even with overlapping series',async()=>{
+ readGeneralSettings.mockReturnValue({salesSeries:'443'});
+ apiClient.get.mockResolvedValue({data:{series:[{Series:1,IsDefault:true},{Series:443},{Series:445}]}});
+ const {result,rerender}=renderHook(useHarness,{initialProps:{company:'A'}});
+ await waitFor(()=>expect(result.current.header.series).toBe('443'));
+ readGeneralSettings.mockReturnValue({salesSeries:'445'});
+ getActiveToken.mockReturnValue('company-b-token');
+ rerender({company:'B'});
+ await waitFor(()=>expect(result.current.header.series).toBe('445'));
+ readGeneralSettings.mockReturnValue({});
+ getActiveToken.mockReturnValue('different-user-token');
+ rerender({company:'B'});
+ await waitFor(()=>expect(result.current.header.series).toBe('1'));
+});
 test('loads default and preview without refetch loop',async()=>{
  apiClient.get.mockResolvedValue(response(127));
  const {result}=renderHook(useHarness,{initialProps:{company:'A'}});
  await waitFor(()=>expect(result.current.header.series).toBe('127'));
  expect(result.current.header.nextNumber).toBe('335');
  expect(apiClient.get).toHaveBeenCalledTimes(1);
+});
+test('loads SAP series while the document branch is blank',async()=>{
+ apiClient.get.mockResolvedValue(response(237,'TRA-2627'));
+ const {result}=renderHook(useHarness,{initialProps:{company:'A'}});
+ await waitFor(()=>expect(result.current.header.series).toBe('237'));
+ expect(result.current.header.branch).toBe('');
+ expect(result.current.header.nextNumber).toBe('335');
+ expect(apiClient.get).toHaveBeenCalledTimes(1);
+ expect(apiClient.get.mock.calls[0][1].params.branch).toBe('');
+ expect(result.current.pageState.seriesError).toBe('');
 });
 test('ignores old company response even when series IDs overlap',async()=>{
  const old=deferred(),next=deferred();apiClient.get.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);

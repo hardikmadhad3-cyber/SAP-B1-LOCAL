@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   createQcTransaction,
@@ -210,7 +211,7 @@ export default function QcTransactionsWorkspacePage({
             </select>
           </label>
           <label><span>Inspector</span><input className="qc-input" value={form.inspector_name} onChange={(e) => setForm((c) => ({ ...c, inspector_name: e.target.value }))} /></label>
-          <label><span>Inspection Date</span><input className="qc-input" type="date" value={form.inspection_date || ''} onChange={(e) => setForm((c) => ({ ...c, inspection_date: e.target.value }))} /></label>
+          <label><span>Inspection Date</span><SapDateInput className="qc-input"  value={form.inspection_date || ''} onChange={(e) => setForm((c) => ({ ...c, inspection_date: e.target.value }))} /></label>
           <label className="qc-workspace__transaction-remarks"><span>Remarks</span><textarea className="qc-input qc-workspace__textarea" value={form.remarks} onChange={(e) => setForm((c) => ({ ...c, remarks: e.target.value }))} /></label>
           <div className="qc-actions qc-workspace__transaction-actions">
             <button type="button" className="qc-btn qc-btn--primary" disabled={loading} onClick={save}>{editingId ? 'Update' : 'Add'}</button>

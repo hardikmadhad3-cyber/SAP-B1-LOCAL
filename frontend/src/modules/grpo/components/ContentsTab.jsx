@@ -1,3 +1,6 @@
+import SapLookupTextInput from '../../../components/common/SapLookupTextInput';
+import SapInput from '../../../components/common/SapInput';
+import LiveUdfValueInput from '../../../components/sales-document/LiveUdfValueInput';
 import React from 'react';
 import { isBaseDocumentLine } from '../../../utils/documentUom';
 import TaxCodeLookup from '../../../components/TaxCodeLookup';
@@ -208,6 +211,10 @@ function EditableContentsTab({
     const disabled = !isActive || field?.active === false || field?.readOnly;
     const optionsList = field?.options || [];
 
+    if (field?.lookupSource) {
+      return <LiveUdfValueInput field={field} line={line} value={line[col.key] || ''} disabled={disabled} onChange={(nextValue) => onLineChange(index, { target: { name: col.key, value: nextValue } })} />;
+    }
+
     if (field?.type === 'select' || optionsList.length > 0 || isSapPairDropdownField(field || col)) {
       return (
         <select
@@ -237,7 +244,7 @@ function EditableContentsTab({
     }
 
     return (
-      <input
+      <SapInput
         className="so-grid__input"
         type={field?.type === 'date' ? 'date' : NUMERIC_FIELDS.has(col.key) || field?.type === 'number' ? 'number' : 'text'}
         name={col.key}
@@ -254,6 +261,10 @@ function EditableContentsTab({
     const disabled = !isActive || field.active === false || field.readOnly === true;
     const value = line.udf?.[field.key] ?? '';
     const updateValue = (nextValue) => onRowUdfChange && onRowUdfChange(index, field.key, nextValue);
+
+    if (field.lookupSource) {
+      return <LiveUdfValueInput field={field} line={line} value={value} disabled={disabled} onChange={updateValue} />;
+    }
 
     if (field.type === 'select' || (field.options || []).length || isSapPairDropdownField(field)) {
       return (
@@ -284,7 +295,7 @@ function EditableContentsTab({
     }
 
     return (
-      <input
+      <SapInput
         className="so-grid__input"
         type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
         value={value}
@@ -385,7 +396,7 @@ function EditableContentsTab({
                   if (col.key === 'itemNo') return (
                     <td key={col.key}>
                       <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                        <input
+                        <SapLookupTextInput
                           className="so-grid__input"
                           style={{ flex: 1, textAlign: 'left', border: valErrors.lines[index]?.itemNo ? '1px solid #c00' : undefined }}
                           name="itemNo" value={line.itemNo || ''} disabled={!isActive}
@@ -540,7 +551,7 @@ function EditableContentsTab({
 
                   return (
                     <td key={col.key}>
-                      <input
+                      <SapInput
                         className="so-grid__input"
                         type={NUMERIC_FIELDS.has(col.key) ? 'number' : 'text'}
                         style={{ border: valErrors.lines[index]?.[col.key] ? '1px solid #c00' : undefined, background: isTotal ? '#f5f8fc' : undefined }}

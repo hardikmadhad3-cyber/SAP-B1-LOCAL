@@ -175,16 +175,25 @@ const getAllowedReportMenuIdsForCompany = async (companyId) => {
   }
 
   const rows = await authDbService.queryRows(`
-    SELECT ReportMenuId
+    SELECT ReportMenuId, ParentId
     FROM dbo.ReportMenus
     WHERE CompanyId = @companyId
   `, { companyId: Number(companyId) });
-
-  return new Set(
-    rows
-      .map((row) => Number(row.ReportMenuId))
-      .filter((value) => Number.isInteger(value)),
-  );
+  const reportRows = await authDbService.queryRows(`
+    SELECT DISTINCT ReportMenuId
+    FROM dbo.Reports
+    WHERE CompanyId = @companyId AND ReportMenuId IS NOT NULL
+  `, { companyId: Number(companyId) });
+  const byId = new Map(rows.map((row) => [Number(row.ReportMenuId), row]));
+  const allowed = new Set();
+  for (const report of reportRows) {
+    let menu = byId.get(Number(report.ReportMenuId));
+    while (menu && !allowed.has(Number(menu.ReportMenuId))) {
+      allowed.add(Number(menu.ReportMenuId));
+      menu = byId.get(Number(menu.ParentId));
+    }
+  }
+  return allowed;
 };
 
 const syncAdminRoleRightsForRole = async (db, roleId, roleName = '') => {

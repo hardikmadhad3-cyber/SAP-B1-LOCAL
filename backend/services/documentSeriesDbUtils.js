@@ -10,6 +10,20 @@ const seriesPermissionObjects = new Set([
 ]);
 const seriesError = (message, statusCode = 422) => Object.assign(new Error(message), { statusCode, code: 'SAP_DOCUMENT_SERIES' });
 
+const loadAllowedBranches = async (read, access) => {
+  const branches = await read('OBPL', ['BPLId', ['Disabled', "'N'"]], {}, { optional: true });
+  const active = branches.filter(row => !isTrue(row.Disabled) && Number(row.BPLId) > 0)
+    .map(row => text(row.BPLId));
+  if (!active.length) return new Set();
+  const assignments = access.userCode
+    ? await read('USR6', ['BPLId', 'UserCode'], { UserCode: access.userCode }, { optional: true }) : [];
+  // SAP exposes series for the user's assigned active branches before a
+  // document branch is chosen. Superusers may have no USR6 rows on older DBs.
+  if (!access.userCode || (access.superuser && !assignments.length)) return new Set(active);
+  const assigned = new Set(assignments.map(row => text(row.BPLId)));
+  return new Set(active.filter(id => assigned.has(id)));
+};
+
 const createSeriesReader = async (db) => {
   const scope = await resolveDatabaseScope(db);
   if (!readers.has(db)) readers.set(db, createTableFieldMetadataReader({ database: db }));
@@ -76,11 +90,21 @@ const resolveMarketingDocumentSeries = async ({ db, objectCode, targetDate, bran
     : currentPeriods;
   const multipleBranches = isTrue(admin[0]?.MltpBrnchs);
   const needsBranch = multipleBranches && !(branchId > 0);
-  let candidates = needsBranch ? [] : rows.filter((row) => {
+  const allowedBranches = multipleBranches ? await loadAllowedBranches(read, access) : null;
+  const hasAssignedSeries = rows.some(row => Number(row.BPLId) > 0
+    && normalizeDocumentSubType(row.DocSubType) === subtype
+    && displayPeriods.some(period => text(period.Indicator) === text(row.Indicator)));
+  let candidates = needsBranch && purpose !== 'display' ? [] : rows.filter((row) => {
     if (Number(row.Series) <= 0 || isTrue(row.IsManual) || isTrue(row.Locked) || isTrue(row.IsForCncl) || text(row.SeriesType) !== 'D') return false;
     if (normalizeDocumentSubType(row.DocSubType) !== subtype) return false;
     if (!displayPeriods.some((period) => text(period.Indicator) === text(row.Indicator))) return false;
-    if (multipleBranches && Number(row.BPLId) !== branchId) return false;
+    if (multipleBranches) {
+      const seriesBranch = text(row.BPLId);
+      if (Number(row.BPLId) > 0) {
+        if (!allowedBranches.has(seriesBranch) || (branchId && Number(row.BPLId) !== branchId)) return false;
+      } else if (hasAssignedSeries || !allowedBranches.size) return false;
+      if (branchId && !allowedBranches.has(text(branchId))) return false;
+    }
     const next = Number(row.NextNumber);
     return Number.isSafeInteger(next) && next > 0
       && (!(Number(row.LastNum) > 0) || next <= Number(row.LastNum))
@@ -94,7 +118,8 @@ const resolveMarketingDocumentSeries = async ({ db, objectCode, targetDate, bran
   const defaultSeries = chooseDefaultSeries(candidates,
     userDefaults.filter(matchesSubtype).map((row) => row.Series),
     numbering.filter(matchesSubtype).map((row) => row.DfltSeries ?? row.DfltSerie));
-  const manualAllowed = access.manualAllowed && displayPeriods.length > 0 && !needsBranch;
+  const manualAllowed = access.manualAllowed && displayPeriods.length > 0
+    && (!multipleBranches || (allowedBranches.size > 0 && (purpose === 'display' || !needsBranch)));
   const series = candidates.map((row) => {
     const period = displayPeriods.find((item) => text(item.Indicator) === text(row.Indicator));
     return { ...row, DisplayName: row.SeriesName, RawSeriesName: row.SeriesName,
@@ -107,7 +132,7 @@ const resolveMarketingDocumentSeries = async ({ db, objectCode, targetDate, bran
   return { series, defaultSeries, manualAllowed, postingDate: date, docSubType: subtype, country: text(admin[0]?.Country).toUpperCase(),
     postingPeriodValid: currentPeriods.length > 0,
     periodContextSource: currentPeriods.length ? 'posting-date' : displayPeriods.length ? 'last-configured-period' : 'none',
-    reason: needsBranch ? 'Select a branch to load document series.' : !displayPeriods.length ? 'No posting period covers this posting date.' : !series.length ? 'No eligible automatic series for this posting date, branch and SAP user.' : '' };
+    reason: needsBranch && purpose !== 'display' ? 'Select a branch before posting this document.' : !displayPeriods.length ? 'No posting period covers this posting date.' : !series.length ? 'No eligible automatic series for this posting date, branch and SAP user.' : '' };
 };
 const getMarketingDocumentSeries = async (options) => {
   const result = await resolveMarketingDocumentSeries(options);

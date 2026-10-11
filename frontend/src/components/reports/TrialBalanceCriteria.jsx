@@ -1,3 +1,4 @@
+import SapDateInput from '../common/SapDateInput';
 import React, { useState } from "react";
 
 const ACCOUNT_GROUPS = [
@@ -83,9 +84,9 @@ export function TrialBalanceCriteria({ criteria, lookups, setField, openModal })
         <strong>Date</strong>
         <select value={criteria.dateType} onChange={(event) => setField("dateType", event.target.value)}>{lookups.dateTypes.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select>
         <span>From</span>
-        <input type="date" value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
+        <SapDateInput  value={criteria.dateFrom} onChange={(event) => setField("dateFrom", event.target.value)} />
         <span>To</span>
-        <input type="date" value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
+        <SapDateInput  value={criteria.dateTo} onChange={(event) => setField("dateTo", event.target.value)} />
       </div>
 
       <div className="tb-lower-grid">

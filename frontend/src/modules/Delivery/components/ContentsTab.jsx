@@ -1,3 +1,5 @@
+import SapLookupTextInput from '../../../components/common/SapLookupTextInput';
+import SapInput from '../../../components/common/SapInput';
 import React from 'react';
 import { isBaseDocumentLine } from '../../../utils/documentUom';
 import DocumentLineSettingsLoading from '../../../components/sales-document/DocumentLineSettingsLoading';
@@ -10,6 +12,7 @@ import { normalizeDeliveryMatrixColumn } from '../deliveryLiveMatrix';
 import { getReadableDocumentLineColumnWidth } from '../../../utils/documentLineColumnWidth';
 import { getOrderedVisibleMatrixColumns } from '../../../utils/formSettingsColumns';
 import useDocumentTableClipboard from '../../../components/sales-document/useDocumentTableClipboard';
+import { resolveLocationDisplayName } from '../../../utils/locationLookup';
 
 const LINE_NUMBER_COLUMN_KEY = '__lineNumber';
 const INDEX_COLUMN_WIDTH = 42;
@@ -131,6 +134,7 @@ function ReadyContentsTab({
   effectiveWarehouses,
   fmtTaxLabel,
   getBranchName,
+  locations = [],
   valErrors,
   distributionRules = [],
   formSettings = {},
@@ -163,7 +167,8 @@ function ReadyContentsTab({
   const validMatrixFields = hasExplicitMatrixFields ? matrixFields.filter((field) => field && field.key) : [];
   const safeRowUdfFields = Array.isArray(rowUdfFields) ? rowUdfFields.filter((field) => field && field.key) : [];
   const configuredMatrixFields = hasExplicitMatrixFields ? validMatrixFields : MATRIX_COLS;
-  const shouldForceBinAllocationColumn = configuredMatrixFields.length > 0 || formSettings?.__companyQueryLayout?.isPublished;
+  const shouldForceBinAllocationColumn = configuredMatrixFields.length > 0
+    && !formSettings?.__companyQueryLayout?.isPublished;
   const configuredWithRequiredDeliveryColumns = shouldForceBinAllocationColumn
     && !configuredMatrixFields.some((field) => field?.key === 'binLocationAllocation')
     ? [
@@ -549,7 +554,7 @@ function ReadyContentsTab({
             </select>
           ) : lookupSource ? (
             <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <input
+              <SapInput
                 className="del-grid__input"
                 type={fieldTypeKind === 'date' ? 'date' : fieldTypeKind === 'number' ? 'number' : 'text'}
                 value={value}
@@ -577,7 +582,7 @@ function ReadyContentsTab({
               onChange={(e) => updateValue(e.target.value)}
             />
           ) : (
-            <input
+            <SapInput
               className="del-grid__input"
               type={fieldTypeKind === 'date' ? 'date' : fieldTypeKind === 'number' ? 'number' : 'text'}
               value={value}
@@ -608,7 +613,7 @@ function ReadyContentsTab({
       itemNo: () => (
         <td key="itemNo">
           <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <input
+            <SapLookupTextInput
               className="del-grid__input"
               style={{ flex: 1, textAlign: 'left', border: valErrors.lines[i]?.itemNo ? '1px solid #c00' : undefined }}
               name="itemNo"
@@ -1033,7 +1038,7 @@ function ReadyContentsTab({
         <td key="loc">
           <input
             className="del-grid__input"
-            value={line.loc || (getBranchName ? getBranchName(line.branch) : line.branch || '')}
+            value={resolveLocationDisplayName(line.loc, locations)}
             readOnly
             style={{ background: '#f5f8fc' }}
           />

@@ -1,8 +1,11 @@
+import SapLookupTextInput from '../../../components/common/SapLookupTextInput';
+import SapInput from '../../../components/common/SapInput';
 import React from 'react';
 import TaxCodeLookup from '../../../components/TaxCodeLookup';
 import { useSapItemCodeTab } from '../../../utils/sapTabNavigation';
 import { getLineTotalsForDisplay } from '../../../utils/lineTotals';
 import { getOrderedVisibleMatrixColumns } from '../../../utils/formSettingsColumns';
+import { resolveLocationDisplayName } from '../../../utils/locationLookup';
 
 const TABLE_MIN_WIDTH = 3400;
 
@@ -145,6 +148,7 @@ export default function ContentsTab({
   effectiveWarehouses,
   fmtTaxLabel,
   getBranchName,
+  locations = [],
   valErrors,
   distributionRules = [],
   formSettings = {},
@@ -269,7 +273,7 @@ export default function ContentsTab({
               onChange={(e) => onRowUdfChange && onRowUdfChange(i, udfColumn.key, e.target.checked ? 'Y' : 'N')}
             />
           ) : (
-            <input
+            <SapInput
               className="del-grid__input"
               type={udfColumn.type === 'date' ? 'date' : udfColumn.type === 'number' ? 'number' : 'text'}
               value={value}
@@ -287,7 +291,7 @@ export default function ContentsTab({
       itemNo: () => (
         <td key="itemNo">
           <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <input
+            <SapLookupTextInput
               className="del-grid__input"
               style={{ flex: 1, textAlign: 'left', border: valErrors.lines[i]?.itemNo ? '1px solid #c00' : undefined }}
               name="itemNo"
@@ -721,7 +725,7 @@ export default function ContentsTab({
         <td key="loc">
           <input
             className="del-grid__input"
-            value={getBranchName ? getBranchName(line.branch) : line.loc || ''}
+            value={resolveLocationDisplayName(line.loc, locations)}
             readOnly
             style={{ background: '#f5f8fc' }}
           />

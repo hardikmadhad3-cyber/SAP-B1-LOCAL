@@ -1,3 +1,6 @@
+import SapLookupTextInput from '../../../components/common/SapLookupTextInput';
+import SapInput from '../../../components/common/SapInput';
+import LiveUdfValueInput from '../../../components/sales-document/LiveUdfValueInput';
 import React from 'react';
 import TaxCodeLookup from '../../../components/TaxCodeLookup';
 import { useSapItemCodeTab } from '../../../utils/sapTabNavigation';
@@ -172,6 +175,10 @@ export default function ContentsTab({
     const disabled = field.readOnly || setting.active === false;
     const value = line.udf?.[field.key] || '';
 
+    if (field.lookupSource) {
+      return <td key={field.key}><LiveUdfValueInput field={field} line={line} value={value} disabled={disabled} onChange={(nextValue) => onRowUdfChange && onRowUdfChange(i, field.key, nextValue)} /></td>;
+    }
+
     if (field.type === 'select') {
       return (
         <td key={field.key}>
@@ -210,7 +217,7 @@ export default function ContentsTab({
 
     return (
       <td key={field.key}>
-        <input
+        <SapInput
           className="so-grid__input"
           type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
           value={value}
@@ -233,7 +240,7 @@ export default function ContentsTab({
 
     const textInput = (key, options = {}) => (
       <td key={key}>
-        <input
+        <SapInput
           className="so-grid__input"
           name={key}
           value={line[key] || ''}
@@ -261,6 +268,9 @@ export default function ContentsTab({
     const sapUdfField = shouldUseSapUdfLookup && rendererKey !== 'itemNo'
       ? findUdfFieldForColumn(column, rowUdfFields)
       : null;
+    if (sapUdfField?.lookupSource) {
+      return <td key={column.key}><LiveUdfValueInput field={sapUdfField} line={line} value={line[column.key] || ''} disabled={sapUdfField.readOnly || formSettings.rowUdfs?.[sapUdfField.key]?.active === false} onChange={(nextValue) => onLineChange(i, { target: { name: column.key, value: nextValue } })} /></td>;
+    }
     if (sapUdfField?.type === 'select' || sapUdfField?.options?.length) {
       return (
         <td key={column.key}>
@@ -295,7 +305,7 @@ export default function ContentsTab({
       itemNo: () => (
         <td key="itemNo">
           <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <input
+            <SapLookupTextInput
               className="so-grid__input"
               style={{ flex: 1, textAlign: 'left', border: valErrors.lines[i]?.itemNo ? '1px solid #c00' : undefined }}
               name="itemNo"

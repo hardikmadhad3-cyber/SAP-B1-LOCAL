@@ -1,4 +1,8 @@
+jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
+jest.mock('../../api/formSettingsApi', () => ({ fetchFormSettings: jest.fn(), saveFormSettings: jest.fn() }));
+
 import {
+  buildStandardSalesCompanyQueryColumns,
   buildSalesOrderMatrixColumnsFromLayout,
   buildSalesOrderMatrixColumnsFromSchema,
   buildSalesOrderRowUdfDefinitionsFromSchema,
@@ -6,6 +10,101 @@ import {
   makeSalesOrderHsnColumnEditable,
   mapLiveSalesOrderMatrixToLayout,
 } from './documentLayout';
+import { mergeContentSettingsFields } from '../../utils/formSettingsColumns';
+import { applyPublishedQueryLayoutToSettings } from '../../utils/formSettingsStorage';
+
+test('published Sales Order SQL supplies every current-company caption including repeated SAP fields', () => {
+  const entries = [
+    ['Item_No', 'ItemCode'], ['Item_Description', 'Dscription'],
+    ['Unit', 'U_UoM'], ['Quantity', 'Quantity'], ['Unit_Price', 'PriceBefDi'],
+    ['Discount', 'U_Rate'], ['Amount', 'U_Amount'], ['Net_Rate', 'U_Disc_Rate'],
+    ['Taxable_Amount', 'U_Disc_Amount'], ['Total_LC', 'LineTotal'],
+    ['Tax_Code', 'TaxCode'], ['Tax_Amount_LC', 'VatSum'],
+    ['Discount_Percent', 'DiscPrcnt'], ['Comm_Amt_Per_Tone', 'U_S_BrokPerQty'],
+    ['Commission_Percent', 'U_COMPRC'], ['Commission', 'U_Com'],
+    ['Open_Qty', 'OpenCreQty'], ['Country_Region_Of_Origin', 'CountryOrg'],
+    ['Loc', 'LocCode'], ['HSN', 'HSN'], ['SAC', 'SAC'],
+    ['Commission_By', 'U_comby'], ['Comm_Amt_Per_Tone_2', 'U_S_BrokPerQty'],
+    ['Commission_2', 'U_Brok_Seller'],
+    ['Seller_Terms_Of_Payment', 'U_Seller_Payment_Terms'],
+  ];
+  const rowUdfFields = [...new Set(entries.map(([, physical]) => physical).filter((physical) => physical.startsWith('U_')))]
+    .map((key) => ({ key, label: key }));
+  const queryLayout = { isPublished: true, columns: entries.map(([key, fieldName]) => ({ key, fieldName })) };
+  const columns = buildStandardSalesCompanyQueryColumns({
+    queryLayout,
+    liveMatrixColumns: getSapStandardSalesMatrixColumns(),
+    rowUdfFields,
+  });
+
+  expect(columns).toHaveLength(26);
+  expect(mergeContentSettingsFields(columns, rowUdfFields)).toHaveLength(26);
+  expect(columns.map((column) => column.label)).toEqual([
+    '#', 'Item No.', 'Item Description', 'Unit', 'Quantity', 'Unit Price',
+    'Discount', 'Amount', 'Net Rate', 'Taxable Amount', 'Total (LC)',
+    'Tax Code', 'Tax Amount (LC)', 'Discount %', 'comm amt per tone',
+    'Commission (Percent)', 'Commission', 'Open Qty', 'Country/Region of Origin',
+    'Loc.', 'HSN', 'SAC', 'comissin by', 'comm amt per tone', 'Commission',
+    'Seller - Terms of Payment',
+  ]);
+  expect(columns[14].valueKey).toBe('U_S_BrokPerQty');
+  expect(columns[23].valueKey).toBe('U_S_BrokPerQty');
+  expect(columns[14].key).not.toBe(columns[23].key);
+  expect(columns[17].valueKey).toBe('openQty');
+  const settings = applyPublishedQueryLayoutToSettings({
+    matrixColumns: Object.fromEntries(columns.map((column) => [column.key, { visible: false }])),
+    rowUdfs: Object.fromEntries(rowUdfFields.map((field) => [field.key, { visible: false }])),
+  }, queryLayout, [[], rowUdfFields, columns]);
+  expect(columns.filter((column) => settings.matrixColumns[column.key]?.visible).map((column) => column.key))
+    .toEqual(columns.map((column) => column.key));
+});
+
+test('published Delivery SQL keeps its balance quantity and repeated company captions', () => {
+  const rowUdfFields = [
+    { key: 'U_Order_Qty' }, { key: 'U_Rate' }, { key: 'U_S_BrokPerQty' },
+  ];
+  const columns = buildStandardSalesCompanyQueryColumns({
+    queryLayout: { isPublished: true, columns: [
+      { key: 'Item_No', fieldName: 'ItemCode' },
+      { key: 'Ordered_Qty', fieldName: 'U_Order_Qty' },
+      { key: 'Bal_Qty', fieldName: 'QtyToShip' },
+      { key: 'Discount', fieldName: 'U_Rate' },
+      { key: 'Comm_Amt_Per_Tone', fieldName: 'U_S_BrokPerQty' },
+      { key: 'Comm_Amt_Per_Tone_2', fieldName: 'U_S_BrokPerQty' },
+    ] },
+    liveMatrixColumns: getSapStandardSalesMatrixColumns(),
+    rowUdfFields,
+  });
+  expect(columns.map((column) => column.label)).toEqual([
+    '#', 'Item No.', 'Ordered Qty', 'Bal Qty', 'Discount',
+    'comm amt per tone', 'comm amt per tone',
+  ]);
+  expect(columns[3].valueKey).toBe('openQty');
+  expect(columns[2].valueKey).toBe('U_Order_Qty');
+  expect(columns[5].valueKey).toBe('U_S_BrokPerQty');
+  expect(columns[6].valueKey).toBe('U_S_BrokPerQty');
+});
+
+test('published Delivery SQL uses the requested SAP punctuation for accounting columns', () => {
+  const columns = buildStandardSalesCompanyQueryColumns({
+    queryLayout: { isPublished: true, columns: [
+      { key: 'Distr_Rule', fieldName: 'OcrCode' },
+      { key: 'COGS_Distr_Rule', fieldName: 'CogsOcrCod' },
+      { key: 'Blanket_Agreement_No', fieldName: 'AgrNo' },
+      { key: 'UoM_Code', fieldName: 'UomCode' },
+      { key: 'Sauda_Node_Ref', fieldName: 'U_DocKey' },
+    ] },
+    liveMatrixColumns: getSapStandardSalesMatrixColumns(),
+    rowUdfFields: [{ key: 'U_DocKey', label: 'Sauda Node Ref' }],
+    includeLineNumber: false,
+  });
+
+  expect(columns.map((column) => column.label)).toEqual([
+    'Distr. Rule', 'COGS Distr. Rule', 'Blanket Agreement No.',
+    'UoM Code', 'Sauda Node Ref',
+  ]);
+  expect(columns[4].valueKey).toBe('U_DocKey');
+});
 
 describe('SAP standard matrix fallback', () => {
   it('contains only SAP standard columns and no company UDFs', () => {

@@ -1,5 +1,7 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
-import { calculateDocumentRounding, getDocumentRoundingPolicy } from '../../utils/documentRounding';
+import { calculateDocumentRounding, getDocumentRoundingPolicy, getDocumentRoundingPayloadAmount } from '../../utils/documentRounding';
+import DocumentRoundingInput from '../../components/sales-document/DocumentRoundingInput';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import './styles/ARCreditMemo.css';
@@ -43,7 +45,7 @@ import {
   resolveDisplayCurrency,
   resolveDocumentCurrency,
 } from '../../utils/documentCurrency';
-import { useCompanyScopedFormSettings } from '../../utils/formSettingsStorage';
+import { useStandardSalesFormSettings } from '../../utils/standardSalesFormSettings';
 import { buildCompanyFormQueryContext } from '../../utils/companyFormQueryContext';
 import { updateFormSettingPreference } from '../../utils/formSettingsPreferences';
 import { buildVisibleEnteredRowUdfPayload } from '../../utils/rowUdfPayload';
@@ -72,7 +74,6 @@ import { fetchSalesDocumentLookup, fetchSalesDocumentSchema } from '../../api/sa
 import {
   buildSalesDocumentLiveFields,
   getSalesDocumentCompanyScopeKey,
-  isSalesDocumentFieldMetadataReady,
   loadSalesDocumentFieldLookupOptions,
   stripSalesDocumentTopLevelUdfs,
 } from '../../utils/salesDocumentLiveFields';
@@ -377,18 +378,18 @@ function ARCreditMemo() {
   const [attachments] = useState(INIT_ATTACH);
   const [activeTab, setActiveTab] = useState('Contents');
   const [headerUdfs, setHeaderUdfs] = useState({});
-  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings, formSettingsStatus] = useCompanyScopedFormSettings(
-    FORM_SETTINGS_STORAGE_KEY,
+  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings,
+    formSettingsStatus, effectiveMatrixColumnDefinitions, companyFormSettingsReady] = useStandardSalesFormSettings({
+    formKey: FORM_SETTINGS_STORAGE_KEY,
     readSavedFormSettings,
-    [headerUdfDefinitions, rowUdfDefinitions, matrixColumnDefinitions],
-    { saveMode: 'explicit' },
-  );
-  const companyFormSettingsReady = formSettingsStatus.loaded && isSalesDocumentFieldMetadataReady({
+    headerUdfDefinitions,
+    rowUdfDefinitions,
+    matrixColumnDefinitions,
     companyId: activeCompanyId,
     companyDb: activeCompanyDb,
-    hydratedScope: hydratedFieldMetadataScope,
+    hydratedFieldMetadataScope,
   });
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [refData, setRefData] = useState({
     company: '', vendors: [], contacts: [], pay_to_addresses: [], ship_to_addresses: [], bill_to_addresses: [], items: [],
@@ -784,10 +785,10 @@ function ARCreditMemo() {
     replaceFormSettings(readSavedFormSettings(
       headerUdfDefinitions,
       rowUdfDefinitions,
-      matrixColumnDefinitions,
+      effectiveMatrixColumnDefinitions,
       formSettingsStorageKey,
     ));
-  }, [companyFormSettingsReady, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, matrixColumnDefinitions, replaceFormSettings, rowUdfDefinitions]);
+  }, [companyFormSettingsReady, effectiveMatrixColumnDefinitions, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, replaceFormSettings, rowUdfDefinitions]);
 
   // â”€â”€ load existing order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -1250,7 +1251,7 @@ function ARCreditMemo() {
     taxAmt = roundTo(taxAmt + freightTaxAmt, numDec.tax);
     const totalBeforeRounding = roundTo(discSub + freight + taxAmt, numDec.totalPaymentDue);
     const { roundingAmount, total } = calculateDocumentRounding(
-      totalBeforeRounding, header.rounding, numDec.totalPaymentDue, currentDocEntry ? header : null, getDocumentRoundingPolicy(refData, header),
+      totalBeforeRounding, header.rounding, numDec.totalPaymentDue, (currentDocEntry || header.roundingAmountIsManual) ? header : null, getDocumentRoundingPolicy(refData, header),
     );
     return {
       subtotal,
@@ -2979,7 +2980,8 @@ function ARCreditMemo() {
           || getBranchFromWarehouseCode(header.warehouse || lines[0]?.whse || ''),
         contactPerson: header.contactPerson,
         totalPaymentDue: fmtDec(totals.total, numDec.totalPaymentDue),
-        roundingAmount: fmtDec(totals.roundingAmount, numDec.totalPaymentDue),
+        roundingAmount: getDocumentRoundingPayloadAmount(header, fmtDec(totals.roundingAmount, numDec.totalPaymentDue)),
+        roundingAmountIsManual: header.roundingAmountIsManual === true,
       };
       
       // Only include series if it's explicitly set and valid
@@ -3338,19 +3340,19 @@ function ARCreditMemo() {
                     {/* Posting Date */}
                     <div className="del-field">
                       <label className="del-field__label">Posting Date *</label>
-                      <input type="date" name="postingDate" className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="postingDate" className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Delivery Date */}
                     <div className="del-field">
                       <label className="del-field__label">Delivery Date</label>
-                      <input type="date" name="deliveryDate" className="del-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="deliveryDate" className="del-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Document Date */}
                     <div className="del-field">
                       <label className="del-field__label">Document Date *</label>
-                      <input type="date" name="documentDate" className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="documentDate" className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} />
                     </div>
 
                   </div>
@@ -3394,7 +3396,7 @@ function ARCreditMemo() {
                 isEditable={isDocumentEditable}
                 formSettings={formSettings}
                 formSettingsReady={companyFormSettingsReady}
-                matrixFields={matrixColumnDefinitions}
+                matrixFields={effectiveMatrixColumnDefinitions}
                 rowUdfFields={visibleRowUdfs}
                 onRowUdfChange={handleRowUdfChange}
                 onLoadLookupOptions={loadDynamicLineLookupOptions}
@@ -3521,7 +3523,7 @@ function ARCreditMemo() {
                         </tr>
                         <tr>
                           <td><input type="checkbox" className="" name="rounding" checked={header.rounding} onChange={handleHeaderChange} style={{ marginRight: 6 }} /><span>Rounding</span></td>
-                          <td className="del-grid__cell--num"><input className="del-grid__input" value={formatDisplayMoney(totals.roundingAmount, numDec.totalPaymentDue)} readOnly /></td>
+                          <td className="del-grid__cell--num"><DocumentRoundingInput className="del-grid__input" header={header} setHeader={setHeader} formattedAmount={formatDisplayMoney(totals.roundingAmount, numDec.totalPaymentDue)} disabled={!isDocumentEditable} onManualChange={markDirty} /></td>
                         </tr>
                         <tr>
                           <td>Tax</td>
@@ -3616,7 +3618,7 @@ function ARCreditMemo() {
             className="sap-header-udf-panel so-layout__sidebar"
             isOpen={formSettingsOpen}
             onClose={() => setFormSettingsOpen(false)}
-            matrixFields={matrixColumnDefinitions}
+            matrixFields={effectiveMatrixColumnDefinitions}
             headerUdfFields={headerUdfDefinitions}
             rowUdfFields={rowUdfDefinitions}
             formSettings={formSettings}

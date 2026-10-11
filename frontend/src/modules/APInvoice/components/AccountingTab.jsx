@@ -1,10 +1,11 @@
+import SapInput from '../../../components/common/SapInput';
 const SELECT_PLACEHOLDER = '— Select —';
 
 function TextField({ label, name, value, onChange, isEditable, readOnly = false, type = 'text', className = '' }) {
   return (
     <div className={`po-field ${className}`.trim()}>
       <label className="po-field__label">{label}</label>
-      <input
+      <SapInput
         type={type}
         className="po-field__input"
         name={name}

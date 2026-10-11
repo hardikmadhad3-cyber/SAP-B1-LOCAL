@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import '../purchase-order/styles/purchaseOrder.css';
@@ -1486,8 +1487,8 @@ function GoodsIssue() {
           <div className="po-field-grid" style={{ gridTemplateColumns: '1fr' }}>
             <div className="po-field">
               <label className="po-field__label">Posting Date</label>
-              <input
-                type="date"
+              <SapDateInput
+                
                 className="po-field__input"
                 value={header.postingDate}
                 onChange={(event) => handleHeaderChange('postingDate', event.target.value)}
@@ -1495,8 +1496,8 @@ function GoodsIssue() {
             </div>
             <div className="po-field">
               <label className="po-field__label">Document Date</label>
-              <input
-                type="date"
+              <SapDateInput
+                
                 className="po-field__input"
                 value={header.documentDate}
                 onChange={(event) => handleHeaderChange('documentDate', event.target.value)}

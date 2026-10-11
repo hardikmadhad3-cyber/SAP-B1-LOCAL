@@ -1,3 +1,4 @@
+import SapDateInput from './common/SapDateInput';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -361,8 +362,8 @@ export default function BatchAllocationModal({
                     </td>
                     {!isIssueMode ? (
                       <td>
-                        <input
-                          type="date"
+                        <SapDateInput
+                          
                           className="del-grid__input"
                           value={row.expiryDate}
                           onChange={(event) => updateRow(index, 'expiryDate', event.target.value)}

@@ -1,3 +1,5 @@
+import SapLookupTextInput from '../../../components/common/SapLookupTextInput';
+import SapInput from '../../../components/common/SapInput';
 import React from 'react';
 import DocumentLineSettingsLoading from '../../../components/sales-document/DocumentLineSettingsLoading';
 import { resolveLocationDisplayName } from '../../../utils/locationLookup';
@@ -161,6 +163,9 @@ const COLUMN_RENDERER_ALIASES = new Map([
   ['QTYINWAREHOUSE', 'qtyInWhse'],
   ['WAREHOUSEQUANTITY', 'qtyInWhse'],
   ['HSN', 'hsnCode'],
+  ['BRANCH', 'branch'],
+  ['BPLID', 'branch'],
+  ['BPLIDASSIGNEDTOINVOICE', 'branch'],
   ['HSNCODE', 'hsnCode'],
   ['HSNENTRY', 'hsnCode'],
   ['PRICEBEFDI', 'unitPrice'],
@@ -725,8 +730,10 @@ function ReadyContentsTab({
     const setting = getMatrixColumnSetting(column);
     const disabled = column.readOnly || (setting.active === false && isUdfMatrixColumn(column));
     const valueKey = getColumnValueKey(column);
+    const isPlainUnitUdf = String(valueKey || column.sapField || '')
+      .replace(/[^a-z0-9]/gi, '').toUpperCase() === 'UUOM';
     const rawValue = isUdfMatrixColumn(column)
-      ? (line.udf?.[valueKey] || '')
+      ? (line.udf?.[valueKey] ?? '')
       : (line[valueKey] ?? '');
     const value = valueKey === 'forRate'
       ? (hasNonZeroDisplayValue(rawValue) ? rawValue : getCalculatedForRate(line, effectiveTaxCodes))
@@ -738,8 +745,8 @@ function ReadyContentsTab({
       ? 'date'
       : (column.type === 'number' || column.numeric ? 'number' : 'text');
 
-    const hasSelectOptions = Array.isArray(column.options) && column.options.length > 0;
-    if (hasSelectOptions) {
+    const hasSelectOptions = !isPlainUnitUdf && Array.isArray(column.options) && column.options.length > 0;
+    if (hasSelectOptions && (!column.lookupSource || column.lookupSource === 'udf-valid-values')) {
       return (
         <td key={column.key}>
           <select
@@ -779,11 +786,11 @@ function ReadyContentsTab({
       );
     }
 
-    if (column.lookupSource) {
+    if (column.lookupSource && !isPlainUnitUdf) {
       return (
         <td key={column.key}>
           <div style={{ display: 'flex', gap: 2 }}>
-            <input
+            <SapInput
               className="so-grid__input"
               type={inputType}
               value={value}
@@ -820,7 +827,7 @@ function ReadyContentsTab({
 
     return (
       <td key={column.key}>
-        <input
+        <SapInput
           className="so-grid__input"
           type={inputType}
           value={value}
@@ -866,7 +873,7 @@ function ReadyContentsTab({
             {isSalesBomComponent ? (
               <span aria-hidden="true" style={{ color: 'var(--sap-text-muted)', fontSize: 10, width: 8 }}>&gt;</span>
             ) : null}
-            <input
+            <SapLookupTextInput
               className="so-grid__input"
               style={{ flex: 1, textAlign: 'left', border: valErrors.lines[i]?.itemNo ? '1px solid #c00' : undefined }}
               name="itemNo"
@@ -1209,6 +1216,16 @@ function ReadyContentsTab({
           {valErrors.lines[i]?.whse && (
             <div style={{ color: '#c00', fontSize: 10, marginTop: 2 }}>{valErrors.lines[i].whse}</div>
           )}
+        </td>
+      ),
+      branch: () => (
+        <td key="branch">
+          <input
+            className="so-grid__input"
+            value={getBranchName?.(line.branch) || line.branch || ''}
+            readOnly
+            style={{ background: '#f5f8fc' }}
+          />
         </td>
       ),
       distRule: () => (

@@ -462,6 +462,7 @@ const installWindowApi = () => {
 };
 
 const LOOKUP_CONTAINER_SELECTOR = [
+  '.po-udf-lookup-control',
   '.im-lookup-wrap',
   '.so-lookup-wrap',
   '.del-lookup-wrap',
@@ -675,11 +676,16 @@ export function useSapItemCodeTab({
     event.stopPropagation();
 
     if (result.status === 'none') {
-      showFieldValidation(input, `No item found for "${query}".`);
+      // Reference data can be a subset of the company item master. Let the
+      // lookup search its full data source before declaring the entry invalid.
+      window.__sapB1PendingLookupQuery = query;
+      setPendingLookupFocus(input);
+      onOpenItemModal?.(rowIndex, query, []);
       return;
     }
 
-    if (result.status === 'multiple') {
+    if (result.status === 'multiple'
+      || (result.status === 'single' && normalize(getItemCode(result.item)) !== normalize(query))) {
       window.__sapB1PendingLookupQuery = query;
       setPendingLookupFocus(input);
       onOpenItemModal?.(rowIndex, query, result.matches);

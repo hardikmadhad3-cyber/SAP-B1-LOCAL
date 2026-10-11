@@ -19,6 +19,9 @@ const DELIVERY_STANDARD_KEY_BY_LABEL = new Map(Object.entries({
   ITEMNO: 'itemNo',
   ITEMDESCRIPTION: 'itemDescription',
   QUANTITY: 'quantity',
+  QTYTOSHIP: 'qtyToShip',
+  ORDEREDQTY: 'orderedQty',
+  BALQTY: 'balanceQty',
   UNITPRICE: 'unitPrice',
   DISCOUNT: 'stdDiscount',
   DISCOUNTPERCENT: 'stdDiscount',
@@ -60,6 +63,10 @@ const DELIVERY_STANDARD_FIELD_OVERRIDES = Object.freeze({
   itemNo: Object.freeze({ type: 'text', minWidth: 160 }),
   itemDescription: Object.freeze({ type: 'text', minWidth: 240 }),
   quantity: Object.freeze({ type: 'number', numeric: true, minWidth: 100 }),
+  qtyToShip: Object.freeze({ type: 'number', numeric: true, readOnly: true, minWidth: 110 }),
+  orderedQty: Object.freeze({ type: 'number', numeric: true, readOnly: true, minWidth: 105 }),
+  openQty: Object.freeze({ type: 'number', numeric: true, readOnly: true, minWidth: 105 }),
+  balanceQty: Object.freeze({ type: 'number', numeric: true, readOnly: true, minWidth: 105 }),
   unitPrice: Object.freeze({ type: 'number', numeric: true, minWidth: 110 }),
   stdDiscount: Object.freeze({ type: 'number', numeric: true, minWidth: 100 }),
   totalLC: Object.freeze({ type: 'number', numeric: true, readOnly: true, minWidth: 115 }),
@@ -327,6 +334,24 @@ export const buildDeliveryLiveMatrixColumns = ({
     appendMissingLiveColumns: false,
   });
   const reconciledColumns = reconcileLayoutColumnsWithCompanySchema(layoutMatrixColumns, companyColumns);
+  // Older saved layouts omit these standard SAP columns. Add only missing
+  // fields; retain the current company's explicit visibility and ordering.
+  let quantityIndex = reconciledColumns.findIndex(column => normalizeColumnKey(column) === 'quantity');
+  for (const [key, label, sapField] of [
+    ['qtyToShip', 'Qty to Ship', 'QtyToShip'],
+    ['orderedQty', 'Ordered Qty', 'OrderedQty'],
+  ]) {
+    const existingIndex = reconciledColumns.findIndex(column => normalizeColumnKey(column) === key);
+    if (existingIndex >= 0) { quantityIndex = existingIndex; continue; }
+    if (quantityIndex < 0) continue;
+    const reference = referenceMatrixColumns.find(column => column.key === key);
+    const precedingOrder = Number(reconciledColumns[quantityIndex].order ?? quantityIndex + 1);
+    const followingOrder = Number(reconciledColumns[quantityIndex + 1]?.order ?? precedingOrder + 1);
+    reconciledColumns.splice(++quantityIndex, 0, normalizeDeliveryMatrixColumn({
+      ...reference, key, label, sapField, visible: reference?.visible !== false,
+      order: precedingOrder + (followingOrder - precedingOrder) / 2,
+    }));
+  }
   const activeCompanyUdfTokens = new Set([
     ...(companySchemaLineFields || []).filter((field) => {
       const sapField = field?.sapField || field?.databaseField || field?.stateKey || '';

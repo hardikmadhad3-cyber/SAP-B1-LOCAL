@@ -1,3 +1,4 @@
+import SapDateInput from '../common/SapDateInput';
 import React, { useState } from 'react';
 
 function AttachmentsTab() {
@@ -48,8 +49,8 @@ function AttachmentsTab() {
                   />
                 </td>
                 <td>
-                  <input
-                    type="date"
+                  <SapDateInput
+                    
                     className="so-matrix-input"
                     value={attachment.attachmentDate}
                     readOnly

@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React, { useState } from "react";
 import LookupField from "../../item-master/components/LookupField";
 
@@ -177,8 +178,8 @@ export default function ContactTab({ form, setForm, fetchCountries }) {
             ))}
             <div className="im-field" style={{ marginBottom: 3 }}>
               <label className="im-field__label" style={{ flex: "0 0 160px", textAlign: "right" }}>Date of Birth</label>
-              <input
-                className="im-field__input" type="date" name="DateOfBirth"
+              <SapDateInput
+                className="im-field__input"  name="DateOfBirth"
                 value={current.DateOfBirth || ""} onChange={saveField} style={{ maxWidth: 280 }}
               />
             </div>

@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getAccount, searchAccounts } from "../../api/chartOfAccountsApi";
@@ -697,9 +698,9 @@ export default function JournalEntryPage() {
             </select>
           </Field>
           <Field label="Number"><input value={header.number} onChange={(event) => setHeaderValue("number", event.target.value)} readOnly={header.series !== "-1" || Boolean(currentTransId)} /></Field>
-          <Field label="Posting Date"><input type="date" value={header.postingDate} onChange={(event) => setHeaderValue("postingDate", event.target.value)} disabled={isViewMode} /></Field>
-          <Field label="Due Date"><input type="date" value={header.dueDate} onChange={(event) => setHeaderValue("dueDate", event.target.value)} disabled={isViewMode} /></Field>
-          <Field label="Doc. Date"><input type="date" value={header.documentDate} onChange={(event) => setHeaderValue("documentDate", event.target.value)} disabled={isViewMode} /></Field>
+          <Field label="Posting Date"><SapDateInput  value={header.postingDate} onChange={(event) => setHeaderValue("postingDate", event.target.value)} disabled={isViewMode} /></Field>
+          <Field label="Due Date"><SapDateInput  value={header.dueDate} onChange={(event) => setHeaderValue("dueDate", event.target.value)} disabled={isViewMode} /></Field>
+          <Field label="Doc. Date"><SapDateInput  value={header.documentDate} onChange={(event) => setHeaderValue("documentDate", event.target.value)} disabled={isViewMode} /></Field>
           <Field label="Remarks" wide><input value={header.remarks} onChange={(event) => setHeaderValue("remarks", event.target.value)} readOnly={isViewMode} /></Field>
 
           <Field label="Origin"><input value={header.origin} onChange={(event) => setHeaderValue("origin", event.target.value)} readOnly /></Field>

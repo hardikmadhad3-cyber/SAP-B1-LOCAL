@@ -49,6 +49,7 @@ export default function ItemSelectionModal({ isOpen, onClose, onSelect, items = 
       rows={safeItems}
       loading={loading}
       initialQuery={searchQuery}
+      consumePendingQuery={false}
       searchPlaceholder="Search by Item Code, Description, Group, or Foreign Name"
       emptyMessage="No items found"
       onClose={() => {

@@ -13,6 +13,7 @@
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.13.6",
     "bootstrap": "^5.3.8",
+    "pdfjs-dist": "^6.3.289",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.1",
@@ -21,6 +22,8 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
+    "prestart": "node scripts/prepare-pdf-assets.js",
+    "prebuild": "node scripts/prepare-pdf-assets.js",
     "start": "craco start",
     "build": "craco build && npm run compress && npm run validate:bundle",
     "test": "react-scripts test",

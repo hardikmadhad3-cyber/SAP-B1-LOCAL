@@ -1,3 +1,5 @@
+import { getItemDefaultUom } from './documentUom';
+
 const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== '';
 
 export const mergeItemMaster = (selectedItem = {}, items = []) => {
@@ -139,6 +141,17 @@ export const hydrateDocumentLineFromItem = (line = {}, item = {}, {
   if (uomGroups.length) Object.assign(next, selectedUom);
   else if (side === 'purchase') Object.assign(next, getItemPurchaseUom(item));
 
+  // Some SAP B1 layouts expose a company row UDF named "Unit" (U_UoM)
+  // alongside the standard UoM fields. Its item default is the selected
+  // item's sales or purchase UoM name, not the internal UoM code.
+  const unitUdfKey = Object.keys(line.udf || {}).find(
+    (key) => String(key).replace(/[^a-z0-9]/gi, '').toUpperCase() === 'UUOM'
+  );
+  const unitName = String(next.uomName || '').trim();
+  if (unitUdfKey && unitName) {
+    next.udf = { ...line.udf, [unitUdfKey]: unitName };
+  }
+
   if (side === 'sales') {
     next.stcode = line.stcode || '';
   } else if (!line.taxCodeManuallyOverridden) {
@@ -168,4 +181,3 @@ export const hydrateDocumentLineFromItem = (line = {}, item = {}, {
 
   return next;
 };
-import { getItemDefaultUom } from './documentUom';

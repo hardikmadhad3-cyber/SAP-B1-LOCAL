@@ -15,7 +15,28 @@ const {
   useReadOnlyQueryCredentials,
   queryCompanyDatabase,
   deriveRuntimeContext,
+  publisherUserId,
 } = require('../services/companyFormQueryService');
+
+test('setup administrator layout audit omits the nonpersistent user ID', () => {
+  assert.equal(publisherUserId({ tokenType: 'admin', userId: 0, isSetupAdmin: true }), null);
+  assert.equal(publisherUserId({ tokenType: 'admin', userId: 7 }), 7);
+  assert.equal(publisherUserId({ tokenType: 'admin', userId: 7, isSetupAdmin: true }), null);
+
+  const database = new DatabaseSync(':memory:');
+  try {
+    database.exec('PRAGMA foreign_keys = ON');
+    database.exec(fs.readFileSync(path.resolve(__dirname, '../db/auth-schema.sqlite.sql'), 'utf8'));
+    database.prepare("INSERT INTO Companies (CompanyId, CompanyName, DbName) VALUES (4, 'Dewang', 'DC_LiveDB')").run();
+    database.prepare(`INSERT INTO CompanyFormQueryLayouts
+      (CompanyId, FormKey, QueryText, PublishedByUserId)
+      VALUES (4, 'sapb1.salesOrder.formSettings.v2', 'SELECT 1 AS Item_No', @userId)`)
+      .run({ userId: publisherUserId({ userId: 0, isSetupAdmin: true }) });
+    assert.equal(database.prepare('SELECT PublishedByUserId FROM CompanyFormQueryLayouts').get().PublishedByUserId, null);
+  } finally {
+    database.close();
+  }
+});
 
 test('accepts one read-only statement and compiles approved placeholders', () => {
   const sql = validateQueryText(

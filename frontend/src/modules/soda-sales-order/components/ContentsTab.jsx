@@ -1,3 +1,5 @@
+import SapLookupTextInput from '../../../components/common/SapLookupTextInput';
+import SapInput from '../../../components/common/SapInput';
 import React from 'react';
 import TaxCodeLookup from '../../../components/TaxCodeLookup';
 import { useSapItemCodeTab } from '../../../utils/sapTabNavigation';
@@ -199,7 +201,7 @@ export default function ContentsTab({
               onChange={(e) => onRowUdfChange && onRowUdfChange(i, udfColumn.key, e.target.checked ? 'Y' : 'N')}
             />
           ) : (
-            <input
+            <SapInput
               className="so-grid__input"
               type={udfColumn.type === 'date' ? 'date' : udfColumn.type === 'number' ? 'number' : 'text'}
               value={value}
@@ -217,7 +219,7 @@ export default function ContentsTab({
       itemNo: () => (
         <td key="itemNo">
           <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <input
+            <SapLookupTextInput
               className="so-grid__input"
               style={{ flex: 1, textAlign: 'left', border: valErrors.lines[i]?.itemNo ? '1px solid #c00' : undefined }}
               name="itemNo"

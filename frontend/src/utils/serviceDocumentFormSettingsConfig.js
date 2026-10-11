@@ -12,6 +12,7 @@ const buildVisibilitySettings = (definitions = []) => (
       sapControlled: Boolean(field.sapControlled),
       order: Number(field.columnOrder ?? field.order) || undefined,
       minWidth: Number(field.minWidth ?? field.width) || undefined,
+      valueKey: field.valueKey,
     };
     return settings;
   }, {})

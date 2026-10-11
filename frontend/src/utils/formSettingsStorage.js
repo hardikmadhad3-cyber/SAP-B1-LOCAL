@@ -228,7 +228,13 @@ const indexEditableLayoutFields = (matrixFields = [], rowUdfFields = []) => {
     });
   };
   (matrixFields || []).forEach((field) => addField(field, 'matrixColumns'));
-  (rowUdfFields || []).forEach((field) => addField(field, 'rowUdfs'));
+  const matrixUdfKeys = new Set((matrixFields || [])
+    .flatMap((field) => [field.key, field.valueKey, field.fieldName, field.sapField])
+    .filter((value) => /^U_/i.test(String(value || '').trim()))
+    .map(normalizeLayoutToken));
+  (rowUdfFields || []).forEach((field) => {
+    if (!matrixUdfKeys.has(normalizeLayoutToken(field.key))) addField(field, 'rowUdfs');
+  });
   // Service grids render only their real definitions, not synthetic item renderers.
   if (!matrixFields.some((field) => field.key === 'glAccount')) {
     SQL_LAYOUT_SYNTHETIC_MATRIX_KEYS.forEach((key) => addField({ key, label: key }, 'matrixColumns'));
@@ -749,6 +755,7 @@ export const useCompanyScopedFormSettings = (
     ].filter(Boolean).join(' / '),
     queryModeActive: false,
     companyQueryLayoutActive: Boolean(queryLayout?.isPublished && !hasUserOverride),
+    queryLayout,
   };
 
   const scopedSettings = isCurrentScope ? state.settings : readSettings(storageKey);

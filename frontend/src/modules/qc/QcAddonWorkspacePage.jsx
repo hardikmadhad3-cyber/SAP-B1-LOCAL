@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   createQcTransaction,
@@ -470,7 +471,7 @@ export default function QcAddonWorkspacePage() {
             <label><span>Status</span><select className="qc-select" value={transactionForm.inspection_status} onChange={(e) => setTransactionForm((c) => ({ ...c, inspection_status: e.target.value }))}>{INSPECTION_STATUS.map((v) => <option key={v} value={v}>{v}</option>)}</select></label>
             <label><span>Decision</span><select className="qc-select" value={transactionForm.final_decision} onChange={(e) => setTransactionForm((c) => ({ ...c, final_decision: e.target.value }))}>{DECISION_TYPES.map((v) => <option key={v} value={v}>{v}</option>)}</select></label>
             <label><span>Inspector</span><input className="qc-input" value={transactionForm.inspector_name} onChange={(e) => setTransactionForm((c) => ({ ...c, inspector_name: e.target.value }))} /></label>
-            <label><span>Inspection Date</span><input className="qc-input" type="date" value={transactionForm.inspection_date || ''} onChange={(e) => setTransactionForm((c) => ({ ...c, inspection_date: e.target.value }))} /></label>
+            <label><span>Inspection Date</span><SapDateInput className="qc-input"  value={transactionForm.inspection_date || ''} onChange={(e) => setTransactionForm((c) => ({ ...c, inspection_date: e.target.value }))} /></label>
             <label className="qc-workspace__transaction-remarks"><span>Remarks</span><textarea className="qc-input qc-workspace__textarea" value={transactionForm.remarks} onChange={(e) => setTransactionForm((c) => ({ ...c, remarks: e.target.value }))} /></label>
             <div className="qc-actions qc-workspace__transaction-actions">
               <button type="button" className="qc-btn qc-btn--primary" disabled={loading} onClick={saveTransaction}>{editingTransactionId ? 'Update' : 'Add'}</button>

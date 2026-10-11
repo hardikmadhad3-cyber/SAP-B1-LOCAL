@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from "react";
 import LookupField from "../../item-master/components/LookupField";
 
@@ -81,10 +82,10 @@ export default function GeneralTab({ form, onChange, setForm, fetchBasePriceList
 
         <div className="im-field">
           <label className="im-field__label">Valid From</label>
-          <input
+          <SapDateInput
             className="im-field__input"
             name="ValidFrom"
-            type="date"
+            
             value={form.ValidFrom || ""}
             onChange={onChange}
           />
@@ -92,10 +93,10 @@ export default function GeneralTab({ form, onChange, setForm, fetchBasePriceList
 
         <div className="im-field">
           <label className="im-field__label">Valid To</label>
-          <input
+          <SapDateInput
             className="im-field__input"
             name="ValidTo"
-            type="date"
+            
             value={form.ValidTo || ""}
             onChange={onChange}
           />

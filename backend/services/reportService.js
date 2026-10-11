@@ -344,14 +344,9 @@ const extractParameterDefaultValue = (row, paramType) => {
 };
 
 const normalizeCrParameter = (row, index) => {
+  const apiName = String(row?.name || row?.parameterName || row?.parameter || row?.description || '');
   const paramName =
-    String(
-      row?.name ||
-      row?.parameterName ||
-      row?.parameter ||
-      row?.description ||
-      '',
-    ).trim();
+    apiName.trim();
 
   if (!paramName) {
     return null;
@@ -373,9 +368,11 @@ const normalizeCrParameter = (row, index) => {
 
   return {
     paramName,
+    apiName,
     displayName,
     paramType,
-    isRequired: !isOptionalPrompt || !allowNullValue,
+    // An optional prompt may be left blank even when an explicit NULL is disallowed.
+    isRequired: !isOptionalPrompt && !allowNullValue,
     sortOrder: Number.isFinite(sortOrder) ? sortOrder : index,
     defaultValue,
     options,
@@ -1177,26 +1174,34 @@ const exportReportPdf = async ({
   parameters = [],
   fileName = '',
   reportCompanyDb = '',
+  allowUnavailableLayoutMetadata = false,
 } = {}, retryOnAuth = true) => {
   const normalizedDocCode = toRequiredString(docCode || env.reportServiceDefaultDocCode, 'DocCode');
   const reportConfig = await resolveReportServiceConfig(reportCompanyDb);
   const normalizedReportCompanyDb = String(reportConfig.companyDb || '').trim();
-  const layoutMetadata = await getLayoutMetadata(normalizedDocCode, normalizedReportCompanyDb);
+  let layoutMetadata;
+  let layoutMetadataUnavailable = false;
+  try {
+    layoutMetadata = await getLayoutMetadata(normalizedDocCode, normalizedReportCompanyDb);
+  } catch (error) {
+    if (!allowUnavailableLayoutMetadata) throw error;
+    layoutMetadataUnavailable = true;
+  }
   const hasDocumentKeyParameter = parameters.some((parameter) => isDocEntryParameter(parameter?.name));
 
-  if (!layoutMetadata) {
+  if (!layoutMetadata && !layoutMetadataUnavailable) {
     const error = new Error(`SAP layout ${normalizedDocCode} was not found in RDOC.`);
     error.statusCode = 404;
     throw error;
   }
 
-  if (String(layoutMetadata.Status || '').trim().toUpperCase() !== 'A') {
+  if (layoutMetadata && String(layoutMetadata.Status || '').trim().toUpperCase() !== 'A') {
     const error = new Error(`SAP layout ${normalizedDocCode} (${layoutMetadata.DocName || 'Unknown'}) is not active.`);
     error.statusCode = 422;
     throw error;
   }
 
-  if (isDocumentPrintLayout(layoutMetadata) && !hasDocumentKeyParameter) {
+  if (layoutMetadata && isDocumentPrintLayout(layoutMetadata) && !hasDocumentKeyParameter) {
     const documentTypeLabel = getDocumentTypeLabel(layoutMetadata.TypeCode);
     const error = new Error(
       `SAP layout ${normalizedDocCode} (${layoutMetadata.DocName || 'Unknown'}) is a ${documentTypeLabel} print layout (${layoutMetadata.TypeCode}). It expects document-key parameters like DocKey@ and Schema@, not date-range criteria.`,
@@ -1205,19 +1210,23 @@ const exportReportPdf = async ({
     throw error;
   }
 
-  const payload = parameters.map((parameter) => ({
-    name: toRequiredString(parameter?.name, 'Parameter name'),
-    type: resolveXsdType(parameter?.type),
-    value: [[normalizeReportParameterValue(parameter?.value, parameter?.type)]],
-  }));
+  const payload = parameters.map((parameter) => {
+    toRequiredString(parameter?.name, 'Parameter name');
+    return {
+      // LoadCR parameter names may contain significant trailing spaces.
+      name: String(parameter.name),
+      type: resolveXsdType(parameter?.type),
+      value: [[normalizeReportParameterValue(parameter?.value, parameter?.type)]],
+    };
+  });
 
   console.info('[ReportService] Exporting Crystal document layout', {
     docCode: normalizedDocCode,
     reportCompanyDb: normalizedReportCompanyDb,
     layout: {
-      docName: String(layoutMetadata.DocName || '').trim(),
-      typeCode: String(layoutMetadata.TypeCode || '').trim(),
-      category: String(layoutMetadata.Category || '').trim(),
+      docName: String(layoutMetadata?.DocName || '').trim(),
+      typeCode: String(layoutMetadata?.TypeCode || '').trim(),
+      category: String(layoutMetadata?.Category || '').trim(),
     },
     parameterPayload: summarizeReportParameters(parameters),
   });
@@ -1250,7 +1259,7 @@ const exportReportPdf = async ({
           activeReportConfig,
           {
             docCode: normalizedDocCode,
-            layoutName: String(layoutMetadata.DocName || '').trim(),
+            layoutName: String(layoutMetadata?.DocName || '').trim(),
           },
         ),
         'export the PDF',

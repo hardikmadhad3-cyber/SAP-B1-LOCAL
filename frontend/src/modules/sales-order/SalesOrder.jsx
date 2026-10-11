@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
@@ -40,8 +41,10 @@ import {
 } from '../../utils/taxEngine';
 import { filterWarehousesByBranch } from '../../utils/warehouseBranch';
 import { hydrateDocumentLineFromItem, mergeItemMaster } from '../../utils/documentItemHydration';
+import { getSelectableBusinessPartners, isSelectableBpCode, markResolvedBpLookup } from '../../utils/documentBpSelection';
 import { applyUomCodeSelection, getLineUomOptions } from '../../utils/documentUom';
-import { calculateDocumentRounding, getDocumentRoundingPolicy } from '../../utils/documentRounding';
+import { calculateDocumentRounding, getDocumentRoundingPolicy, getDocumentRoundingPayloadAmount } from '../../utils/documentRounding';
+import DocumentRoundingInput from '../../components/sales-document/DocumentRoundingInput';
 import { getSapVisibleDocumentSeries, pickDocumentSeries, canUseManualSeries } from '../../utils/seriesDefaults';
 import {
     SAP_MANUAL_SERIES_VALUE,
@@ -49,7 +52,7 @@ import {
     isValidManualDocumentNumber,
 } from '../../utils/documentSeries';
 import { readGeneralSettings } from '../../utils/generalSettingsStorage';
-import { useCompanyScopedFormSettings } from '../../utils/formSettingsStorage';
+import { useStandardSalesFormSettings } from '../../utils/standardSalesFormSettings';
 import { buildCompanyFormQueryContext } from '../../utils/companyFormQueryContext';
 import { updateFormSettingPreference } from '../../utils/formSettingsPreferences';
 import { buildVisibleEnteredRowUdfPayload } from '../../utils/rowUdfPayload';
@@ -58,6 +61,7 @@ import { applyDocumentTablePaste } from '../../utils/documentTableClipboard';
 import { getStateCodeValue, getStateDisplayName } from '../../utils/stateDisplay';
 import { findTaxCode, getTaxComponentCodes } from '../../utils/taxCodeComponents';
 import { getCalculatedForRate } from '../../utils/lineTotals';
+import { getSalesOrderCommissionDefaults } from '../../utils/salesOrderCommissionDefault';
 import {
     convertDocumentAmountForDisplay,
     inferDocumentCurrencyMode,
@@ -108,7 +112,6 @@ import {
     buildSalesDocumentLiveFields,
     filterLayoutToCurrentSchema,
     getSalesDocumentCompanyScopeKey,
-    isSalesDocumentFieldMetadataReady,
     loadSalesDocumentFieldLookupOptions,
 } from '../../utils/salesDocumentLiveFields';
 import { getBOM } from '../../api/bomApi';
@@ -312,7 +315,12 @@ const buildExchangeRatesFallbackData = ({ year, month, currencies = [], localCur
     };
 };
 
-const createLine = (rowUdfDefinitions = []) => ({
+const createLine = (rowUdfDefinitions = [], companyDb = '') => {
+    const commissionDefaults = getSalesOrderCommissionDefaults(companyDb, rowUdfDefinitions);
+    const udf = createUdfState(rowUdfDefinitions);
+    const commissionUdfKey = Object.keys(udf).find((key) => key.toUpperCase() === 'U_COMPRC');
+    if (commissionUdfKey && commissionDefaults.commission !== '') udf[commissionUdfKey] = commissionDefaults.commission;
+    return {
     itemServiceType: 'Item',
     itemNo: '', itemDescription: '',
     sellerQuality: '', buyerQuality: '',
@@ -322,7 +330,7 @@ const createLine = (rowUdfDefinitions = []) => ({
     sellerDelivery: '', buyerDelivery: '',
     sellerBrokerageAmtPer: '', sellerBrokeragePercent: '',
     sellerBrokerage: '', buyerBrokerage: '',
-    specialRebate: '', commission: '', sellerBrokeragePerQty: '', unitPriceUdf: '',
+    specialRebate: '', commission: commissionDefaults.commission, sellerBrokeragePerQty: '', unitPriceUdf: '',
     qtySpecialInstruction: '', deliverySpecialInstruction: '',
     buyerPaymentTerms: '', sellerPaymentTerms: '', buyerSpecialInstruction: '', sellerSpecialInstruction: '',
     buyerBillDiscount: '', sellerBillDiscount: '', sellerItem: '', sellerQty: '',
@@ -331,13 +339,14 @@ const createLine = (rowUdfDefinitions = []) => ({
     uomCode: '', uomName: '', uomEntry: null, uomFactor: 1, inStock: '', qtyInWhse: '', stdDiscount: '', stcode: '', taxCode: '', total: '', grossTotal: '', whse: '',
     glAccount: '', distRule: '', distRule2: '', distRule3: '', distRule4: '', distRule5: '',
     cogsDistRule: '', cogsDistRule2: '', cogsDistRule3: '', cogsDistRule4: '', cogsDistRule5: '',
-    freeText: '', countryOfOrigin: '', sacCode: '', blanketAgreementNo: '', blanketAgreementLine: '', commPercent: '',
+    freeText: '', countryOfOrigin: '', sacCode: '', blanketAgreementNo: '', blanketAgreementLine: '', commPercent: commissionDefaults.commPercent,
     openQty: '', deliveredQty: '', taxAmount: '', wTaxLiable: '', taxLiable: '', lineShippingType: '', lineDeliveryDate: '',
     withoutQtyPosting: '', enableSettingCost: '', returnCost: '', documentCreated: '',
     loc: '', branch: '', lineNum: undefined, baseEntry: null, baseType: null, baseLine: null,
     ...createEmptySalesBomMetadata(),
-    udf: createUdfState(rowUdfDefinitions),
-});
+    udf,
+    };
+};
 
 const INIT_HEADER = {
     vendor: '', name: '', contactPerson: '', salesContractNo: '', customerRefNo: '', branch: '', warehouse: '',
@@ -497,25 +506,29 @@ function SalesOrder() {
     const [header, setHeader] = useState(() => createInitialHeader(generalSettingsRef.current));
     const [headerUdfDefinitions, setHeaderUdfDefinitions] = useState([]);
     const [rowUdfDefinitions, setRowUdfDefinitions] = useState([]);
+    const createCompanyLine = useCallback(
+        (definitions = rowUdfDefinitions) => createLine(definitions, activeCompanyDb),
+        [activeCompanyDb, rowUdfDefinitions],
+    );
     const [matrixColumnDefinitions, setMatrixColumnDefinitions] = useState(getSapStandardSalesMatrixColumns);
     const [headerFieldDefinitions, setHeaderFieldDefinitions] = useState([]);
     const [hydratedFieldMetadataScope, setHydratedFieldMetadataScope] = useState('');
-    const [lines, setLines] = useState([createLine()]);
+    const [lines, setLines] = useState(() => [createCompanyLine()]);
     const [attachments] = useState(INIT_ATTACH);
     const [activeTab, setActiveTab] = useState('Contents');
     const [headerUdfs, setHeaderUdfs] = useState({});
-    const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings, formSettingsStatus] = useCompanyScopedFormSettings(
-        FORM_SETTINGS_STORAGE_KEY,
+    const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings,
+        formSettingsStatus, effectiveMatrixColumnDefinitions, companyFormSettingsReady] = useStandardSalesFormSettings({
+        formKey: FORM_SETTINGS_STORAGE_KEY,
         readSavedFormSettings,
-        [headerUdfDefinitions, rowUdfDefinitions, matrixColumnDefinitions],
-        { saveMode: 'explicit' },
-    );
-    const companyFormSettingsReady = formSettingsStatus.loaded && isSalesDocumentFieldMetadataReady({
+        headerUdfDefinitions,
+        rowUdfDefinitions,
+        matrixColumnDefinitions,
         companyId: activeCompanyId,
         companyDb: activeCompanyDb,
-        hydratedScope: hydratedFieldMetadataScope,
+        hydratedFieldMetadataScope,
     });
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [formSettingsOpen, setFormSettingsOpen] = useState(false);
     const [refData, setRefData] = useState({
         company: '', vendors: [], contacts: [], pay_to_addresses: [], ship_to_addresses: [], bill_to_addresses: [], items: [],
@@ -685,7 +698,7 @@ function SalesOrder() {
         restoringDraftRef.current = true;
         setCurrentDocEntry(draft.currentDocEntry || null);
         setHeader(draft.header || createInitialHeader(generalSettingsRef.current));
-        setLines(Array.isArray(draft.lines) && draft.lines.length ? draft.lines : [createLine()]);
+        setLines(Array.isArray(draft.lines) && draft.lines.length ? draft.lines : [createCompanyLine()]);
         setHeaderUdfs(draft.headerUdfs || {});
         setReferenceDocuments(Array.isArray(draft.referenceDocuments) ? draft.referenceDocuments : []);
         setReferenceDocumentsChanged(Boolean(draft.referenceDocumentsChanged));
@@ -856,7 +869,7 @@ function SalesOrder() {
                     setMatrixColumnDefinitions(getSapStandardSalesMatrixColumns());
                     setHeaderFieldDefinitions([]);
                     setHeaderUdfs({});
-                    setLines([createLine([])]);
+                    setLines([createCompanyLine([])]);
                     defaultWarehouseAppliedRef.current = false;
                     setRefData(prev => ({
                         ...prev,
@@ -893,7 +906,7 @@ function SalesOrder() {
                     defaultWarehouseAppliedRef.current = false;
                     setHeader(resetHeader);
                     setHeaderUdfs({});
-                    setLines([createLine([])]);
+                    setLines([createCompanyLine([])]);
                     setFreightModal({ open: false, freightCharges: [], loading: false });
                     setValErrors({ header: {}, lines: {}, form: '' });
                 }
@@ -965,7 +978,7 @@ function SalesOrder() {
                                     ...line,
                                     udf: normalizeUdfState(nextRowUdfs, line.udf || {}, { preserveExtra: false }),
                                 }))
-                                : [createLine(nextRowUdfs)];
+                                : [createCompanyLine(nextRowUdfs)];
                         }
 
                         const hasLoadedLines = hasPendingRouteDocument && (prev || []).some((line) =>
@@ -976,7 +989,7 @@ function SalesOrder() {
                                 ...line,
                                 udf: normalizeUdfState(nextRowUdfs, line.udf || {}, { preserveExtra: false }),
                             }))
-                            : [createLine(nextRowUdfs)];
+                            : [createCompanyLine(nextRowUdfs)];
                     });
                     replaceFormSettings(readSavedFormSettings(
                         nextHeaderUdfs,
@@ -990,6 +1003,7 @@ function SalesOrder() {
                         local_currency: refDataRes.data.local_currency || '',
                         system_currency: refDataRes.data.system_currency || refDataRes.data.local_currency || '',
                         vendors: refDataRes.data.vendors || [],
+                        bp_selection_policy: refDataRes.data.bp_selection_policy || null,
                         contacts: refDataRes.data.contacts || [],
                         pay_to_addresses: refDataRes.data.pay_to_addresses || [],
                         ship_to_addresses: refDataRes.data.ship_to_addresses || [],
@@ -1079,10 +1093,10 @@ function SalesOrder() {
         replaceFormSettings(readSavedFormSettings(
             headerUdfDefinitions,
             rowUdfDefinitions,
-            matrixColumnDefinitions,
+            effectiveMatrixColumnDefinitions,
             formSettingsStorageKey,
         ));
-    }, [companyFormSettingsReady, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, matrixColumnDefinitions, replaceFormSettings, rowUdfDefinitions]);
+    }, [companyFormSettingsReady, effectiveMatrixColumnDefinitions, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, replaceFormSettings, rowUdfDefinitions]);
 
     // â”€â”€ load existing order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -1220,11 +1234,12 @@ function SalesOrder() {
                     ? so.lines.map((l, index) => {
                         const hydratedLine = hydrateWorkbookDocumentLine({
                             line: l,
-                            createLine,
+                            createLine: createCompanyLine,
                             rowUdfDefinitions,
                             normalizeUdfState,
                             items: refData.items,
                             fallbackWarehouse: so.header?.warehouse || '',
+                            fallbackBranch: so.header?.branch || '',
                         });
                         let hsnCode = hydratedLine.hsnCode || '';
                         if (!hsnCode && hydratedLine.itemNo) {
@@ -1252,7 +1267,7 @@ function SalesOrder() {
                             )
                         };
                     })
-                    : [createLine(rowUdfDefinitions)];
+                    : [createCompanyLine(rowUdfDefinitions)];
                 setLines(normalizeSalesBomDocumentLines(loadedLines, `sales-order-${so.doc_entry || docEntry}`));
                 const loadedHeaderUdfs = so.header_udfs || {};
                 const applyLoadedTaxInfo = () => setTaxInfoForm(current => buildTaxInfoFormFromUdfs(loadedHeaderUdfs, current));
@@ -1434,8 +1449,8 @@ function SalesOrder() {
         return getLineUomOptions(line, item, refData.uom_groups).map((uom) => uom.uomCode);
     }, [refData.items, refData.uom_groups]);
     const requiresEditableUomCode = useMemo(
-        () => isUomCodeFieldEditable(matrixColumnDefinitions, formSettings),
-        [matrixColumnDefinitions, formSettings],
+        () => isUomCodeFieldEditable(effectiveMatrixColumnDefinitions, formSettings),
+        [effectiveMatrixColumnDefinitions, formSettings],
     );
 
     const lineItemOptions = lines.reduce((acc, line, i) => {
@@ -1512,7 +1527,7 @@ function SalesOrder() {
         const rounding = calculateDocumentRounding(
             discSub + freight + taxAmt,
             header.rounding,
-            numDec.totalPaymentDue, currentDocEntry ? header : null, getDocumentRoundingPolicy(refData, header));
+            numDec.totalPaymentDue, (currentDocEntry || header.roundingAmountIsManual) ? header : null, getDocumentRoundingPolicy(refData, header));
         return { subtotal, discAmt, discSub, freight, freightTaxAmt, taxAmt, ...rounding, taxBreakdown: Array.from(taxMap.values()) };
     };
 
@@ -1999,6 +2014,7 @@ function SalesOrder() {
         }
 
         if (name === 'vendor') {
+            markResolvedBpLookup(e.target, value, refData.vendors, refData.bp_selection_policy);
             setHeader(prev => {
                 const prep = { ...prev, [name]: value };
                 const { nextHeader } = syncVendor(value, prep);
@@ -2295,7 +2311,7 @@ function SalesOrder() {
                         || componentMaster.DefaultWarehouse
                         || '';
                     const componentBase = {
-                        ...createLine(rowUdfDefinitions),
+                        ...createCompanyLine(rowUdfDefinitions),
                         branch: parent.branch || header.branch || '',
                         whse: componentWarehouse,
                         quantity: documentQuantity === null ? '' : fmtDec(documentQuantity, numDec.quantity),
@@ -2367,6 +2383,12 @@ function SalesOrder() {
             const updatedLines = prev.map((line, idx) => {
                 if (idx !== i) return line;
                 const next = { ...line, [name]: numDec[name] !== undefined ? sanitize(value, numDec[name]) : value };
+                if (name === 'commission' && Object.keys(line.udf || {}).some((key) => key.toUpperCase() === 'U_COMPRC')) {
+                    next.udf = { ...line.udf };
+                    Object.keys(next.udf).filter((key) => key.toUpperCase() === 'U_COMPRC').forEach((key) => {
+                        next.udf[key] = next.commission;
+                    });
+                }
                 if (name === 'uomName') next.uomNameEdited = true;
                 if (['unitPrice', 'stdDiscount', 'taxCode'].includes(name)) next.forRate = '';
                 if (name === 'uomCode') {
@@ -2461,7 +2483,7 @@ function SalesOrder() {
             patches,
             startRowIndex,
             createLine: () => ({
-                ...createLine(rowUdfDefinitions),
+                ...createCompanyLine(rowUdfDefinitions),
                 branch: header.branch || '',
                 loc: resolveLineLocation(header.warehouse, header.branch),
                 whse: header.warehouse || '',
@@ -2512,7 +2534,7 @@ function SalesOrder() {
         // ðŸš¨ SKIP ALL VALIDATION DURING COPY MODE
         if (copyFromMode) {
             setLines(p => [...p, {
-                ...createLine(rowUdfDefinitions),
+                ...createCompanyLine(rowUdfDefinitions),
                 branch: header.branch || '',
                 loc: resolveLineLocation(header.warehouse, header.branch),
                 whse: header.warehouse || ''
@@ -2583,7 +2605,7 @@ function SalesOrder() {
         setValErrors(p => ({ ...p, form: '' }));
         setPageState(p => ({ ...p, error: '' }));
         setLines(p => [...p, {
-            ...createLine(rowUdfDefinitions),
+            ...createCompanyLine(rowUdfDefinitions),
             branch: header.branch || '',
             loc: resolveLineLocation(header.warehouse, header.branch),
             whse: header.warehouse || ''
@@ -2620,6 +2642,7 @@ function SalesOrder() {
         markDirty();
         setLines(p => p.map((l, idx) => idx === i ? {
             ...l,
+            ...(String(k).toUpperCase() === 'U_COMPRC' ? { commission: v } : {}),
             bomComponentManuallyEdited: l.bomRole === 'component' ? true : l.bomComponentManuallyEdited,
             udf: { ...(l.udf || {}), [k]: v },
         } : l));
@@ -2638,7 +2661,9 @@ function SalesOrder() {
         markDirty();
     };
     const updateFormSetting = (g, k, prop, val) => setFormSettings((previous) => (
-        updateFormSettingPreference(previous, g, k, prop, val)
+        updateFormSettingPreference(previous, g, k, prop, val, {
+            editableSapControlledGroups: ['matrixColumns', 'rowUdfs', 'headerUdfs'],
+        })
     ));
     const toggleHeaderUdfs = () => {
         setFormSettingsOpen(false);
@@ -2818,6 +2843,7 @@ function SalesOrder() {
 
     const handleBpSelect = (bp) => {
         const code = bp.CardCode;
+        if (!isSelectableBpCode(code, refData.bp_selection_policy)) return;
         setHeader(prev => {
             const prep = { ...prev, vendor: code };
             const { nextHeader } = syncVendor(code, prep);
@@ -2987,7 +3013,7 @@ function SalesOrder() {
 
         const rawLines = copySource.lines;
         const copiedLines = normalizeSalesBomDocumentLines(rawLines.map((line, idx) => ({
-            ...createLine(rowUdfDefinitions),
+            ...createCompanyLine(rowUdfDefinitions),
             ...normaliseDocumentLine(line, idx, copySource.docEntry, baseType, normHeader.branch),
             stcode: line.STCODE || line.STACode || line.stcode || '',
             taxCodeManuallyOverridden: Boolean(String(line.TaxCode || line.VatGroup || line.taxCode || '').trim()),
@@ -3012,7 +3038,7 @@ function SalesOrder() {
         }));
         setPageState(p => ({ ...p, seriesLoading: true }));
         
-        setLines(copiedLines.length > 0 ? copiedLines : [createLine(rowUdfDefinitions)]);
+        setLines(copiedLines.length > 0 ? copiedLines : [createCompanyLine(rowUdfDefinitions)]);
         setHeaderUdfs(normalizeUdfState(headerUdfDefinitions, sourceHeaderUdfs, { preserveExtra: false }));
         setFreightModal({ open: false, freightCharges: Array.isArray(sourceFreightCharges) ? sourceFreightCharges : [], loading: false });
 
@@ -3184,7 +3210,7 @@ function SalesOrder() {
             header,
             initialHeader: createInitialHeader(generalSettingsRef.current),
             lines,
-            createLine,
+            createLine: createCompanyLine,
             rowUdfDefinitions,
             setCurrentDocEntry,
             setHeader,
@@ -3255,6 +3281,11 @@ function SalesOrder() {
         if (!isUpdate) {
             const vc = String(header.vendor || '').trim();
             if (!vc) { e.header.vendor = 'Select a customer.'; e.form = 'Please correct the highlighted fields.'; return e; }
+            if (!isSelectableBpCode(vc, refData.bp_selection_policy)) {
+                e.header.vendor = `Use ${refData.bp_selection_policy.preferredCardCode} for this customer.`;
+                e.form = 'Please correct the highlighted fields.';
+                return e;
+            }
 
             // Validate Ship-To address (required for GST determination)
             if (!String(header.shipToCode || '').trim()) {
@@ -3437,7 +3468,8 @@ function SalesOrder() {
                 deliveryDate: header.deliveryDate || header.postingDate || header.documentDate,
                 // The rounding amount is calculated for display, so persist that
                 // same value instead of the stale/empty value held in header state.
-                roundingAmount: totals.roundingAmount,
+                roundingAmount: getDocumentRoundingPayloadAmount(header, totals.roundingAmount),
+                roundingAmountIsManual: header.roundingAmountIsManual === true,
                 placeOfSupply: header.placeOfSupply,
                 branch: header.branch,
                 contactPerson: header.contactPerson,
@@ -3568,7 +3600,7 @@ function SalesOrder() {
             const resetHeader = createInitialHeader(generalSettingsRef.current);
             setSnapshotPending(false);
             setIsDirty(false);
-            setCurrentDocEntry(null); setHeader(resetHeader); setLines([createLine(rowUdfDefinitions)]);
+            setCurrentDocEntry(null); setHeader(resetHeader); setLines([createCompanyLine(rowUdfDefinitions)]);
             setReferenceDocuments([]);
             setReferenceDocumentsChanged(false);
             setFreightModal({ open: false, freightCharges: [], loading: false });
@@ -3599,7 +3631,7 @@ function SalesOrder() {
         const resetHeader = createInitialHeader(generalSettingsRef.current);
         setSnapshotPending(false);
         setIsDirty(false);
-        setCurrentDocEntry(null); setHeader(resetHeader); setLines([createLine(rowUdfDefinitions)]);
+        setCurrentDocEntry(null); setHeader(resetHeader); setLines([createCompanyLine(rowUdfDefinitions)]);
         setReferenceDocuments([]);
         setReferenceDocumentsChanged(false);
         setFreightModal({ open: false, freightCharges: [], loading: false });
@@ -3620,9 +3652,7 @@ function SalesOrder() {
     const visibleRowUdfs = rowUdfDefinitions.filter((field) => (
         resolveFormSettingFlag(field, formSettings.rowUdfs?.[field.key] || {}, 'visible')
     ));
-    // Keep the right-side grid track reserved so closing the panel doesn't
-    // reflow the document body and push form fields out of view.
-    const isRightSidebarOpen = true;
+    const isRightSidebarOpen = sidebarOpen || formSettingsOpen;
 
     useEffect(() => {
         const handleShortcut = (event) => {
@@ -3823,7 +3853,7 @@ function SalesOrder() {
 
                                         {/* Buyer's Code */}
                                         <div className="so-field">
-                                            <label className="so-field__label">{getHeaderFieldLabel(headerFieldMap, 'vendor', "Buyer's Code", true)}</label>
+                                            <label className="so-field__label">{getHeaderFieldLabel(headerFieldMap, 'vendor', 'Buyer Code', true)}</label>
                                             <div className="sap-input-group">
                                                 <input
                                                     name="vendor"
@@ -3831,7 +3861,7 @@ function SalesOrder() {
                                                     value={header.vendor}
                                                     onChange={handleHeaderChange}
                                                     disabled={!!currentDocEntry}
-                                                    placeholder="Customer code"
+                                                    placeholder="Buyer code"
                                                 />
                                                 <SapGoldenArrowButton
                                                     onClick={openBusinessPartnerLink}
@@ -3852,7 +3882,7 @@ function SalesOrder() {
 
                                         {/* Buyer's Name */}
                                         <div className="so-field">
-                                            <label className="so-field__label">{getHeaderFieldLabel(headerFieldMap, 'name', "Buyer's Name")}</label>
+                                            <label className="so-field__label">{getHeaderFieldLabel(headerFieldMap, 'name', 'Buyer Name')}</label>
                                             <input name="name" className="so-field__input" value={header.name} readOnly />
                                         </div>
 
@@ -4041,20 +4071,19 @@ function SalesOrder() {
                                         {/* Posting Date */}
                                         <div className="so-field">
                                             <label className="so-field__label">{getHeaderFieldLabel(headerFieldMap, 'postingDate', 'Posting Date', true)}</label>
-                                            <input type="date" name="postingDate" className="so-field__input" value={header.postingDate} onChange={handleHeaderChange} />
+                                            <SapDateInput  name="postingDate" className="so-field__input" value={header.postingDate} onChange={handleHeaderChange} />
                                         </div>
 
                                         {/* Delivery Date */}
                                         <div className="so-field">
                                             <label className="so-field__label">{getHeaderFieldLabel(headerFieldMap, 'deliveryDate', 'Delivery Date')}</label>
-                                            <input type="date" name="deliveryDate" className="so-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
+                                            <SapDateInput  name="deliveryDate" className="so-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
                                         </div>
 
                                         {/* Document Date */}
                                         <div className="so-field">
                                             <label className="so-field__label">{getHeaderFieldLabel(headerFieldMap, 'documentDate', 'Document Date', true)}</label>
-                                            <input
-                                                type="date"
+                                            <SapDateInput
                                                 name="documentDate"
                                                 className="so-field__input"
                                                 value={header.documentDate}
@@ -4123,7 +4152,7 @@ function SalesOrder() {
                                 copyFromMode={copyFromMode}
                                 formSettings={formSettings}
                                 formSettingsReady={companyFormSettingsReady}
-                                matrixFields={matrixColumnDefinitions}
+                                matrixFields={effectiveMatrixColumnDefinitions}
                                 useSapMatrixOrder={Boolean(refData.line_field_metadata?.sap_form?.preferenceRows)}
                                 rowUdfFields={visibleRowUdfs}
                                 onRowUdfChange={handleRowUdfChange}
@@ -4288,7 +4317,7 @@ function SalesOrder() {
                                                             Rounding
                                                         </label>
                                                     </td>
-                                                    <td className="so-grid__cell--num"><input className="so-grid__input" value={formatMoneyWithCurrency(totalsForDisplay.roundingAmount, numDec.totalPaymentDue)} readOnly /></td>
+                                                    <td className="so-grid__cell--num"><DocumentRoundingInput className="so-grid__input" header={header} setHeader={setHeader} formattedAmount={formatMoneyWithCurrency(totalsForDisplay.roundingAmount, numDec.totalPaymentDue)} disabled={!isDocumentEditable} onManualChange={markDirty} /></td>
                                                 </tr>
                                                 <tr>
                                                     <td>Tax</td>
@@ -4427,15 +4456,16 @@ function SalesOrder() {
                         className="sap-header-udf-panel so-layout__sidebar"
                         isOpen={formSettingsOpen}
                         onClose={() => setFormSettingsOpen(false)}
-                        matrixFields={matrixColumnDefinitions}
+                        matrixFields={effectiveMatrixColumnDefinitions}
                         headerUdfFields={headerUdfDefinitions}
+                        showHeaderUdfSettings
                         rowUdfFields={rowUdfDefinitions}
                         formSettings={formSettings}
           onSettingChange={updateFormSetting}
           onColumnOrderChange={formSettingsStatus.reorder}
                         settingsLoaded={companyFormSettingsReady}
-                        editablePropertiesByGroup={{ matrixColumns: ['visible'], rowUdfs: ['visible'] }}
-                        editableSapControlledProperties={{ matrixColumns: ['visible'], headerUdfs: [], rowUdfs: ['visible'] }}
+                        editablePropertiesByGroup={{ matrixColumns: ['visible'], headerUdfs: ['visible'], rowUdfs: ['visible'] }}
+                        editableSapControlledProperties={{ matrixColumns: ['visible'], headerUdfs: ['visible'], rowUdfs: ['visible'] }}
                         isSaving={formSettingsStatus.saving}
                         hasUnsavedChanges={formSettingsStatus.hasUnsavedChanges}
                         saveError={formSettingsStatus.error}
@@ -4483,7 +4513,7 @@ function SalesOrder() {
                     closeBpModal();
                     navigate('/business-partner');
                 }}
-                businessPartners={refData.vendors || []}
+                businessPartners={getSelectableBusinessPartners(refData.vendors, refData.bp_selection_policy)}
             />
 
             {/* Copy From Modal */}

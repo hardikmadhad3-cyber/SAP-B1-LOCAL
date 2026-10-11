@@ -393,16 +393,6 @@ const getCustomers = () => safe(db.query(`
   ORDER  BY CardName, CardCode
 `));
 
-const getPostingPeriodValidation = async (docDate) => {
-  const result = await db.query(`
-    SELECT TOP 1 AbsEntry, PeriodStat
-    FROM OFPR
-    WHERE @docDate BETWEEN F_RefDate AND T_RefDate
-      AND ISNULL(PeriodStat, 'N') NOT IN ('C', 'L')
-  `, { docDate });
-  return result.recordset?.[0] || null;
-};
-
 const searchCustomers = async ({ query = '', cardCode = '', cardName = '', top, sortBy = 'code' } = {}) => {
   const normalizedQuery = String(query || '').trim();
   const normalizedCardCode = String(cardCode || '').trim();
@@ -904,8 +894,8 @@ const SALES_ORDER_MATRIX_COLUMN_DEFS = [
 ];
 
 const SALES_ORDER_HEADER_FIELD_DEFS = [
-  { key: 'vendor', label: "Customer Code", sapField: 'CardCode', required: true, lookupSource: 'customers' },
-  { key: 'name', label: 'Customer Name', sapField: 'CardName', readOnly: true },
+  { key: 'vendor', label: 'Buyer Code', sapField: 'CardCode', required: true, lookupSource: 'customers' },
+  { key: 'name', label: 'Buyer Name', sapField: 'CardName', readOnly: true },
   { key: 'contactPerson', label: 'Contact Person', sapField: 'CntctCode', lookupSource: 'contacts' },
   { key: 'currency', label: 'Currency', sapField: 'DocCur' },
   { key: 'placeOfSupply', label: 'Place of Supply', sapField: 'U_PlaceOfSupply', lookupSource: 'states', required: false },
@@ -3498,6 +3488,9 @@ ORDER BY T1.LineNum
           total: String(line.LineTotal || 0),
           taxAmount: String(line.LineTaxAmount || 0),
           whse: line.WhsCode || '',
+          // RDR1 has no branch column in many SAP B1 companies. The document
+          // branch is stored on ORDR and shown on each row in the SAP client.
+          branch: header.BPLId != null ? String(header.BPLId) : '',
           distRule: line.DistributionRule || '',
           distRule2: line.DistributionRule2 || '',
           distRule3: line.DistributionRule3 || '',
@@ -3670,6 +3663,7 @@ const getSalesOrderForCopy = async (docEntry) => {
       ${parentLineNumColumn ? `T0.${quoteSqlIdentifier(parentLineNumColumn)}` : 'NULL'} AS ParentLineNum,
       T0.Dscription AS ItemDescription,
       T0.OpenQty AS Quantity,
+      T0.Quantity AS OrderedQuantity,
       COALESCE(NULLIF(T0.PriceBefDi, 0), T0.Price, T0.PriceBefDi, 0) AS UnitPrice,
       T0.Price AS Price,
       ${lineField('StockPrice', 'ItemCost', 'ITM.AvgPrice')},
@@ -3798,7 +3792,6 @@ const getSalesOrderForCopy = async (docEntry) => {
 module.exports = {
   getReferenceData,
   getCustomerDetails,
-  getPostingPeriodValidation,
   searchCustomers,
   getItemDetails,
   getSalesOrderLineFieldMetadata,

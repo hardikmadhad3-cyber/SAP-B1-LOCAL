@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
@@ -37,11 +38,13 @@ import { duplicateDocumentInPlace } from '../../utils/documentDuplicate';
 import { determineTaxCode, recalculateAllTaxCodes, getGSTTypeLabel } from '../../utils/taxEngine';
 import { filterWarehousesByBranch, getWarehouseBranchId } from '../../utils/warehouseBranch';
 import { hydrateDocumentLineFromItem, mergeItemMaster } from '../../utils/documentItemHydration';
+import { getSelectableBusinessPartners, isSelectableBpCode, markResolvedBpLookup } from '../../utils/documentBpSelection';
 import { applyUomCodeSelection, getItemDefaultUom, getLineUomOptions } from '../../utils/documentUom';
-import { calculateDocumentRounding, getDocumentRoundingPolicy } from '../../utils/documentRounding';
+import { calculateDocumentRounding, getDocumentRoundingPolicy, getDocumentRoundingPayloadAmount } from '../../utils/documentRounding';
+import DocumentRoundingInput from '../../components/sales-document/DocumentRoundingInput';
 import { getSapVisibleDocumentSeries, canUseManualSeries } from '../../utils/seriesDefaults';
 import { readGeneralSettings } from '../../utils/generalSettingsStorage';
-import { useCompanyScopedFormSettings } from '../../utils/formSettingsStorage';
+import { useStandardSalesFormSettings } from '../../utils/standardSalesFormSettings';
 import { buildCompanyFormQueryContext } from '../../utils/companyFormQueryContext';
 import { updateFormSettingPreference } from '../../utils/formSettingsPreferences';
 import {
@@ -73,7 +76,6 @@ import { fetchSalesDocumentLookup, fetchSalesDocumentSchema } from '../../api/sa
 import {
   buildSalesDocumentLiveFields,
   getSalesDocumentCompanyScopeKey,
-  isSalesDocumentFieldMetadataReady,
   loadSalesDocumentFieldLookupOptions,
   stripSalesDocumentTopLevelUdfs,
 } from '../../utils/salesDocumentLiveFields';
@@ -362,7 +364,7 @@ const getARInvoiceDocumentLines = (invoice = {}) => {
 
 const createLine = (rowUdfDefinitions = []) => ({
   itemNo: '', itemDescription: '', hsnCode: '', quantity: '', unitPrice: '',
-  openQty: '', uomCode: '', stdDiscount: '', priceAfterDiscount: '', taxCode: '', taxCodeRepeat: '', total: '', totalLC: '', grossTotal: '', whse: DEFAULT_WAREHOUSE_CODE,
+  openQty: '', uomCode: '', stdDiscount: '', priceAfterDiscount: '', noOfPackages: '', itemsPerUnit: '', taxCode: '', taxCodeRepeat: '', total: '', totalLC: '', grossTotal: '', whse: DEFAULT_WAREHOUSE_CODE,
   lineDeliveryDate: '',
   loc: '', branch: '', wTaxLiable: 'N', glAccount: '', glAccountName: '', distRule: '', taxLiable: 'Y',
   weight: '', taxAmount: '', uomName: '', cogsDistRule: '', countryOfOrigin: '',
@@ -472,18 +474,18 @@ function ARInvoicePage() {
   const [attachments] = useState(INIT_ATTACH);
   const [activeTab, setActiveTab] = useState('Contents');
   const [headerUdfs, setHeaderUdfs] = useState({});
-  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings, formSettingsStatus] = useCompanyScopedFormSettings(
-    FORM_SETTINGS_STORAGE_KEY,
+  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings,
+    formSettingsStatus, effectiveMatrixColumnDefinitions, companyFormSettingsReady] = useStandardSalesFormSettings({
+    formKey: FORM_SETTINGS_STORAGE_KEY,
     readSavedFormSettings,
-    [headerUdfDefinitions, rowUdfDefinitions, matrixColumnDefinitions],
-    { saveMode: 'explicit' },
-  );
-  const companyFormSettingsReady = formSettingsStatus.loaded && isSalesDocumentFieldMetadataReady({
+    headerUdfDefinitions,
+    rowUdfDefinitions,
+    matrixColumnDefinitions,
     companyId: activeCompanyId,
     companyDb: activeCompanyDb,
-    hydratedScope: hydratedFieldMetadataScope,
+    hydratedFieldMetadataScope,
   });
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [refData, setRefData] = useState({
     company: '', vendors: [], contacts: [], pay_to_addresses: [], ship_to_addresses: [], bill_to_addresses: [], items: [],
@@ -868,6 +870,7 @@ function ARInvoicePage() {
             ...prev,
             company: refDataRes.data.company || '',
             vendors: vendorRows,
+            bp_selection_policy: refDataRes.data.bp_selection_policy || null,
             contacts: refDataRes.data.contacts || [],
             pay_to_addresses: refDataRes.data.pay_to_addresses || [],
             items: refDataRes.data.items || [],
@@ -967,10 +970,10 @@ function ARInvoicePage() {
     replaceFormSettings(readSavedFormSettings(
       headerUdfDefinitions,
       rowUdfDefinitions,
-      matrixColumnDefinitions,
+      effectiveMatrixColumnDefinitions,
       formSettingsStorageKey,
     ));
-  }, [companyFormSettingsReady, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, matrixColumnDefinitions, replaceFormSettings, rowUdfDefinitions]);
+  }, [companyFormSettingsReady, effectiveMatrixColumnDefinitions, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, replaceFormSettings, rowUdfDefinitions]);
 
   // â”€â”€ load existing order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -1465,7 +1468,7 @@ function ARInvoicePage() {
     const rounding = calculateDocumentRounding(
       discSub + freight + taxAmt,
       header.rounding,
-      numDec.totalPaymentDue, currentDocEntry ? header : null, getDocumentRoundingPolicy(refData, header));
+      numDec.totalPaymentDue, (currentDocEntry || header.roundingAmountIsManual) ? header : null, getDocumentRoundingPolicy(refData, header));
     return { subtotal, discAmt, discSub, freight, freightTaxAmt, taxAmt, ...rounding, taxBreakdown: Array.from(taxMap.values()) };
   };
 
@@ -2009,6 +2012,7 @@ function ARInvoicePage() {
     }
     
     if (name === 'vendor') {
+      markResolvedBpLookup(e.target, value, refData.vendors, refData.bp_selection_policy);
       setHeader(prev => {
         const prep = { ...prev, [name]: value };
         const { nextHeader } = syncVendor(value, prep);
@@ -2500,7 +2504,9 @@ function ARInvoicePage() {
     }));
   };
   const updateFormSetting = (g, k, prop, val) => setFormSettings((previous) => (
-    updateFormSettingPreference(previous, g, k, prop, val)
+    updateFormSettingPreference(previous, g, k, prop, val, {
+      editableSapControlledGroups: ['matrixColumns', 'rowUdfs', 'headerUdfs'],
+    })
   ));
   const toggleHeaderUdfs = () => {
     setFormSettingsOpen(false);
@@ -2666,6 +2672,7 @@ function ARInvoicePage() {
   const handleBpSelect = (bp) => {
     if (!isDocumentEditable) return;
     const code = bp.CardCode;
+    if (!isSelectableBpCode(code, refData.bp_selection_policy)) return;
     setHeader(prev => {
       const prep = { ...prev, vendor: code };
       const { nextHeader } = syncVendor(code, prep);
@@ -3029,6 +3036,11 @@ function ARInvoicePage() {
           e.header.vendor = 'Select a customer.'; 
           e.form = 'Please correct the highlighted fields.'; 
           return e; 
+        }
+        if (!isSelectableBpCode(vc, refData.bp_selection_policy)) {
+          e.header.vendor = `Use ${refData.bp_selection_policy.preferredCardCode} for this customer.`;
+          e.form = 'Please correct the highlighted fields.';
+          return e;
         }
         
       }
@@ -3512,7 +3524,8 @@ function ARInvoicePage() {
         placeOfSupply: header.placeOfSupply,
         branch: resolvedBranch,
         contactPerson: header.contactPerson,
-        roundingAmount: totals.roundingAmount,
+        roundingAmount: getDocumentRoundingPayloadAmount(header, totals.roundingAmount),
+        roundingAmountIsManual: header.roundingAmountIsManual === true,
       };
       
       // Only include series if it's explicitly set and valid
@@ -3932,19 +3945,19 @@ function ARInvoicePage() {
                     {/* Posting Date */}
                     <div className="del-field">
                       <label className="del-field__label">Posting Date *</label>
-                      <input type="date" name="postingDate" className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
+                      <SapDateInput  name="postingDate" className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
                     </div>
 
                     {/* Due Date */}
                     <div className="del-field">
                       <label className="del-field__label">Due Date</label>
-                      <input type="date" name="deliveryDate" className="del-field__input" value={header.deliveryDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
+                      <SapDateInput  name="deliveryDate" className="del-field__input" value={header.deliveryDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
                     </div>
 
                     {/* Document Date */}
                     <div className="del-field">
                       <label className="del-field__label">Document Date *</label>
-                      <input type="date" name="documentDate" className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
+                      <SapDateInput  name="documentDate" className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
                     </div>
 
                     {/* Payment Terms */}
@@ -4011,7 +4024,7 @@ function ARInvoicePage() {
                 isEditable={isDocumentEditable}
                 formSettings={formSettings}
                 formSettingsReady={companyFormSettingsReady}
-                matrixFields={matrixColumnDefinitions}
+                matrixFields={effectiveMatrixColumnDefinitions}
                 rowUdfFields={visibleRowUdfs}
                 onRowUdfChange={handleRowUdfChange}
                 onLoadLookupOptions={loadDynamicLineLookupOptions}
@@ -4143,7 +4156,7 @@ function ARInvoicePage() {
                         </tr>
                         <tr>
                           <td><input type="checkbox" className="" name="rounding" checked={header.rounding} onChange={handleHeaderChange} style={{ marginRight: 6 }} disabled={!isDocumentEditable} /><span>Rounding</span></td>
-                          <td className='del-grid__cell--num'><input className='del-grid__input' value={formatDisplayMoney(totals.roundingAmount, numDec.totalPaymentDue)} readOnly /></td>
+                          <td className='del-grid__cell--num'><DocumentRoundingInput className="del-grid__input" header={header} setHeader={setHeader} formattedAmount={formatDisplayMoney(totals.roundingAmount, numDec.totalPaymentDue)} disabled={!isDocumentEditable} onManualChange={markDirty} /></td>
                         </tr>
                         <tr>
                           <td>Tax</td>
@@ -4269,15 +4282,16 @@ function ARInvoicePage() {
             className="sap-header-udf-panel so-layout__sidebar"
             isOpen={formSettingsOpen}
             onClose={() => setFormSettingsOpen(false)}
-            matrixFields={matrixColumnDefinitions}
+            matrixFields={effectiveMatrixColumnDefinitions}
             headerUdfFields={headerUdfDefinitions}
+            showHeaderUdfSettings
             rowUdfFields={rowUdfDefinitions}
             formSettings={formSettings}
           onSettingChange={updateFormSetting}
           onColumnOrderChange={formSettingsStatus.reorder}
             settingsLoaded={companyFormSettingsReady}
-            editablePropertiesByGroup={{ matrixColumns: ['visible'], rowUdfs: ['visible'] }}
-            editableSapControlledProperties={{ matrixColumns: ['visible'], headerUdfs: [], rowUdfs: ['visible'] }}
+            editablePropertiesByGroup={{ matrixColumns: ['visible'], headerUdfs: ['visible'], rowUdfs: ['visible'] }}
+            editableSapControlledProperties={{ matrixColumns: ['visible'], headerUdfs: ['visible'], rowUdfs: ['visible'] }}
             isSaving={formSettingsStatus.saving}
             hasUnsavedChanges={formSettingsStatus.hasUnsavedChanges}
             saveError={formSettingsStatus.error}
@@ -4332,7 +4346,7 @@ function ARInvoicePage() {
         isOpen={bpModal}
         onClose={closeBpModal}
         onSelect={handleBpSelect}
-        businessPartners={refData.vendors || []}
+        businessPartners={getSelectableBusinessPartners(refData.vendors, refData.bp_selection_policy)}
       />
 
       {/* HSN Code Selection Modal */}

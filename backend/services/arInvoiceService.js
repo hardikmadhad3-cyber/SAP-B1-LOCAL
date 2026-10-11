@@ -3,6 +3,7 @@ const { buildDocumentSeriesPayload } = require('./documentSeriesPayloadUtils');
 const sapService = require('./sapService');
 const { buildDocumentRoundingPayload } = require('./documentRoundingPayloadUtils');
 const arInvoiceDb = require('./arInvoiceDbService');
+const { getDocumentBpSelectionPolicy, assertDocumentBpSelection } = require('./documentBpSelectionPolicy');
 const salesOrderDb = require('./salesOrderDbService');
 const { buildDocumentAdditionalExpenses } = require('./freightPayloadUtils');
 const { buildMarketingDocumentAddressPayload } = require('./documentAddressPayloadUtils');
@@ -257,6 +258,7 @@ const getReferenceData = async (companyId) => {
       loadCompanyCurrencyContext(),
     ]);
     const data = mergeCurrencyReferenceData(rawData, currencyContext);
+    data.bp_selection_policy = await getDocumentBpSelectionPolicy('arInvoice');
     if (data.customers && !data.vendors) {
       data.vendors = data.customers;
       delete data.customers;
@@ -429,6 +431,7 @@ const submitARInvoice = async (payload) => {
     
     // Use vendor or customerCode (frontend sends vendor)
     const customerCode = payload.header.vendor || payload.header.customerCode || payload.header.customer;
+    assertDocumentBpSelection(await getDocumentBpSelectionPolicy('arInvoice'), customerCode);
     
     if (!customerCode) {
       throw new Error('Customer code is required');
@@ -603,6 +606,14 @@ const updateARInvoice = async (docEntry, payload) => {
   const confirmationResult = await updateDocumentConfirmationOnly(docEntry, payload, 'Invoices', sapService);
   if (confirmationResult) return confirmationResult;
   try {
+    const bpSelectionPolicy = await getDocumentBpSelectionPolicy('arInvoice');
+    if (bpSelectionPolicy) {
+      const existing = await arInvoiceDb.getARInvoice(docEntry);
+      const incomingCode = payload.header?.vendor || payload.header?.customerCode || payload.header?.customer;
+      assertDocumentBpSelection(bpSelectionPolicy, incomingCode, {
+        existingCode: existing?.ar_invoice?.header?.customerCode,
+      });
+    }
     console.log("🔥 [ARInvoiceService] UPDATING AR INVOICE:", docEntry, JSON.stringify(payload, null, 2));
 
     // Use vendor or customerCode (frontend sends vendor)

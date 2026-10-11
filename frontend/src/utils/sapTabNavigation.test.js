@@ -2,6 +2,7 @@ import {
   consumePendingLookupQuery,
   installSapTabNavigation,
 } from "./sapTabNavigation";
+import { markResolvedBpLookup } from './documentBpSelection';
 
 describe("SAP lookup Tab navigation", () => {
   let restoreClientRects;
@@ -98,5 +99,84 @@ describe("SAP lookup Tab navigation", () => {
 
     expect(dispatched).toBe(true);
     expect(tabEvent.defaultPrevented).toBe(false);
+  });
+
+  test("typed Header UDF lookup opens on Tab and carries the search text", () => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "po-udf-lookup-control";
+    const field = document.createElement("div");
+    field.className = "po-udf-lookup-control__field";
+    const input = document.createElement("input");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "...";
+    field.append(input);
+    wrapper.append(field, button);
+    document.body.append(wrapper);
+    const openLookup = jest.fn(() => consumePendingLookupQuery());
+    button.addEventListener("click", openLookup);
+
+    input.focus();
+    input.value = "te";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    const tabEvent = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    input.dispatchEvent(tabEvent);
+
+    expect(tabEvent.defaultPrevented).toBe(true);
+    expect(openLookup).toHaveReturnedWith("te");
+  });
+
+  test("empty lookup opens on Tab so the user can choose a value", () => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "po-udf-lookup-control";
+    const field = document.createElement("div");
+    field.className = "po-udf-lookup-control__field";
+    const input = document.createElement("input");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "...";
+    field.append(input);
+    wrapper.append(field, button);
+    document.body.append(wrapper);
+    const openLookup = jest.fn();
+    button.addEventListener("click", openLookup);
+
+    input.focus();
+    const tabEvent = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    input.dispatchEvent(tabEvent);
+
+    expect(tabEvent.defaultPrevented).toBe(true);
+    expect(openLookup).toHaveBeenCalledTimes(1);
+  });
+
+  test('BP code Tab continues for a valid code and opens lookup for a name search', () => {
+    const wrapper = document.createElement('span');
+    wrapper.className = 'sap-input-group';
+    const input = document.createElement('input');
+    input.name = 'vendor';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = '...';
+    wrapper.append(input, button);
+    document.body.append(wrapper);
+    const openLookup = jest.fn(() => consumePendingLookupQuery());
+    button.addEventListener('click', openLookup);
+
+    input.focus();
+    input.value = 'OTHER123';
+    markResolvedBpLookup(input, input.value, [{ CardCode: 'OTHER123' }], {
+      preferredCardCode: 'CUS00938', excludedCardCodes: ['AC00350'],
+    });
+    let tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    input.dispatchEvent(tabEvent);
+    expect(tabEvent.defaultPrevented).toBe(false);
+    expect(openLookup).not.toHaveBeenCalled();
+
+    input.value = 'nature';
+    markResolvedBpLookup(input, input.value, [{ CardCode: 'OTHER123' }], null);
+    tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    input.dispatchEvent(tabEvent);
+    expect(tabEvent.defaultPrevented).toBe(true);
+    expect(openLookup).toHaveReturnedWith('nature');
   });
 });

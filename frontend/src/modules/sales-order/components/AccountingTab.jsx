@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 export default function AccountingTab({
   header,
   onHeaderChange,
@@ -72,12 +73,12 @@ export default function AccountingTab({
 
           <div className="sap-form-row">
             <label className="so-field__label">Cancellation Date</label>
-            <input type="date" className="so-field__input" name="cancellationDate" value={header.cancellationDate || ''} onChange={onHeaderChange} disabled={!isEditable} />
+            <SapDateInput  className="so-field__input" name="cancellationDate" value={header.cancellationDate || ''} onChange={onHeaderChange} disabled={!isEditable} />
           </div>
 
           <div className="sap-form-row">
             <label className="so-field__label">Required Date</label>
-            <input type="date" className="so-field__input" name="requiredDate" value={header.requiredDate || ''} onChange={onHeaderChange} disabled={!isEditable} />
+            <SapDateInput  className="so-field__input" name="requiredDate" value={header.requiredDate || ''} onChange={onHeaderChange} disabled={!isEditable} />
           </div>
 
           <div className="sap-form-row">

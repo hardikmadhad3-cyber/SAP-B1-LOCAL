@@ -1,3 +1,5 @@
+import SapInput from '../../components/common/SapInput';
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -15,11 +17,13 @@ import useServiceDocumentFormSettings from '../../utils/useServiceDocumentFormSe
 import { updateFormSettingPreference } from '../../utils/formSettingsPreferences';
 import { getOrderedVisibleMatrixColumns } from '../../utils/formSettingsColumns';
 import { getReadableDocumentLineColumnWidth } from '../../utils/documentLineColumnWidth';
+import { hydrateServiceAccountLine, populateServiceAccountLine } from '../../utils/serviceDocumentAccount';
 import { calculateServiceInvoiceLine } from '../../utils/serviceInvoiceLineCalculations';
 import { consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
 import useStandardDocumentDraftTask from '../../hooks/useStandardDocumentDraftTask';
 import { buildVisibleEnteredRowUdfPayload } from '../../utils/rowUdfPayload';
-import { calculateDocumentRounding, getDocumentRoundingPolicy, formatDocumentRoundingAmount } from '../../utils/documentRounding';
+import { calculateDocumentRounding, getDocumentRoundingPolicy, getDocumentRoundingPayloadAmount, formatDocumentRoundingAmount } from '../../utils/documentRounding';
+import DocumentRoundingInput from '../../components/sales-document/DocumentRoundingInput';
 import { getSapVisibleDocumentSeries, getDefaultSeriesForCurrentYear, canUseManualSeries } from '../../utils/seriesDefaults';
 import { resolveLocationDisplayName } from '../../utils/locationLookup';
 import { getDocumentLayout } from '../../api/sapLayoutApi';
@@ -480,6 +484,7 @@ const findAccountByCode = (accounts = [], code = '') => {
     item?.code,
     item?.AcctCode,
     item?.FormatCode,
+    item?.formatCode,
     item?.accountCode,
     item?.value,
   ].some((value) => normalizeAccountCode(value) === normalizedCode)) || null;
@@ -587,6 +592,7 @@ function ServiceAPCreditMemoPage() {
     formSettingsStatus,
     formSettingsStorageKey,
     formSettingsReady: companyFormSettingsReady,
+    effectiveMatrixColumns,
     hydrateFormSettings,
     clearMetadataScope: clearFormSettingsMetadataScope,
   } = useServiceDocumentFormSettings({
@@ -597,7 +603,7 @@ function ServiceAPCreditMemoPage() {
     rowUdfDefinitions,
     matrixColumnDefinitions,
   });
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [refData, setRefData] = useState(EMPTY_REF_DATA);
   const [attachments] = useState(INIT_ATTACH);
@@ -974,11 +980,11 @@ function ServiceAPCreditMemoPage() {
     const freight = parseNum(header.freight);
     const downPayment = parseNum(header.totalDownPayment);
     const totalBeforeRounding = Math.max(0, subtotal - discountAmount - downPayment) + freight + tax;
-    const { roundingAmount, total } = calculateDocumentRounding(totalBeforeRounding, header.rounding, numDec, currentDocEntry ? header : null, getDocumentRoundingPolicy(refData, header));
+    const { roundingAmount, total } = calculateDocumentRounding(totalBeforeRounding, header.rounding, numDec, (currentDocEntry || header.roundingAmountIsManual) ? header : null, getDocumentRoundingPolicy(refData, header));
     const appliedAmount = parseNum(header.appliedAmount);
     const balanceDue = Math.max(0, total - appliedAmount);
     return { subtotal, tax, discountAmount, freight, downPayment, roundingAmount, total, appliedAmount, balanceDue, wtaxAmount: 0 };
-  }, [refData, numDec, currentDocEntry, header.appliedAmount, header.balanceDue, header.discount, header.discountAmount, header.freight, header.rounding, header.roundingAmount, header.tax, header.totalBeforeDiscount, header.totalDownPayment, header.totalPaymentDue, header.wtaxAmount, lines]);
+  }, [refData, numDec, currentDocEntry, header.appliedAmount, header.balanceDue, header.discount, header.discountAmount, header.freight, header.rounding, header.roundingAmount, header.roundingAmountIsManual, header.tax, header.totalBeforeDiscount, header.totalDownPayment, header.totalPaymentDue, header.wtaxAmount, lines]);
 
   const wtaxDecimals = { total: 2, tax: 2, totalPaymentDue: 2 };
   const hasSavedWTaxAmount = Boolean(currentDocEntry && Math.abs(parseNum(header.wtaxAmount)) > 0);
@@ -1334,11 +1340,11 @@ function ServiceAPCreditMemoPage() {
         );
         const loadedLines = toArray(doc.lines, ['lines', 'DocumentLines']);
         setLines(loadedLines.length
-          ? loadedLines.map((line) => ({
+          ? loadedLines.map((line) => hydrateServiceAccountLine({
             ...createLine(rowUdfDefinitions),
             ...line,
             udf: rowUdfDefinitions.length ? normalizeUdfState(rowUdfDefinitions, line.udf || {}) : (line.udf || {}),
-          }))
+          }, accounts))
           : [createLine(rowUdfDefinitions)]);
         setIsDirty(false);
         setPageState((prev) => ({ ...prev, loading: false, success: `Service A/P Credit Memo ${doc.doc_num || requestedDocEntry} loaded.` }));
@@ -1466,7 +1472,7 @@ function ServiceAPCreditMemoPage() {
       }
       const next = { ...line, [lineLookupModal.field]: selectedValue };
       if (lineLookupModal.field === 'glAccount') {
-        next.glAccountName = option?.description || '';
+        Object.assign(next, populateServiceAccountLine(next, option, accounts));
       }
       if (lineLookupModal.field === 'loc') {
         next.locCode = option?.code || '';
@@ -1577,8 +1583,7 @@ function ServiceAPCreditMemoPage() {
       if (lineIndex !== index) return line;
       const next = { ...line, [name]: value };
       if (name === 'glAccount') {
-        const account = accounts.find((item) => String(item.code) === String(value));
-        next.glAccountName = account?.name || '';
+        Object.assign(next, populateServiceAccountLine(next, { value }, accounts));
       }
       if (name === 'taxCode') {
         next.taxCodeRepeat = value;
@@ -1763,7 +1768,8 @@ function ServiceAPCreditMemoPage() {
   const buildPayload = () => ({
     header: {
       ...header,
-      roundingAmount: totals.roundingAmount,
+      roundingAmount: getDocumentRoundingPayloadAmount(header, totals.roundingAmount),
+      roundingAmountIsManual: header.roundingAmountIsManual === true,
       wtaxAmount,
       totalPaymentDue: totalPaymentDueAfterWTax,
     },
@@ -2100,7 +2106,7 @@ function ServiceAPCreditMemoPage() {
       }
 
       return (
-        <input
+        <SapInput
           className="del-grid__input"
           type={column.type === 'date' ? 'date' : column.type === 'number' ? 'number' : 'text'}
           value={value}
@@ -2220,7 +2226,7 @@ function ServiceAPCreditMemoPage() {
     }
 
     return (
-      <input
+      <SapInput
         className={`del-grid__input${error ? ' del-field__input--error' : ''}`}
         type={column.type === 'date' ? 'date' : 'text'}
         name={column.key}
@@ -2237,9 +2243,10 @@ function ServiceAPCreditMemoPage() {
   const vendorOptions = toArray(refData.vendors, ['vendors']);
   const contactOptions = toArray(refData.contacts, ['contacts']);
   const visibleHeaderUdfs = headerUdfDefinitions.filter((field) => formSettings.headerUdfs?.[field.key]?.visible !== false);
-  const configurableRowUdfs = rowUdfDefinitions.filter((field) => !isFixedServiceMatrixField(field));
+  const configurableRowUdfs = formSettingsStatus.queryLayout?.isPublished
+    ? [] : rowUdfDefinitions.filter((field) => !isFixedServiceMatrixField(field));
   const visibleLineColumns = getOrderedVisibleMatrixColumns([
-    ...matrixColumnDefinitions,
+    ...effectiveMatrixColumns,
     ...configurableRowUdfs.map((field) => ({
       key: `udf:${field.key}`,
       udfKey: field.key,
@@ -2423,15 +2430,15 @@ function ServiceAPCreditMemoPage() {
               </div>
               <div className="del-field">
                 <label className="del-field__label">Posting Date</label>
-                <input type="date" className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} name="postingDate" value={header.postingDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
+                <SapDateInput  className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} name="postingDate" value={header.postingDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
               </div>
               <div className="del-field">
                 <label className="del-field__label">Due Date</label>
-                <input type="date" className="del-field__input" name="deliveryDate" value={header.deliveryDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
+                <SapDateInput  className="del-field__input" name="deliveryDate" value={header.deliveryDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
               </div>
               <div className="del-field">
                 <label className="del-field__label">Document Date</label>
-                <input type="date" className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} name="documentDate" value={header.documentDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
+                <SapDateInput  className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} name="documentDate" value={header.documentDate} onChange={handleHeaderChange} disabled={!isDocumentEditable} />
               </div>
               <div className="del-field">
                 <label className="del-field__label">Place of Supply</label>
@@ -2483,7 +2490,7 @@ function ServiceAPCreditMemoPage() {
                       <tr key={index}>
                         <td className="del-grid__cell--muted" style={{ textAlign: 'center' }}>{index + 1}</td>
                         {visibleLineColumns.map((column) => (
-                          <td key={column.key}>{renderLineCell(line, index, column)}</td>
+                          <td key={column.key}>{renderLineCell(line, index, { ...column, key: column.valueKey || column.key })}</td>
                         ))}
                         <td>
                           <button type="button" className="del-btn del-btn--danger" style={{ padding: '2px 6px' }} onClick={() => removeLine(index)} disabled={!isDocumentEditable}>x</button>
@@ -2574,7 +2581,7 @@ function ServiceAPCreditMemoPage() {
                   <tr><td>Discount %</td><td><input className="del-grid__input" name="discount" value={header.discount} onChange={handleHeaderChange} disabled={!isDocumentEditable} /></td></tr>
                   <tr><td>Total Down Payment</td><td><input className="del-grid__input" name="totalDownPayment" value={header.totalDownPayment} onChange={handleHeaderChange} disabled={!isDocumentEditable} /></td></tr>
                   <tr><td>Freight</td><td><input className="del-grid__input" name="freight" value={header.freight} onChange={handleHeaderChange} disabled={!isDocumentEditable} /></td></tr>
-                  <tr><td><label className="service-ap-checkbox"><input type="checkbox" name="rounding" checked={header.rounding || parseNum(header.roundingAmount) !== 0} onChange={handleHeaderChange} disabled={!isDocumentEditable} /> Rounding</label></td><td><input className="del-grid__input" value={`${displayCurrency} ${formatDocumentRoundingAmount(displayAmount(totals.roundingAmount), numDec)}`.trim()} readOnly /></td></tr>
+                  <tr><td><label className="service-ap-checkbox"><input type="checkbox" name="rounding" checked={header.rounding || (!header.roundingAmountIsManual && parseNum(header.roundingAmount) !== 0)} onChange={handleHeaderChange} disabled={!isDocumentEditable} /> Rounding</label></td><td><DocumentRoundingInput className="del-grid__input" header={header} setHeader={setHeader} formattedAmount={`${displayCurrency} ${formatDocumentRoundingAmount(displayAmount(totals.roundingAmount), numDec)}`.trim()} disabled={!isDocumentEditable} onManualChange={markDirty} /></td></tr>
                   <tr><td>Tax</td><td><input className="del-grid__input" value={fmt(displayAmount(totals.tax))} readOnly /></td></tr>
                   {hasWTaxLiableLines && (
                     <tr>
@@ -2612,7 +2619,8 @@ function ServiceAPCreditMemoPage() {
             className="so-layout__sidebar"
             isOpen={formSettingsOpen}
             onClose={() => setFormSettingsOpen(false)}
-            matrixFields={matrixColumnDefinitions}
+            showHeaderUdfSettings
+            matrixFields={effectiveMatrixColumns}
             headerUdfFields={headerUdfDefinitions}
             rowUdfFields={configurableRowUdfs}
             formSettings={formSettings}

@@ -85,7 +85,7 @@ describe.each(readers)('%s live form settings', (_name, readSettings) => {
       minWidth: 120,
       sapControlled: true,
     });
-    expect(settings.headerUdfs.U_Header.visible).toBe(true);
+    expect(settings.headerUdfs.U_Header.visible).toBe(!['Sales Order', 'Delivery', 'A/R Invoice'].includes(_name));
     expect(settings.headerUdfs.U_Header.active).toBe(true);
     expect(settings.rowUdfs.U_OtherCompany).toBeUndefined();
   });

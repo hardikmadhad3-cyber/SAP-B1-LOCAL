@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -36,12 +37,13 @@ import {
   isValidManualDocumentNumber,
 } from '../../utils/documentSeries';
 import { getDefaultSeriesForCurrentYear, getSapVisibleDocumentSeries, canUseManualSeries } from '../../utils/seriesDefaults';
-import { useCompanyScopedFormSettings } from '../../utils/formSettingsStorage';
+import { useStandardSalesFormSettings } from '../../utils/standardSalesFormSettings';
 import { buildCompanyFormQueryContext } from '../../utils/companyFormQueryContext';
 import { readGeneralSettings } from '../../utils/generalSettingsStorage';
 import { getStateCodeValue } from '../../utils/stateDisplay';
 import { normalizeCurrencyMode, resolveDocumentCurrency } from '../../utils/documentCurrency';
-import { calculateDocumentRounding, getDocumentRoundingPolicy } from '../../utils/documentRounding';
+import { calculateDocumentRounding, getDocumentRoundingPolicy, getDocumentRoundingPayloadAmount } from '../../utils/documentRounding';
+import DocumentRoundingInput from '../../components/sales-document/DocumentRoundingInput';
 import useSalesEmployeeSetup from '../../hooks/useSalesEmployeeSetup';
 import useValidationHighlights from '../../utils/useValidationHighlights';
 import useClosedDocumentViewMode from '../../hooks/useClosedDocumentViewMode';
@@ -348,13 +350,18 @@ function PurchaseOrder() {
   const [attachments] = useState(INIT_ATTACH);
   const [activeTab, setActiveTab] = useState('Contents');
   const [headerUdfs, setHeaderUdfs] = useState(() => createUdfState(HEADER_UDF_DEFINITIONS));
-  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings, formSettingsStatus] = useCompanyScopedFormSettings(
-    FORM_SETTINGS_STORAGE_KEY,
+  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings,
+    formSettingsStatus, effectiveMatrixColumnDefinitions] = useStandardSalesFormSettings({
+    formKey: FORM_SETTINGS_STORAGE_KEY,
     readSavedFormSettings,
-    [headerUdfDefinitions, rowUdfDefinitions, matrixColumnDefinitions],
-    { saveMode: 'explicit', followPublishedVersion: true },
-  );
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+    headerUdfDefinitions,
+    rowUdfDefinitions,
+    matrixColumnDefinitions,
+    companyId: activeCompanyId,
+    companyDb: activeCompanyDb,
+    includeLineNumber: false,
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [refData, setRefData] = useState({
     company: '',
@@ -930,7 +937,7 @@ function PurchaseOrder() {
     const rounding = calculateDocumentRounding(
       discSub + freight + taxAmt,
       header.rounding,
-      numDec.totalPaymentDue, currentDocEntry ? header : null, getDocumentRoundingPolicy(refData, header));
+      numDec.totalPaymentDue, (currentDocEntry || header.roundingAmountIsManual) ? header : null, getDocumentRoundingPolicy(refData, header));
     return { subtotal, discAmt, discSub, freight, freightTaxAmt, taxAmt, ...rounding, taxBreakdown: Array.from(taxMap.values()) };
   };
 
@@ -1944,7 +1951,8 @@ function PurchaseOrder() {
       const prep = {
         ...header,
         deliveryDate: header.deliveryDate || header.postingDate || header.documentDate,
-        roundingAmount: totals.roundingAmount,
+        roundingAmount: getDocumentRoundingPayloadAmount(header, totals.roundingAmount),
+        roundingAmountIsManual: header.roundingAmountIsManual === true,
         series: header.series ? Number(header.series) : undefined,
       };
 
@@ -2375,20 +2383,20 @@ function PurchaseOrder() {
                     {/* Posting Date */}
                     <div className="po-field">
                       <label className="po-field__label">Posting Date *</label>
-                      <input type="date" name="postingDate" className="po-field__input" value={header.postingDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="postingDate" className="po-field__input" value={header.postingDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Delivery Date */}
                     <div className="po-field">
                       <label className="po-field__label">Delivery Date</label>
-                      <input type="date" name="deliveryDate" className="po-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="deliveryDate" className="po-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Document Date */}
                     <div className="po-field">
                       <label className="po-field__label">Document Date *</label>
-                      <input 
-                        type="date" 
+                      <SapDateInput 
+                         
                         name="documentDate" 
                         className="po-field__input" 
                         value={header.documentDate} 
@@ -2436,7 +2444,7 @@ function PurchaseOrder() {
                 effectiveWarehouses={effectiveWarehouses}
                 fmtTaxLabel={fmtTaxLabel}
                 getBranchName={getBranchName}
-                matrixFields={matrixColumnDefinitions}
+                matrixFields={effectiveMatrixColumnDefinitions}
                 formSettings={formSettings}
                 rowUdfFields={rowUdfDefinitions}
                 onRowUdfChange={handleRowUdfChange}
@@ -2550,7 +2558,7 @@ function PurchaseOrder() {
                               Rounding
                             </label>
                           </td>
-                          <td className="po-grid__cell--num"><input className="po-grid__input" value={fmtDec(totalsForDisplay.roundingAmount, numDec.totalPaymentDue)} readOnly /></td>
+                          <td className="po-grid__cell--num"><DocumentRoundingInput className="po-grid__input" header={header} setHeader={setHeader} formattedAmount={fmtDec(totalsForDisplay.roundingAmount, numDec.totalPaymentDue)} disabled={!isDocumentEditable} onManualChange={markDirty} /></td>
                         </tr>
                         <tr>
                           <td>Tax</td>
@@ -2682,7 +2690,7 @@ function PurchaseOrder() {
             className="po-layout__sidebar"
             isOpen={formSettingsOpen}
             onClose={() => setFormSettingsOpen(false)}
-            matrixFields={matrixColumnDefinitions}
+            matrixFields={effectiveMatrixColumnDefinitions}
             headerUdfFields={headerUdfDefinitions}
             rowUdfFields={[]}
             formSettings={formSettings}

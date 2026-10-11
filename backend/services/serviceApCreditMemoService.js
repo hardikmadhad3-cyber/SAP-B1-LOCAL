@@ -270,9 +270,6 @@ const validatePayload = async (payload, docEntry = null) => {
     throw new Error('Invalid vendor');
   }
 
-  const postingPeriod = await serviceApCreditMemoDb.getPostingPeriodValidation(postingDate);
-  if (!postingPeriod) throw new Error('Posting Date must be within open posting period');
-
   const branchesEnabled = await serviceApCreditMemoDb.getBranchEnabled();
   if (branchesEnabled && !String(header.branch || '').trim()) {
     throw new Error('Branch is required');

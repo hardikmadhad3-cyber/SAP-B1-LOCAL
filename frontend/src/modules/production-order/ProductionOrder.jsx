@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import "../../modules/item-master/styles/itemMaster.css";
 import "./productionOrder.css";
@@ -921,7 +922,7 @@ export default function ProductionOrderModule() {
           {loading ? "…" : mode === MODES.FIND ? "Find" : mode === MODES.ADD ? "Add" : "Update"}
         </button>
         <button className="im-btn" onClick={() => { setMode(MODES.ADD); resetForm(); }}>New</button>
-        <button className="im-btn" onClick={openFind}>Find</button>
+<button className="im-btn" data-sap-find-action onClick={openFind}>Find</button>
         
         {/* Conditional action buttons based on status */}
         {mode === MODES.UPDATE && header.status === "boposPlanned" && (
@@ -1070,20 +1071,20 @@ export default function ProductionOrderModule() {
 
             <div className="im-field">
               <label className="im-field__label po-lbl-r">Order Date</label>
-              <input className="im-field__input po-readonly" name="order_date" type="date"
+              <SapDateInput className="im-field__input po-readonly" name="order_date" 
                 value={header.order_date} readOnly style={{ width: 140 }} />
             </div>
 
             <div className="im-field">
               <label className="im-field__label po-lbl-r">Start Date</label>
-              <input className="im-field__input" name="start_date" type="date"
+              <SapDateInput className="im-field__input" name="start_date" 
                 value={header.start_date} onChange={handleHeaderChange}
                 readOnly={isReadOnly} style={{ width: 140 }} />
             </div>
 
             <div className="im-field">
               <label className="im-field__label po-lbl-r">Due Date</label>
-              <input className="im-field__input" name="due_date" type="date"
+              <SapDateInput className="im-field__input" name="due_date" 
                 value={header.due_date} onChange={handleHeaderChange}
                 readOnly={isReadOnly} style={{ width: 140 }} />
             </div>

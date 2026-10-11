@@ -1,3 +1,4 @@
+import SapInput from './common/SapInput';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -192,7 +193,7 @@ function InventoryDocumentFindPage({
           {filterFields.map((field) => (
             <div className="sap-find-field" key={field.name}>
               <label className="form-label mb-1">{field.label}</label>
-              <input
+              <SapInput
                 type={field.type || 'text'}
                 className="form-control"
                 name={field.name}

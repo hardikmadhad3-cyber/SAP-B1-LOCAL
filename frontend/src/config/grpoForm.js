@@ -147,6 +147,7 @@ const buildVisibilitySettings = (definitions = []) =>
       sapControlled: Boolean(field.sapControlled),
       visible: field.visible !== false,
       active: field.active !== false,
+      ...(field.valueKey && field.valueKey !== field.key ? { valueKey: field.valueKey } : {}),
     };
     return acc;
   }, {});

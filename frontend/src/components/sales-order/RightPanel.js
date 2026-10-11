@@ -1,3 +1,4 @@
+import SapDateInput from '../common/SapDateInput';
 import React from 'react';
 import { HEADER_FIELDS } from '../../config/salesOrderMetadata';
 
@@ -8,8 +9,8 @@ function RightPanel({ header, onHeaderChange }) {
     switch (fieldConfig.type) {
       case 'date':
         return (
-          <input
-            type="date"
+          <SapDateInput
+            
             className="so-input so-input-sm"
             value={value}
             onChange={(e) => onHeaderChange(fieldKey, e.target.value)}

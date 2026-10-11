@@ -161,6 +161,8 @@ const SAP_FIELD_TO_INTERNAL_KEY = {
   WEIGHT1: 'weight',
   WEIGHT: 'weight',
   OPENQTY: 'openQty',
+  OPENCREQTY: 'openQty',
+  QTYTOSHIP: 'openQty',
   COUNTRYORG: 'countryOfOrigin',
   FREETXT: 'freeText',
   FREETEXT: 'freeText',
@@ -173,7 +175,7 @@ const SAP_FIELD_TO_INTERNAL_KEY = {
   AGRNO: 'blanketAgreementNo',
   AGRLINENUM: 'blanketAgreementNo',
   INVQTY: 'qtyInventoryUom',
-  NUMPERMSR: 'changeQtyInvUomIndependently',
+  NUMPERMSR: 'itemsPerUnit',
   UOMENTRY: 'uomGroup',
   LOCCODE: 'loc',
   BPLID: 'branch',
@@ -239,6 +241,8 @@ const LABEL_TO_INTERNAL_KEY = {
   ITEMDESCRIPTION: 'itemDescription',
   DESCRIPTION: 'itemDescription',
   QUANTITY: 'quantity',
+  OPENQTY: 'openQty',
+  BALQTY: 'openQty',
   UOMNAME: 'uomName',
   UOMCODE: 'uomCode',
   INSTOCK: 'inStock',
@@ -276,7 +280,7 @@ const LABEL_TO_INTERNAL_KEY = {
   DELIVERYDATE: 'lineDeliveryDate',
   DELIVEREDQTY: 'deliveredQty',
   QTYTOSHIP: 'deliveredQty',
-  ORDEREDQTY: 'openQty',
+  ORDEREDQTY: 'orderedQty',
   WHSE: 'whse',
   DISTRRULE: 'distRule',
   DISTRIBUTIONRULE: 'distRule',
@@ -289,6 +293,7 @@ const LABEL_TO_INTERNAL_KEY = {
   BINLOCATIONALLOCATION: 'binLocationAllocation',
   WEIGHT: 'weight',
   NOOFPACKAGES: 'noOfPackages',
+  ITEMSPERUNIT: 'itemsPerUnit',
   BLANKETAGREEMENTNO: 'blanketAgreementNo',
   WITHOUTQTYPOSTING: 'withoutQtyPosting',
   WITHOUTINVENTORYMOVEMENT: 'withoutQtyPosting',
@@ -377,6 +382,7 @@ const STANDARD_RENDERER_KEYS = new Set([
   'itemCost',
   'binLocationAllocation',
   'noOfPackages',
+  'itemsPerUnit',
   'taxAmount',
   'glAccount',
   'glAccountName',
@@ -391,6 +397,7 @@ const STANDARD_RENDERER_KEYS = new Set([
   'cogsDistRule',
   'weight',
   'openQty',
+  'orderedQty',
   'countryOfOrigin',
   'freeText',
   'sacCode',
@@ -459,6 +466,7 @@ const STANDARD_FIELD_OVERRIDES = {
   grossTotal: { type: 'number', minWidth: 120, readOnly: true, numeric: true },
   price: { type: 'number', minWidth: 95, readOnly: true, numeric: true },
   priceAfterDiscount: { type: 'number', minWidth: 130, readOnly: true, numeric: true },
+  itemsPerUnit: { type: 'number', minWidth: 120, numeric: true },
   glAccountName: { type: 'text', minWidth: 190, readOnly: true },
   itemCost: { type: 'number', minWidth: 110, readOnly: true, numeric: true },
   binLocationAllocation: { type: 'text', minWidth: 160, readOnly: true },
@@ -472,6 +480,7 @@ const STANDARD_FIELD_OVERRIDES = {
   distRule5: { type: 'text', minWidth: 115 },
   cogsDistRule: { type: 'text', minWidth: 130 },
   openQty: { type: 'number', minWidth: 110, readOnly: true, numeric: true },
+  orderedQty: { type: 'number', minWidth: 110, readOnly: true, numeric: true },
   blanketAgreementNo: { type: 'text', minWidth: 150 },
   withoutQtyPosting: { type: 'checkbox', minWidth: 145 },
   enableSettingCost: { type: 'checkbox', minWidth: 140 },
@@ -661,6 +670,7 @@ const buildSyntheticColumn = (layoutColumn, key, extras = {}) => {
     field: extras.field,
     id: extras.id,
     schemaFieldId: extras.schemaFieldId,
+    tableId: extras.tableId,
     fieldId: extras.fieldId,
     schemaDriven: Boolean(extras.schemaDriven),
     lookupConfigured: Boolean(extras.lookupConfigured),
@@ -774,6 +784,7 @@ export const buildSalesOrderRowUdfDefinitionsFromSchema = (schemaLineFields = []
         scale: field.scale ?? undefined,
         options: Array.isArray(field.options) ? field.options : [],
         lookupSource: getSchemaSalesOrderLookupSource(field, lineTable),
+        lookup: field.lookup,
         lookupConfigured: Boolean(field.lookupConfigured),
         lookupTable: field.linkedTable || field.lookupTable || undefined,
         tableId: lineTable,
@@ -1116,6 +1127,7 @@ export const buildSalesOrderMatrixColumnsFromLayout = ({
   rowUdfFields = [],
   includeLineNumber = true,
   appendMissingLiveColumns = false,
+  preserveDuplicateColumns = false,
 } = {}) => {
   if (!Array.isArray(layoutColumns) || !layoutColumns.length) {
     return Array.isArray(liveMatrixColumns) && liveMatrixColumns.length
@@ -1162,6 +1174,8 @@ export const buildSalesOrderMatrixColumnsFromLayout = ({
         isUdf: true,
         lookupSource: udfField.lookupSource,
         lookupTable: udfField.lookupTable,
+        schemaFieldId: udfField.schemaFieldId,
+        tableId: udfField.tableId,
         options: udfField.options,
         field: udfField,
       });
@@ -1256,6 +1270,63 @@ export const buildSalesOrderMatrixColumnsFromLayout = ({
     : filtered;
 
   return withUniqueLayoutKeys(
-    dedupeVisibleMatrixColumns(applyLineNumberMode(mergedColumns, includeLineNumber)),
+    preserveDuplicateColumns
+      ? applyLineNumberMode(mergedColumns, includeLineNumber)
+      : dedupeVisibleMatrixColumns(applyLineNumberMode(mergedColumns, includeLineNumber)),
   );
+};
+
+const SALES_ORDER_QUERY_CAPTIONS = Object.freeze({
+  Item_No: 'Item No.', Item_Description: 'Item Description', Unit: 'Unit',
+  Quantity: 'Quantity', Unit_Price: 'Unit Price', Discount: 'Discount',
+  Amount: 'Amount', Net_Rate: 'Net Rate', Taxable_Amount: 'Taxable Amount',
+  Total_LC: 'Total (LC)', Tax_Code: 'Tax Code', Tax_Amount_LC: 'Tax Amount (LC)',
+  Discount_Percent: 'Discount %', Comm_Amt_Per_Tone: 'comm amt per tone',
+  Commission_Percent: 'Commission (Percent)', Commission: 'Commission',
+  Open_Qty: 'Open Qty', Country_Region_Of_Origin: 'Country/Region of Origin',
+  Loc: 'Loc.', HSN: 'HSN', SAC: 'SAC', Commission_By: 'comissin by',
+  Comm_Amt_Per_Tone_2: 'comm amt per tone', Commission_2: 'Commission',
+  Seller_Terms_Of_Payment: 'Seller - Terms of Payment',
+  Distr_Rule: 'Distr. Rule', COGS_Distr_Rule: 'COGS Distr. Rule',
+  Blanket_Agreement_No: 'Blanket Agreement No.',
+  UoM_Code: 'UoM Code', Sauda_Node_Ref: 'Sauda Node Ref',
+});
+
+export const buildStandardSalesCompanyQueryColumns = ({
+  queryLayout,
+  liveMatrixColumns = [],
+  rowUdfFields = [],
+  includeLineNumber = true,
+} = {}) => {
+  if (!queryLayout?.isPublished || !Array.isArray(queryLayout.columns) || !queryLayout.columns.length) {
+    return null;
+  }
+  const currentUdfs = new Set(rowUdfFields.map((field) => String(field.key || '').toUpperCase()));
+  const layoutColumns = queryLayout.columns
+    .filter((column) => {
+      const physical = String(column.fieldName || '').trim();
+      return !/^U_/i.test(physical) || currentUdfs.has(physical.toUpperCase());
+    })
+    .map((column, index) => {
+      const alias = String(column.key || column.label || '').trim();
+      const physical = String(column.fieldName || alias).trim();
+      return {
+        fieldName: physical,
+        columnUid: alias,
+        columnTitle: SALES_ORDER_QUERY_CAPTIONS[alias] || String(column.label || alias).replace(/_/g, ' '),
+        visible: true,
+        editable: true,
+        columnOrder: Number(column.order) || index + 1,
+        dataType: column.type,
+        isUdf: /^U_/i.test(physical),
+        source: 'company-query-layout',
+      };
+    });
+  return buildSalesOrderMatrixColumnsFromLayout({
+    layoutColumns,
+    liveMatrixColumns,
+    rowUdfFields,
+    includeLineNumber,
+    preserveDuplicateColumns: true,
+  }).map((column) => ({ ...column, companyQueryLayoutColumn: true }));
 };

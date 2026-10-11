@@ -104,7 +104,7 @@ const submitARInvoice = async (req, res) => {
   try {
     res.json(await arInvoiceService.submitARInvoice(req.body));
   } catch (error) {
-    res.status(Number(error?.status) || 500).json(getErrorPayload(error, 'Failed to submit AR invoice.'));
+    res.status(Number(error?.statusCode || error?.status) || 500).json(getErrorPayload(error, 'Failed to submit AR invoice.'));
   }
 };
 
@@ -112,7 +112,7 @@ const updateARInvoice = async (req, res) => {
   try {
     res.json(await arInvoiceService.updateARInvoice(req.params.docEntry, req.body));
   } catch (error) {
-    res.status(500).json(getErrorPayload(error, 'Failed to update AR invoice.'));
+    res.status(Number(error?.statusCode || error?.status) || 500).json(getErrorPayload(error, 'Failed to update AR invoice.'));
   }
 };
 

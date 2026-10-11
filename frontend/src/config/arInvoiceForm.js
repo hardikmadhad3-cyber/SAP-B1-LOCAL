@@ -78,6 +78,7 @@ const buildVisibilitySettings = (definitions = []) =>
       sapControlled: Boolean(field.sapControlled),
       order: field.order,
       minWidth: field.minWidth,
+      ...(field.valueKey && field.valueKey !== field.key ? { valueKey: field.valueKey } : {}),
     };
     return acc;
   }, {});
@@ -103,7 +104,9 @@ const readSavedFormSettings = (
   try {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return defaults;
-    return mergeSavedFormSettings(defaults, JSON.parse(raw));
+    return mergeSavedFormSettings(defaults, JSON.parse(raw), {
+      editableSapControlledGroups: ['matrixColumns', 'rowUdfs', 'headerUdfs'],
+    });
   } catch (_error) {
     return defaults;
   }

@@ -103,7 +103,7 @@ const firstUdfValue = (udf = {}, aliases = []) => {
 // ── REFERENCE DATA QUERIES ────────────────────────────────────────────────────
 
 const getCustomers = () => safe(db.query(`
-  SELECT CardCode, CardName, CardType, Currency,
+  SELECT CardCode, CardName, CardType, Currency, Balance,
          VatGroup, GroupNum AS PayTermsGrpCode
   FROM   OCRD
   WHERE  CardType = 'C'

@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 export default function AccountingTab({ header, onHeaderChange, payTermOpts }) {
   return (
     <div className="so-tab-panel">
@@ -69,13 +70,13 @@ export default function AccountingTab({ header, onHeaderChange, payTermOpts }) {
         {/* Cancellation Date */}
         <div className="so-field">
           <label className="so-field__label">Cancellation Date</label>
-          <input type="date" className="so-field__input" />
+          <SapDateInput  className="so-field__input" />
         </div>
 
         {/* Required Date */}
         <div className="so-field">
           <label className="so-field__label">Required Date</label>
-          <input type="date" className="so-field__input" />
+          <SapDateInput  className="so-field__input" />
         </div>
 
         {/* Indicator */}

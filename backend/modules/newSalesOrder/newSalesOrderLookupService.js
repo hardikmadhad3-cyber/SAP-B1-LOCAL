@@ -226,7 +226,9 @@ const pageOptions = ({ source, rows, page, limit, schemaVersion }) => {
   const normalized = [];
   for (const row of rows || []) {
     const option = normalizeOption(row, source);
-    if (!option || seen.has(option.value)) continue;
+    // CUVV is an ordered SAP list and may intentionally contain duplicate
+    // rows. Removing them here also breaks the raw-row pagination boundary.
+    if (!option || (source !== 'sap-user-values' && seen.has(option.value))) continue;
     seen.add(option.value);
     normalized.push(option);
   }
@@ -281,7 +283,7 @@ const buildLinkedTableSql = ({
   `;
 };
 
-const findSchemaField = (schema, fieldId) => {
+const findSchemaField = (schema, fieldId, { formValues = false } = {}) => {
   const match = text(fieldId).match(/^([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)$/);
   let document;
   try {
@@ -297,7 +299,7 @@ const findSchemaField = (schema, fieldId) => {
   }
   const fields = [...(schema.headerFields || []), ...(schema.lineFields || [])];
   const field = fields.find((candidate) => upper(candidate.id) === upper(fieldId));
-  if (!field || upper(field.storage) !== 'UDF') {
+  if (!field || (upper(field.storage) !== 'UDF' && !(formValues && field.lookup?.source === 'sap-user-values'))) {
     throw createHttpError(404, 'The lookup field is not present in the current company schema.', 'LOOKUP_FIELD_NOT_FOUND');
   }
   return field;
@@ -355,14 +357,18 @@ const createNewSalesOrderLookupService = ({
         currentSchemaVersion: schema.schemaVersion,
       });
     }
-    const field = findSchemaField(schema, paging.fieldId);
+    const field = findSchemaField(schema, paging.fieldId, { formValues: source === 'sap-user-values' });
 
-    if (source === 'udf-valid-values') {
-      if (!Array.isArray(field.options) || !field.options.length) {
+    if (source === 'udf-valid-values' || source === 'sap-user-values') {
+      const values = source === 'sap-user-values' ? field.userValueOptions : field.options;
+      if (!Array.isArray(values) || (source === 'udf-valid-values' && !values.length)) {
+        if (source === 'sap-user-values') {
+          throw createHttpError(422, 'This field has no SAP form value list.', 'SAP_FORM_VALUES_UNAVAILABLE');
+        }
         throw createHttpError(422, 'This field has no UFD1 valid values.', 'UDF_VALID_VALUES_UNAVAILABLE');
       }
       const search = paging.search.toLowerCase();
-      const matches = field.options.filter((option) => !search
+      const matches = values.filter((option) => !search
         || String(option.value || '').toLowerCase().includes(search)
         || String(option.label || '').toLowerCase().includes(search));
       const start = paging.offset;
@@ -431,7 +437,7 @@ const createNewSalesOrderLookupService = ({
         ? allRows.filter((row) => Object.values(row || {}).some((value) => String(value ?? '').toLowerCase().includes(search)))
         : allRows;
       rows = matchingRows.slice(paging.offset, paging.offset + paging.fetchLimit);
-    } else if (['udf-valid-values', 'udf-linked-table', 'udo'].includes(source)) {
+    } else if (['udf-valid-values', 'sap-user-values', 'udf-linked-table', 'udo'].includes(source)) {
       const dynamic = await getDynamicOptions(context, source, paging, options.schema, dialect);
       rows = dynamic.rows;
       currentSchemaVersion = dynamic.schema.schemaVersion;
@@ -468,10 +474,13 @@ const createNewSalesOrderLookupService = ({
     if (inline.length) {
       return { valid: inline.some((option) => String(option?.value ?? option) === normalizedValue) };
     }
-    const source = text(field.lookup?.source || field.lookupSource);
+    if (field.lookup?.source === 'sap-user-values' && field.lookup.allowFreeText) return { valid: true };
+    const validationLookup = field.lookup?.source === 'sap-user-values'
+      ? (field.validationLookup || field.lookup) : field.lookup;
+    const source = text(validationLookup?.source || field.lookupSource);
     if (!LOOKUP_SOURCE_SET.has(source) && !CUSTOM_LOOKUP_SOURCE.test(source)) return { valid: false };
     const itemCode = source === 'uom-codes' ? text(record?.values?.itemNo) : '';
-    if (source === 'uom-codes' && Array.isArray(field.lookup?.dependsOn) && field.lookup.dependsOn.length && !itemCode) {
+    if (source === 'uom-codes' && Array.isArray(validationLookup?.dependsOn) && validationLookup.dependsOn.length && !itemCode) {
       return { valid: false };
     }
     const result = await getLookup(trustedContext || context, source, {

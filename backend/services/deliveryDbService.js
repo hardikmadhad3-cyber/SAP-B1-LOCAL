@@ -213,7 +213,7 @@ const buildDeliverySellerExpression = (columnNames, fallbackExpression) => {
 // ── REFERENCE DATA QUERIES ────────────────────────────────────────────────────
 
 const getCustomers = () => safe(db.query(`
-  SELECT CardCode, CardName, CardType, Currency,
+  SELECT CardCode, CardName, CardType, Currency, Balance,
          VatGroup, GroupNum AS PayTermsGrpCode, PymCode
   FROM   OCRD
   WHERE  CardType = 'C'
@@ -246,16 +246,24 @@ const getItems = () => safe(db.query(`
 const getWarehouses = async () => {
   const metadata = await getTableFieldMetadata('OWHS');
   const branchExpression = hasTableField(metadata, 'BPLid') ? 'T0.BPLid' : 'NULL';
+  const locationExpression = hasTableField(metadata, 'Location') ? 'T0.Location' : 'NULL';
   const binExpression = hasTableField(metadata, 'BinActivat') ? 'T0.BinActivat' : "'N'";
   return safe(db.query(`
     SELECT T0.WhsCode, T0.WhsName, T0.Street, T0.Block,
            T0.City, T0.County, T0.State, T0.ZipCode, T0.Country,
            ${branchExpression} AS BranchID,
+           ${locationExpression} AS LocationCode,
            ${binExpression} AS BinActivat
     FROM OWHS T0
     WHERE T0.Inactive <> 'Y'
     ORDER BY T0.WhsCode
   `));
+};
+
+const getLocations = async () => {
+  const metadata = await getTableFieldMetadata('OLCT');
+  if (!hasTableField(metadata, 'Code') || !hasTableField(metadata, 'Location')) return [];
+  return safe(db.query('SELECT Code, Location FROM OLCT ORDER BY Location'));
 };
 
 const getPaymentTerms = () => safe(db.query(`
@@ -754,8 +762,9 @@ const DELIVERY_MATRIX_COLUMN_DEFS = [
   { key: 'U_Fix_Brock_S', label: 'Fix Brock Seller', minWidth: 140, numeric: true, sapField: 'U_Fix_Brock_S', alternativeFields: ['U_Fix_Brok_S', 'U_FIXBROCKSELLER', 'U_FIXBROKSELLER', 'U_FixBrockSeller'], isUdf: true },
   { key: 'stdDiscount', label: 'Discount %', minWidth: 95, numeric: true, sapField: 'DiscPrcnt', visible: false },
   { key: 'taxAmount', label: 'Tax Amount (LC)', minWidth: 125, readOnly: true, numeric: true, sapField: 'VatSum', visible: false },
-  { key: 'deliveredQty', label: 'Qty to Ship', minWidth: 110, readOnly: true, sapField: 'DelivrdQty', visible: false },
-  { key: 'openQty', label: 'Ordered Qty', minWidth: 95, readOnly: true, sapField: 'OpenQty', visible: false },
+  { key: 'qtyToShip', label: 'Qty to Ship', minWidth: 110, numeric: true, readOnly: true, sapField: 'QtyToShip', sapColumnIds: ['10000314'] },
+  { key: 'orderedQty', label: 'Ordered Qty', minWidth: 95, numeric: true, readOnly: true, sapField: 'OrderedQty', source: 'RDR1', sapColumnIds: ['10000310'] },
+  { key: 'balanceQty', label: 'Bal Qty', minWidth: 95, readOnly: true, source: 'calculated', visible: false },
   { key: 'uomCode', label: 'UoM Code', minWidth: 105, sapField: 'UomCode', alternativeFields: ['UomEntry'], sapColumnIds: ['1470002149', 'UomCode', 'UoMCode', 'UoM Code'], visible: false },
   { key: 'distRule', label: 'Distr. Rule', minWidth: 105, sapField: 'OcrCode', visible: false },
   { key: 'countryOfOrigin', label: 'Country/Region of Origin', minWidth: 185, sapField: 'CountryOrg', visible: false },
@@ -1919,6 +1928,8 @@ const getDelivery = async (docEntry) => {
   const sacSql = getDeliverySacLookupSqlParts('T0', 'SAC', sacFieldMetadata, dln1FieldMetadata);
 
   const optionalLineSelects = [
+    selectPhysicalOptionalColumn(physicalLineColumns, 'T0', 'QtyToShip'),
+    selectPhysicalOptionalColumn(physicalLineColumns, 'T0', 'OrderedQty'),
     hasDln1Column('OpenQty') ? 'T0.OpenQty AS OpenQuantity' : 'CAST(NULL AS DECIMAL(19, 6)) AS OpenQuantity',
     `${taxCodeExpression} AS TaxCode`,
     lineTaxAmountSelect,
@@ -2003,6 +2014,8 @@ const getDelivery = async (docEntry) => {
         COALESCE(NULLIF(LTRIM(RTRIM(T0.Dscription)), ''), ITM.ItemName, '') AS ItemDescription,
         T0.Quantity,
         ${hasDln1Column('OpenQty') ? 'T0.OpenQty' : 'CAST(NULL AS DECIMAL(19, 6))'} AS OpenQuantity,
+        ${selectPhysicalOptionalColumn(physicalLineColumns, 'T0', 'QtyToShip')},
+        ${selectPhysicalOptionalColumn(physicalLineColumns, 'T0', 'OrderedQty')},
         COALESCE(T0.PriceBefDi, T0.Price) AS UnitPrice,
         T0.DiscPrcnt AS DiscountPercent,
         T0.LineTotal,
@@ -2050,6 +2063,31 @@ const getDelivery = async (docEntry) => {
     console.log('[DB] getDelivery - First line:', lineRows[0]);
   } else {
     console.warn(`[DB] getDelivery - No lines found for requested identifier ${docEntry} resolved DocEntry ${resolvedDocEntry}`);
+  }
+
+  // Ordered Qty on a Delivery copied from a Sales Order belongs to the
+  // source RDR1 row. DLN1.OpenQty is the Delivery's own remaining quantity.
+  const orderSources = hasDln1Column('BaseType') && hasDln1Column('BaseEntry') && hasDln1Column('BaseLine')
+    ? lineRows.filter((line) => Number(line.BaseType) === 17
+      && line.BaseEntry != null && line.BaseLine != null)
+    : [];
+  const orderedQtyBySource = new Map();
+  if (orderSources.length) {
+    const uniqueSources = [...new Map(orderSources.map((line) => [
+      `${line.BaseEntry}:${line.BaseLine}`, line,
+    ])).values()];
+    const sourceParams = {};
+    const sourcePredicates = uniqueSources.map((line, index) => {
+      sourceParams[`baseEntry${index}`] = line.BaseEntry;
+      sourceParams[`baseLine${index}`] = line.BaseLine;
+      return `(DocEntry = @baseEntry${index} AND LineNum = @baseLine${index})`;
+    });
+    const sourceRows = await safe(db.query(`
+      SELECT DocEntry, LineNum, Quantity
+      FROM RDR1
+      WHERE ${sourcePredicates.join(' OR ')}
+    `, sourceParams));
+    sourceRows.forEach((row) => orderedQtyBySource.set(`${row.DocEntry}:${row.LineNum}`, row.Quantity));
   }
 
   const itemCodes = lineRows.map(l => l.ItemCode).filter(Boolean);
@@ -2344,6 +2382,10 @@ const getDelivery = async (docEntry) => {
           itemDescription: l.ItemDescription || '',
           hsnCode: l.HSNCode || (l.HSNEntry != null ? String(l.HSNEntry) : '') || itemInfo.hsnCode || '',
           quantity: l.Quantity != null ? String(l.Quantity) : '',
+          qtyToShip: l.QtyToShip != null ? String(l.QtyToShip) : '',
+          orderedQty: l.OrderedQty != null ? String(l.OrderedQty)
+            : orderedQtyBySource.has(`${l.BaseEntry}:${l.BaseLine}`)
+              ? String(orderedQtyBySource.get(`${l.BaseEntry}:${l.BaseLine}`)) : '',
           openQty: l.OpenQuantity != null ? String(l.OpenQuantity) : '',
           unitPrice: l.UnitPrice != null ? String(l.UnitPrice) : '',
           uomName: l.UoMName || l.UoMCode || '',
@@ -2430,7 +2472,7 @@ const getDelivery = async (docEntry) => {
           returnCost: l.ReturnCost != null ? String(l.ReturnCost) : '',
           deliveredQty: l.Quantity != null && l.OpenQuantity != null ? String(Number(l.Quantity || 0) - Number(l.OpenQuantity || 0)) : '',
           documentCreated: header.DocumentCreated ? header.DocumentCreated.toISOString().split('T')[0] : '',
-          branch: l.Branch ? String(l.Branch) : '',
+          branch: l.Branch ? String(l.Branch) : (header.Branch != null ? String(header.Branch) : ''),
           loc: l.Loc != null && l.Loc !== '' ? String(l.Loc) : '',
           batchManaged: String(l.BatchManaged || '').toUpperCase() === 'Y' || itemInfo.batchManaged,
           batches: batchesByLine[l.LineNum] || [],
@@ -2667,6 +2709,7 @@ const loadReferenceDataUncached = async () => {
     customers,
     items,
     warehouses,
+    locations,
     paymentTerms,
     paymentMethods,
     shippingTypes,
@@ -2691,6 +2734,7 @@ const loadReferenceDataUncached = async () => {
     getCustomers(),
     getItems(),
     getWarehouses(),
+    getLocations(),
     getPaymentTerms(),
     getPaymentMethods(),
     getShippingTypes(),
@@ -2753,6 +2797,7 @@ const loadReferenceDataUncached = async () => {
       FactorDescription: rule.FactorDescription || '',
     })),
     warehouses,
+    locations,
     warehouse_addresses: warehouses,
     company_address: { Address: companyInfo.address, State: companyInfo.state },
     tax_codes: taxCodes,

@@ -53,7 +53,7 @@ export const createSalesBomGroupId = () => {
   return `sales-bom-${Date.now()}-${bomGroupSequence}`;
 };
 
-export const isSalesBomDefinition = (bom = {}) => isSalesTreeType(bom.TreeType);
+export const isSalesBomDefinition = (bom) => isSalesTreeType(bom?.TreeType);
 
 export const isSalesBomComponentLine = (line = {}) => (
   line.bomType === 'S' && line.bomRole === 'component'

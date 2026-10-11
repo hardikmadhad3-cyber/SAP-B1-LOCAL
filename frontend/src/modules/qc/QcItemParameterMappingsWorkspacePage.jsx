@@ -580,7 +580,7 @@ export default function QcItemParameterMappingsWorkspacePage() {
         </div>
         <button type="button" className="qc-btn qc-btn--primary" onClick={openNewMode}>New</button>
         <button type="button" className="qc-btn qc-btn--primary" disabled={!canSaveMapping || loading || savingMapping} onClick={saveCompletedMapping}>Save</button>
-        <button type="button" className="qc-btn" onClick={openFindMode}>Find</button>
+<button type="button" className="qc-btn" data-sap-find-action onClick={openFindMode}>Find</button>
       </div>
 
       {alert ? <div className={`qc-alert qc-alert--${alert.type}`}>{alert.msg}</div> : null}

@@ -60,6 +60,14 @@ const httpError = (statusCode, message, code) => {
   return error;
 };
 
+// Setup administrators are configured in the environment, not stored in Users.
+// Their token carries userId 0, which cannot satisfy the layout audit FK.
+const publisherUserId = (auth) => {
+  if (auth?.isSetupAdmin === true) return null;
+  const userId = Number(auth?.userId);
+  return Number.isSafeInteger(userId) && userId > 0 ? userId : null;
+};
+
 const normalizeFormKey = (value) => {
   const formKey = String(value || '').trim();
   if (!formKey || formKey.length > 150) throw httpError(400, 'A valid page is required.', 'INVALID_FORM_KEY');
@@ -256,7 +264,7 @@ const formatDateValue = (value) => {
 };
 
 const deriveRuntimeContext = async (auth, company, formKey, rawContext = {}, database = dbService) => {
-  const userId = Number(auth?.userId);
+  const userId = publisherUserId(auth);
   const requestedDocEntry = Number(rawContext?.docEntry);
   if (!Number.isInteger(requestedDocEntry) || requestedDocEntry <= 0) {
     return { docEntry: null, cardCode: null, postingDate: null, branchId: null, userId };
@@ -450,7 +458,7 @@ const copySalesPurchaseLayouts = async (auth, payload = {}) => {
         formKey: layout.FormKey,
         queryText: layout.QueryText,
         columnsJson: layout.ColumnsJson || '[]',
-        userId: Number.isInteger(userId) ? userId : null,
+        userId,
       });
     }
   });
@@ -481,7 +489,7 @@ const publish = async (auth, payload = {}) => {
   const validation = await execute({
     auth, company, formKey, queryText, rawContext: payload.context, limit: PREVIEW_LIMIT,
   });
-  const userId = Number(auth.userId);
+  const userId = publisherUserId(auth);
 
   await authDbService.transaction(async (tx) => {
     const current = await tx.queryOne(
@@ -532,7 +540,7 @@ const unpublish = async (auth, payload = {}) => {
       UPDATE CompanyFormQueryLayouts
       SET IsPublished = 0, Version = Version + 1, PublishedByUserId = @userId, UpdatedAt = CURRENT_TIMESTAMP
       WHERE CompanyId = @companyId AND FormKey = @formKey AND Version = @expectedVersion
-    `, { userId: Number(auth.userId), companyId, formKey, expectedVersion });
+    `, { userId: publisherUserId(auth), companyId, formKey, expectedVersion });
   });
   return serializeLayout(await getLayoutRow(companyId, formKey));
 };
@@ -595,6 +603,7 @@ module.exports = {
   useReadOnlyQueryCredentials,
   queryCompanyDatabase,
   deriveRuntimeContext,
+  publisherUserId,
   getAdminLayout,
   copySalesPurchaseLayouts,
   preview,

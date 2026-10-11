@@ -1,3 +1,4 @@
+import SapDateInput from '../components/common/SapDateInput';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -909,9 +910,9 @@ function SalesAnalysisReportPage() {
 
     const renderDatePickerButton = (field) => (
       <React.Fragment key={field}>
-        <input
+        <SapDateInput
           ref={getDateNativeInputRef(key, field)}
-          type="date"
+          
           className="sales-analysis__date-native-input"
           tabIndex={-1}
           value={parseSapDateToIso(range[field])}

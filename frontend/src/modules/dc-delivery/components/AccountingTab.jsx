@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from 'react';
 
 export default function AccountingTab({ header, onHeaderChange, payTermOpts }) {
@@ -115,7 +116,7 @@ export default function AccountingTab({ header, onHeaderChange, payTermOpts }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input type="radio" name="dueDateCalc" id="dueDateSelected" />
               <label htmlFor="dueDateSelected" style={{ cursor: 'pointer', margin: 0, fontSize: 12 }}>Selected Date</label>
-              <input type="date" className="del-field__input" style={{ flex: '0 0 150px', height: '22px' }} />
+              <SapDateInput  className="del-field__input" style={{ flex: '0 0 150px', height: '22px' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input type="radio" name="dueDateCalc" id="dueDateMonths" />

@@ -1,0 +1,14 @@
+.company-reports-page { background: #eef3f8; color: #1f2f46; }
+.company-reports-page__title { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: #f7fbff; border-bottom: 1px solid #b6c3d4; }
+.company-reports-page__title h1 { margin: 0; font-size: 20px; }
+.company-reports-page__title p { margin: 4px 0 0; color: #5d6f89; font-size: 13px; }
+.company-reports-page__body { padding: 18px; min-height: 0; }
+.company-reports-page__card { max-width: 1050px; margin: 0 auto; background: #fff; border: 1px solid #b6c3d4; }
+.company-reports-page__search { display: flex; align-items: center; gap: 8px; width: min(470px, 65%); }
+.company-reports-page__card .rs-card__header input { flex: 1; min-width: 140px; height: 36px; padding: 0 10px; border: 1px solid #a9bad0; border-radius: 4px; }
+.company-reports-page__list { max-height: calc(100vh - 290px); min-height: 150px; overflow: auto; }
+.company-reports-page__row { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 15px; padding: 11px 15px; border: 0; border-bottom: 1px solid #e5ebf2; background: #fff; color: #1f2f46; text-align: left; cursor: pointer; }
+.company-reports-page__row:hover, .company-reports-page__row:focus-visible { background: #eaf3ff; }
+.company-reports-page__row small { color: #5d6f89; white-space: nowrap; }
+.company-reports-page__empty { padding: 24px 15px; color: #5d6f89; }
+@media (max-width: 640px) { .company-reports-page__card .rs-card__header { align-items: stretch; flex-direction: column; } .company-reports-page__search { width: 100%; } }

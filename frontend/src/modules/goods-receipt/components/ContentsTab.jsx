@@ -1,3 +1,4 @@
+import SapInput from '../../../components/common/SapInput';
 import React, { useRef } from 'react';
 import { getOrderedVisibleMatrixColumns } from '../../../utils/formSettingsColumns';
 
@@ -194,7 +195,7 @@ function ContentsTab({
 
     return (
       <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-        <input ref={(node) => { inputRefs.current[`${rowIndex}:${column.key}`] = node; }} className={`po-grid__input ${column.numeric ? '' : 'po-grid__input--text'} ${rowErrors[column.key] ? 'gr-goods-receipt__input--error' : ''}`} type={udfField?.type === 'date' ? 'date' : udfField?.type === 'number' ? 'number' : 'text'} value={value} readOnly={disabled} disabled={isUdf && !udfField} title={isUdf && !udfField ? 'Field is not configured on SAP IGN1' : String(value || '')} onFocus={() => onFocusRow(rowIndex)} onChange={(event) => changeValue(event.target.value)} onKeyDown={(event) => handleCellKeyDown(event, rowIndex, column.key)} />
+        <SapInput ref={(node) => { inputRefs.current[`${rowIndex}:${column.key}`] = node; }} className={`po-grid__input ${column.numeric ? '' : 'po-grid__input--text'} ${rowErrors[column.key] ? 'gr-goods-receipt__input--error' : ''}`} type={udfField?.type === 'date' ? 'date' : udfField?.type === 'number' ? 'number' : 'text'} value={value} readOnly={disabled} disabled={isUdf && !udfField} title={isUdf && !udfField ? 'Field is not configured on SAP IGN1' : String(value || '')} onFocus={() => onFocusRow(rowIndex)} onChange={(event) => changeValue(event.target.value)} onKeyDown={(event) => handleCellKeyDown(event, rowIndex, column.key)} />
         {column.lookup && !disabled && onOpenLineLookup && <button type="button" className="gr-goods-receipt__lookup-btn" onClick={() => onOpenLineLookup(column, rowIndex, udfField)} title={`Select ${column.label}`}>...</button>}
       </div>
     );

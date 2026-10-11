@@ -175,7 +175,7 @@ export default function UoMGroupModule() {
           {loading ? "..." : mode === MODES.FIND ? "Find" : mode === MODES.ADD ? "Add" : "Update"}
         </button>
         <button className="im-btn" onClick={() => { setMode(MODES.ADD); resetForm(); }}>New</button>
-        <button className="im-btn" onClick={() => { setMode(MODES.FIND); resetForm(); }}>Find</button>
+        <button className="im-btn" data-sap-find-action onClick={() => { setMode(MODES.FIND); resetForm(); }}>Find</button>
         {mode === MODES.UPDATE && (
           <button className="im-btn im-btn--danger" onClick={resetForm}>Cancel</button>
         )}

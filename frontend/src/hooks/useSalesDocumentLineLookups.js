@@ -1,4 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '../auth/AuthContext';
+import { fetchSalesDocumentLookup, fetchSalesDocumentSchema } from '../api/salesDocumentSchemaApi';
+import { loadSalesDocumentFieldLookupOptions } from '../utils/salesDocumentLiveFields';
 
 const INITIAL_LOOKUP_MODAL = {
   open: false,
@@ -110,8 +113,18 @@ export default function useSalesDocumentLineLookups({
   setRefData,
   setLines,
   createLookupValue,
+  documentType = 'SALES_ORDER',
+  lineTable = 'RDR1',
 }) {
   const [lineLookupModal, setLineLookupModal] = useState(INITIAL_LOOKUP_MODAL);
+  const { company } = useAuth();
+  const companyScope = `${company?.companyId || ''}:${company?.dbName || ''}`;
+  const lookupRequest = useRef(0);
+
+  useEffect(() => {
+    lookupRequest.current += 1;
+    setLineLookupModal(INITIAL_LOOKUP_MODAL);
+  }, [companyScope]);
 
   const paymentTermOptions = useMemo(
     () => buildPaymentTermOptions(refData.payment_terms || []),
@@ -157,20 +170,58 @@ export default function useSalesDocumentLineLookups({
 
   const openQualityModal = useCallback((field, lineIndex) => {
     const nextConfig = getLookupConfig(field, refData);
+    const requestId = ++lookupRequest.current;
+    const fieldId = `${lineTable}.${FIELD_TO_ALIAS[field] || field}`;
+    let schemaField = refData.line_field_metadata?.live_schema?.lineFields
+      ?.find((entry) => String(entry.id || '').toUpperCase() === fieldId.toUpperCase());
+    const schemaSource = String(schemaField?.lookup?.source || schemaField?.lookupSource || '').toLowerCase();
+    let source = ['udf-valid-values', 'sap-user-values', 'udf-linked-table', 'udo'].includes(schemaSource)
+      ? schemaSource : 'udf-valid-values';
     setLineLookupModal({
       open: true,
       lineIndex,
       field,
       title: nextConfig.title,
-      options: nextConfig.options,
+      options: [],
       searchPlaceholder: nextConfig.searchPlaceholder,
-      emptyMessage: nextConfig.emptyMessage,
-      allowCreate: nextConfig.allowCreate !== false,
+      emptyMessage: 'Loading this company’s SAP values...',
+      allowCreate: nextConfig.allowCreate !== false && source === 'udf-valid-values',
       columns: null,
     });
-  }, [refData]);
+    const load = async () => {
+      // Older company-specific pages do not preload the shared schema.
+      if (!schemaField) {
+        const schema = await fetchSalesDocumentSchema({ documentType });
+        if (lookupRequest.current !== requestId) return [];
+        schemaField = schema.lineFields?.find(entry => String(entry.id || '').toUpperCase() === fieldId.toUpperCase());
+        source = schemaField?.lookup?.source || schemaField?.lookupSource || source;
+      }
+      setLineLookupModal(previous => ({ ...previous, allowCreate: source === 'udf-valid-values' && nextConfig.allowCreate !== false }));
+      return loadSalesDocumentFieldLookupOptions({
+        fetchLookup: fetchSalesDocumentLookup, source, field: { id: fieldId }, documentType, limit: 100,
+      });
+    };
+    load().then((options) => {
+      if (lookupRequest.current !== requestId) return;
+      setLineLookupModal((previous) => ({
+        ...previous,
+        options: source === 'sap-user-values' ? options : (options.length ? options : nextConfig.options),
+        emptyMessage: nextConfig.emptyMessage,
+      }));
+    }).catch((error) => {
+      if (lookupRequest.current !== requestId) return;
+      setLineLookupModal((previous) => ({
+        ...previous,
+        options: source === 'sap-user-values' ? [] : nextConfig.options,
+        emptyMessage: nextConfig.options.length
+          ? nextConfig.emptyMessage
+          : (error?.response?.data?.detail || 'Unable to load this company’s SAP values.'),
+      }));
+    });
+  }, [documentType, lineTable, refData]);
 
   const closeLineLookupModal = useCallback(() => {
+    lookupRequest.current += 1;
     setLineLookupModal(INITIAL_LOOKUP_MODAL);
   }, []);
 

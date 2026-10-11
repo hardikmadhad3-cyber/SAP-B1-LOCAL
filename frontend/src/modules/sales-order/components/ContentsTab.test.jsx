@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ContentsTab from './ContentsTab';
 
 const renderContentsTab = (overrides = {}) => render(
@@ -18,9 +18,19 @@ const renderContentsTab = (overrides = {}) => render(
     matrixFields={overrides.matrixFields || []}
     shippingTypeOptions={overrides.shippingTypeOptions || []}
     onLoadLookupOptions={overrides.onLoadLookupOptions}
+    onRowUdfChange={overrides.onRowUdfChange}
     formSettings={overrides.formSettings || {}}
+    getBranchName={overrides.getBranchName || ((branchId) => ({ '3': 'UP' }[branchId] || ''))}
   />
 );
+
+test('shows the SAP branch name on a saved Sales Order line', () => {
+  renderContentsTab({
+    lines: [{ branch: '3' }],
+    matrixFields: [{ key: 'branch', fieldName: 'BPLId', label: 'Branch', importedLayout: true, readOnly: true }],
+  });
+  expect(screen.getByDisplayValue('UP')).toBeInTheDocument();
+});
 
 test('shows the Shipping Type name while retaining its SAP transport code', () => {
   let selectedChange = null;
@@ -132,6 +142,73 @@ test('configured lookup overrides a specialized standard line renderer', () => {
   });
 
   expect(screen.getByTitle('List of Quantity')).toBeEnabled();
+});
+
+test('a SAP UDF with valid values uses its company dropdown options', () => {
+  const onLoadLookupOptions = jest.fn().mockResolvedValue([]);
+  renderContentsTab({
+    lines: [{ udf: { U_Seller_Quality: 'NO' } }],
+    onLoadLookupOptions,
+    matrixFields: [{
+      key: 'U_Seller_Quality', valueKey: 'U_Seller_Quality',
+      label: 'Seller - Quality', isUdf: true, type: 'select',
+      options: [{ value: 'NO', label: 'NO' }, { value: 'YES', label: 'YES' }],
+      lookupSource: 'udf-valid-values', schemaFieldId: 'RDR1.U_Seller_Quality',
+    }],
+  });
+  expect(screen.getByRole('combobox')).toBeInTheDocument();
+  expect(screen.getByRole('combobox')).toHaveValue('NO');
+  expect(screen.getByRole('option', { name: 'YES' })).toHaveValue('YES');
+  expect(screen.queryByTitle('List of Seller - Quality')).not.toBeInTheDocument();
+  expect(onLoadLookupOptions).not.toHaveBeenCalled();
+});
+
+test('a numeric SAP UDF selects its stored value in find mode', () => {
+  renderContentsTab({
+    lines: [{ udf: { U_BoxWeight: '7.00' } }],
+    matrixFields: [{
+      key: 'U_BoxWeight', valueKey: 'U_BoxWeight', label: 'Box Weight',
+      isUdf: true, type: 'number', lookupSource: 'udf-valid-values',
+      options: [{ value: '7.00', label: '7 KG' }, { value: '6.30', label: '6.3 KG' }],
+    }],
+  });
+  expect(screen.getByRole('combobox')).toHaveValue('7.00');
+  expect(screen.getByRole('option', { name: '7 KG' })).toBeInTheDocument();
+});
+
+test('SAP Unit UDF is editable text without a lookup button', () => {
+  const onRowUdfChange = jest.fn();
+  renderContentsTab({
+    lines: [{ udf: { U_UoM: 'MT' } }],
+    onRowUdfChange,
+    matrixFields: [{
+      key: 'U_UoM', valueKey: 'U_UoM', label: 'Unit', isUdf: true,
+      type: 'text', lookupSource: 'sap-user-values',
+      options: [{ value: 'MT', label: 'MT' }],
+    }],
+  });
+
+  const input = screen.getByDisplayValue('MT');
+  expect(input).toBeEnabled();
+  expect(screen.queryByTitle('List of Unit')).not.toBeInTheDocument();
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  fireEvent.change(input, { target: { value: 'ton' } });
+  expect(onRowUdfChange).toHaveBeenCalledWith(0, 'U_UoM', 'ton');
+});
+
+test('selecting a live SAP form value updates the exact row UDF used by Sales Order and A/R Invoice', async () => {
+  const onRowUdfChange = jest.fn();
+  renderContentsTab({
+    lines: [{ udf: { U_Seller_Quality: '' } }], onRowUdfChange,
+    onLoadLookupOptions: jest.fn().mockResolvedValue([{ value: '15 FFA MAX.', label: '15 FFA MAX.' }]),
+    matrixFields: [{ key: 'U_Seller_Quality', valueKey: 'U_Seller_Quality', label: 'Seller - Quality',
+      isUdf: true, type: 'text', lookupSource: 'sap-user-values', schemaFieldId: 'RDR1.U_Seller_Quality' }],
+  });
+  fireEvent.click(screen.getByTitle('List of Seller - Quality'));
+  const value = await screen.findByText('15 FFA MAX.');
+  fireEvent.click(value);
+  fireEvent.click(screen.getByRole('button', { name: /^Choose$/i }));
+  expect(onRowUdfChange).toHaveBeenCalledWith(0, 'U_Seller_Quality', '15 FFA MAX.');
 });
 
 test('keeps document-line fields readable when SAP supplies narrow column widths', () => {

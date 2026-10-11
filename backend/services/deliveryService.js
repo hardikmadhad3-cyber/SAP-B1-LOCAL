@@ -17,6 +17,7 @@ const {
 const { buildDocumentReferencesPayload, normalizeReferenceDocType } = require('./documentReferencesPayloadUtils');
 const { getUdfDefinitionsOrEmpty } = require('./udfMetadataService');
 const { getActiveCompanyConfig } = require('./companyConfigService');
+const { getDocumentBpSelectionPolicy, assertDocumentBpSelection } = require('./documentBpSelectionPolicy');
 const { isBlankUdfValue, normalizeUdfValue } = require('./udfPayloadUtils');
 const {
   isManualDocumentSeries,
@@ -969,8 +970,10 @@ const getReferenceData = async (companyId) => {
       companyConfig?.documentDefaults?.salesOrderToVendorCode || '',
     ).trim();
 
+    const bpSelectionPolicy = await getDocumentBpSelectionPolicy('delivery');
     return mergeCurrencyReferenceData({
       ...data,
+      bp_selection_policy: bpSelectionPolicy,
       defaults: {
         ...(data.defaults || {}),
         toVendorCode,
@@ -1314,6 +1317,10 @@ const getAvailableBins = (itemCode, whsCode) => deliveryDb.getAvailableBins(item
 
 const submitDelivery = async (payload) => {
   try {
+    assertDocumentBpSelection(
+      await getDocumentBpSelectionPolicy('delivery'),
+      resolveHeaderCustomerCode(payload.header || {}),
+    );
     const validationResult = await validateDeliveryDocument(payload);
     if (!validationResult.isValid) {
       const error = new Error(validationResult.errors.join('\n'));
@@ -1463,6 +1470,13 @@ const updateDelivery = async (docEntry, payload) => {
   const confirmationResult = await updateDocumentConfirmationOnly(docEntry, payload, 'DeliveryNotes', sapService);
   if (confirmationResult) return confirmationResult;
   try {
+    const bpSelectionPolicy = await getDocumentBpSelectionPolicy('delivery');
+    if (bpSelectionPolicy) {
+      const existing = await deliveryDb.getDelivery(docEntry);
+      assertDocumentBpSelection(bpSelectionPolicy, resolveHeaderCustomerCode(payload.header || {}), {
+        existingCode: existing?.delivery?.header?.customerCode,
+      });
+    }
     const includeDocumentLines = payload.include_document_lines === true;
     const validationResult = await validateDeliveryDocument({
       ...payload,

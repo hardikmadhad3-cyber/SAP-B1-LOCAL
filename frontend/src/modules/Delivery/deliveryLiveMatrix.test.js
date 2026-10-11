@@ -1,4 +1,23 @@
-import { buildDeliveryLiveMatrixColumns } from './deliveryLiveMatrix';
+import { buildDeliveryLiveMatrixColumns, normalizeDeliveryMatrixColumn } from './deliveryLiveMatrix';
+
+test('missing Delivery quantities appear after Quantity with distinct read-only SAP mappings', () => {
+  const columns = buildDeliveryLiveMatrixColumns({ referenceMatrixColumns: [
+    { key: 'quantity', label: 'Quantity', order: 10 },
+    { key: 'unitPrice', label: 'Unit Price', order: 11 },
+  ] });
+  expect(columns.map(column => column.key)).toEqual(['quantity', 'qtyToShip', 'orderedQty', 'unitPrice']);
+  expect(columns[1]).toMatchObject({ sapField: 'QtyToShip', valueKey: 'qtyToShip', readOnly: true, visible: true });
+  expect(columns[2]).toMatchObject({ sapField: 'OrderedQty', valueKey: 'orderedQty', readOnly: true, visible: true });
+  expect(columns[1].order).toBeGreaterThan(columns[0].order);
+  expect(columns[2].order).toBeLessThan(columns[3].order);
+  expect(normalizeDeliveryMatrixColumn({key:'deliveredQty', label:'Qty to Ship'}).valueKey).toBe('qtyToShip');
+});
+
+test('Delivery balance caption does not display the Delivery open quantity', () => {
+  expect(normalizeDeliveryMatrixColumn({ label: 'Bal Qty', key: 'OpenQty' })).toMatchObject({
+    valueKey: 'balanceQty', readOnly: true,
+  });
+});
 
 const standardField = (sapField, stateKey, label, order, extra = {}) => ({
   id: `DLN1.${sapField}`,

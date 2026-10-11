@@ -1,3 +1,6 @@
+import SapLookupTextInput from '../../../components/common/SapLookupTextInput';
+import SapInput from '../../../components/common/SapInput';
+import LiveUdfValueInput from '../../../components/sales-document/LiveUdfValueInput';
 import React from 'react';
 import TaxCodeLookup from '../../../components/TaxCodeLookup';
 import { useSapItemCodeTab } from '../../../utils/sapTabNavigation';
@@ -203,7 +206,7 @@ function EditableContentsTab({
   const tableMinWidth = INDEX_COL_WIDTH + ACTION_COL_WIDTH + visibleColumns.reduce((total, col) => total + getColumnWidth(col), 0);
 
   const renderInput = (line, rowIndex, fieldName, options = {}) => (
-    <input
+    <SapInput
       className="so-grid__input"
       name={fieldName}
       type={options.type || (NUMERIC_FIELDS.has(fieldName) ? 'number' : 'text')}
@@ -248,6 +251,10 @@ function EditableContentsTab({
       return String(normalizedOption.value ?? '') === String(currentValue);
     });
 
+    if (udfField?.lookupSource) {
+      return <LiveUdfValueInput field={udfField} line={line} value={currentValue} disabled={disabled} onChange={(nextValue) => onLineChange(rowIndex, { target: { name: fieldName, value: nextValue } })} />;
+    }
+
     if (udfField?.type === 'select' || optionsList.length > 0) {
       return (
         <select
@@ -287,6 +294,10 @@ function EditableContentsTab({
     const value = line.udf?.[field.key] || '';
     const change = (nextValue) => onRowUdfChange && onRowUdfChange(rowIndex, field.key, nextValue);
 
+    if (field.lookupSource) {
+      return <td key={column.key}><LiveUdfValueInput field={field} line={line} value={value} disabled={disabled} onChange={change} /></td>;
+    }
+
     if (field.type === 'select') {
       return (
         <td key={column.key}>
@@ -307,7 +318,7 @@ function EditableContentsTab({
 
     return (
       <td key={column.key}>
-        <input
+        <SapInput
           className="so-grid__input"
           type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
           value={value}
@@ -330,7 +341,7 @@ function EditableContentsTab({
         return (
           <td key={key}>
             <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <input
+              <SapLookupTextInput
                 className="so-grid__input"
                 style={{ flex: 1, textAlign: 'left', border: valErrors.lines[rowIndex]?.itemNo ? '1px solid #c00' : undefined }}
                 name="itemNo"

@@ -1,3 +1,4 @@
+import SapInput from '../../../components/common/SapInput';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchHSNCodes } from '../../../api/hsnCodeApi';
@@ -159,7 +160,7 @@ function TextField({ label, name, value, onChange, type = 'text', readOnly = fal
     <label className="del-ewb-field">
       <span>{label}</span>
       <span className={onLookup ? 'del-ewb-lookup-input' : ''}>
-        <input name={name} type={type} value={value || ''} onChange={onChange} readOnly={readOnly} />
+        <SapInput name={name} type={type} value={value || ''} onChange={onChange} readOnly={readOnly} />
         {onLookup ? <button type="button" onClick={onLookup} title={`Select ${label}`}>...</button> : null}
       </span>
     </label>

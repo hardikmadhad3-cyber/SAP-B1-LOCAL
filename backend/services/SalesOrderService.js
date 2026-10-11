@@ -4,6 +4,10 @@ const salesOrderDb = require('./salesOrderDbService');
 const hsnCodeDbService = require('./hsnCodeDbService');
 const { buildDocumentAdditionalExpenses } = require('./freightPayloadUtils');
 const { getActiveCompanyConfig } = require('./companyConfigService');
+const { getDocumentBpSelectionPolicy, assertDocumentBpSelection } = require('./documentBpSelectionPolicy');
+
+const resolveHeaderCustomerCode = (header = {}) =>
+  String(header.vendor || header.customerCode || header.customer || header.CardCode || '').trim();
 const { getUdfDefinitionsOrEmpty } = require('./udfMetadataService');
 const { isBlankUdfValue, normalizeUdfValues } = require('./udfPayloadUtils');
 const { buildDocumentSeriesPayload } = require('./documentSeriesPayloadUtils');
@@ -1311,8 +1315,10 @@ const getReferenceData = async (companyId) => {
     });
 
     console.log("Reference data:",data.tax_codes);
+    const bpSelectionPolicy = await getDocumentBpSelectionPolicy('salesOrder');
     return {
       ...data,
+      bp_selection_policy: bpSelectionPolicy,
       currencies,
       defaults: {
         ...(data.defaults || {}),
@@ -1539,19 +1545,10 @@ const getSalesOrder = async (docEntry) => {
 
 const submitSalesOrder = async (payload) => {
   try {
+    assertDocumentBpSelection(await getDocumentBpSelectionPolicy('salesOrder'), resolveHeaderCustomerCode(payload.header || {}));
     const refData = await salesOrderDb.getReferenceData();
     const branchesEnabled = Boolean(refData.branches_enabled ?? (refData.branches || []).length > 0);
     validateRequiredBranchAndWarehouse(payload, { branchesEnabled });
-    const postingDate = String(payload.header?.postingDate || '').trim();
-    const postingPeriod = await salesOrderDb.getPostingPeriodValidation(postingDate);
-    if (!postingPeriod) {
-      const error = new Error(
-        `Posting Date ${postingDate || 'is required'} is outside an open SAP posting period. Select a date in an open period or ask an SAP administrator to open the period.`,
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-
     console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
     console.log("ðŸ”¥ CREATE - RECEIVED PAYLOAD FROM FRONTEND:");
     console.log("  salesEmployee:", payload.header.salesEmployee);
@@ -1754,19 +1751,16 @@ const updateSalesOrder = async (docEntry, payload) => {
   const confirmationResult = await updateDocumentConfirmationOnly(docEntry, payload, 'Orders', sapService);
   if (confirmationResult) return confirmationResult;
   try {
+    const bpSelectionPolicy = await getDocumentBpSelectionPolicy('salesOrder');
+    if (bpSelectionPolicy) {
+      const existing = await salesOrderDb.getSalesOrder(docEntry);
+      assertDocumentBpSelection(bpSelectionPolicy, resolveHeaderCustomerCode(payload.header || {}), {
+        existingCode: existing?.sales_order?.header?.customerCode,
+      });
+    }
     const refData = await salesOrderDb.getReferenceData();
     const branchesEnabled = Boolean(refData.branches_enabled ?? (refData.branches || []).length > 0);
     validateRequiredBranchAndWarehouse(payload, { branchesEnabled });
-    const postingDate = String(payload.header?.postingDate || '').trim();
-    const postingPeriod = await salesOrderDb.getPostingPeriodValidation(postingDate);
-    if (!postingPeriod) {
-      const error = new Error(
-        `Posting Date ${postingDate || 'is required'} is outside an open SAP posting period. Select a date in an open period or ask an SAP administrator to open the period.`,
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-
     console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
     console.log("ðŸ”¥ UPDATE - RECEIVED PAYLOAD FROM FRONTEND:");
     console.log("  DocEntry:", docEntry);

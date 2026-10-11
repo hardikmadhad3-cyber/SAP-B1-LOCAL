@@ -128,7 +128,7 @@ const isDateBetween = (date, fromDate, toDate) => {
 const getMarketingDocumentSeries = async ({ objectCode, date, branch, docSubType, transactionType } = {}) => withSeriesContext(await getSharedDocumentSeries({ db, objectCode, targetDate: date, branch, docSubType, transactionType }));
 
 const getVendors = () => safe(db.query(`
-  SELECT CardCode, CardName, CardType, Currency,
+  SELECT CardCode, CardName, CardType, Currency, Balance,
          VatGroup, GroupNum AS PayTermsGrpCode
   FROM   OCRD
   WHERE  CardType = 'S'
@@ -951,16 +951,6 @@ const getFallbackNonGstTaxCode = async () => {
   return rows[0] || null;
 };
 
-const getPostingPeriodValidation = async (docDate) => {
-  const rows = await safe(db.query(`
-    SELECT TOP 1 AbsEntry, PeriodStat
-    FROM OFPR
-    WHERE @docDate BETWEEN F_RefDate AND T_RefDate
-      AND ISNULL(PeriodStat, 'N') <> 'C'
-  `, { docDate }));
-  return rows[0] || null;
-};
-
 const getBranchEnabled = async () => {
   const rows = await safe(db.query(`
     SELECT COUNT(*) AS BranchCount
@@ -1040,7 +1030,6 @@ module.exports = {
   getGRPOForCopy,
   getVendorValidation,
   getFallbackNonGstTaxCode,
-  getPostingPeriodValidation,
   getBranchEnabled,
   getItemValidation,
   getTaxCodeValidation,

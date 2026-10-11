@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCompanyScopedFormSettings } from './formSettingsStorage';
+import { buildServiceCompanyQueryColumns } from './serviceDocumentLiveFields';
 import {
   getSalesDocumentCompanyScopeKey,
   isSalesDocumentFieldMetadataReady,
@@ -25,6 +26,9 @@ const useServiceDocumentFormSettings = ({
     companyDb: company?.dbName || '',
   }), [company?.companyId, company?.dbName]);
   const [hydratedScope, setHydratedScope] = useState('');
+  const [publishedMatrixLayout, setPublishedMatrixLayout] = useState(null);
+  const effectiveMatrixColumns = publishedMatrixLayout?.scope === activeScope
+    ? publishedMatrixLayout.columns : matrixColumnDefinitions;
   const [
     formSettings,
     setFormSettings,
@@ -34,15 +38,36 @@ const useServiceDocumentFormSettings = ({
   ] = useCompanyScopedFormSettings(
     baseStorageKey,
     readSavedFormSettings,
-    [headerUdfDefinitions, rowUdfDefinitions, matrixColumnDefinitions],
+    [headerUdfDefinitions, rowUdfDefinitions, effectiveMatrixColumns],
     { saveMode: 'explicit', followPublishedVersion: true },
   );
 
-  const formSettingsReady = formSettingsStatus.loaded && isSalesDocumentFieldMetadataReady({
+  const metadataReady = isSalesDocumentFieldMetadataReady({
     companyId: company?.companyId || '',
     companyDb: company?.dbName || '',
     hydratedScope,
   });
+  const queryLayout = formSettingsStatus.queryLayout;
+  useEffect(() => {
+    if (!queryLayout?.isPublished || !metadataReady) {
+      setPublishedMatrixLayout(null);
+      return;
+    }
+    setPublishedMatrixLayout({
+      scope: activeScope,
+      version: queryLayout.version,
+      columns: buildServiceCompanyQueryColumns({
+        queryLayout,
+        liveMatrixColumns: matrixColumnDefinitions,
+        rowUdfFields: rowUdfDefinitions,
+      }) || matrixColumnDefinitions,
+    });
+  }, [activeScope, matrixColumnDefinitions, metadataReady, queryLayout, rowUdfDefinitions]);
+  const formSettingsReady = formSettingsStatus.loaded && metadataReady && (
+    !queryLayout?.isPublished || (
+      publishedMatrixLayout?.scope === activeScope && publishedMatrixLayout?.version === queryLayout.version
+    )
+  );
 
   const clearMetadataScope = useCallback(() => {
     setHydratedScope('');
@@ -63,7 +88,7 @@ const useServiceDocumentFormSettings = ({
     replaceFormSettings(readSavedFormSettings(
       headerUdfDefinitions,
       rowUdfDefinitions,
-      matrixColumnDefinitions,
+      effectiveMatrixColumns,
       formSettingsStorageKey,
     ));
   }, [
@@ -71,7 +96,7 @@ const useServiceDocumentFormSettings = ({
     formSettingsStatus.hasUnsavedChanges,
     formSettingsStorageKey,
     headerUdfDefinitions,
-    matrixColumnDefinitions,
+    effectiveMatrixColumns,
     readSavedFormSettings,
     replaceFormSettings,
     rowUdfDefinitions,
@@ -85,6 +110,7 @@ const useServiceDocumentFormSettings = ({
     formSettingsReady,
     hydrateFormSettings,
     clearMetadataScope,
+    effectiveMatrixColumns,
   };
 };
 

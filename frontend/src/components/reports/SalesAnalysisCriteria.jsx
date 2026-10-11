@@ -1,3 +1,4 @@
+import SapDateInput from '../common/SapDateInput';
 import React from "react";
 import SalesAnalysisCustomerTab from "./SalesAnalysisCustomerTab";
 import SalesAnalysisItemTab from "./SalesAnalysisItemTab";
@@ -38,17 +39,17 @@ function DateFieldRow({ label, filter, onToggle, onChange }) {
         <input type="checkbox" checked={filter.enabled} onChange={(event) => onToggle(event.target.checked)} />
         {label}
       </label>
-      <input
+      <SapDateInput
         className="im-field__input"
-        type="date"
+        
         value={filter.from || ""}
         disabled={!filter.enabled}
         onChange={(event) => onChange("from", event.target.value)}
       />
       <span className="sar-date-separator">To</span>
-      <input
+      <SapDateInput
         className="im-field__input"
-        type="date"
+        
         value={filter.to || ""}
         disabled={!filter.enabled}
         onChange={(event) => onChange("to", event.target.value)}

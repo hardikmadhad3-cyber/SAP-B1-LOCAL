@@ -147,3 +147,65 @@ test('hides new action when no handler is provided', () => {
 
   expect(screen.queryByText('New')).not.toBeInTheDocument();
 });
+
+test('loads further server pages beyond the first lookup page', async () => {
+  const fetchOptions = jest.fn((_query, { skip }) => Promise.resolve(
+    skip === 0
+      ? [{ code: 'A1', name: 'Alpha' }, { code: 'B2', name: 'Beta' }]
+      : [{ code: 'C3', name: 'Gamma' }],
+  ));
+
+  render(
+    <SapLookupModal open title="List" columns={columns} fetchOptions={fetchOptions}
+      pageSize={2} onClose={jest.fn()} onSelect={jest.fn()} />,
+  );
+
+  expect(await screen.findByText('Beta')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Load more'));
+  expect(await screen.findByText('Gamma')).toBeInTheDocument();
+  expect(fetchOptions).toHaveBeenCalledWith('', { skip: 2, top: 2 });
+  expect(screen.queryByText('Load more')).not.toBeInTheDocument();
+});
+
+test('searches the full server dataset instead of only the loaded page', async () => {
+  const fetchOptions = jest.fn((query, { skip }) => Promise.resolve(
+    query === 'Z999'
+      ? [{ code: 'Z999', name: 'Item beyond first page' }]
+      : skip === 0
+        ? [{ code: 'A1', name: 'Alpha' }, { code: 'B2', name: 'Beta' }]
+        : [{ code: 'C3', name: 'Gamma' }],
+  ));
+
+  render(
+    <SapLookupModal open title="List of Items" columns={columns} fetchOptions={fetchOptions}
+      pageSize={2} searchLabel="Find in all records" onClose={jest.fn()} onSelect={jest.fn()} />,
+  );
+
+  expect(await screen.findByText('Beta')).toBeInTheDocument();
+  const listBody = screen.getByText('Beta').closest('.sap-lookup-modal__body');
+  listBody.scrollTop = 300;
+  fireEvent.change(screen.getByLabelText('Find in all records'), { target: { value: 'Z999' } });
+
+  expect(await screen.findByText('Item beyond first page')).toBeInTheDocument();
+  expect(listBody.scrollTop).toBe(0);
+  expect(fetchOptions).toHaveBeenCalledWith('Z999', { skip: 0, top: 2 });
+  expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('Clear'));
+  expect(await screen.findByText('Alpha')).toBeInTheDocument();
+});
+
+test('starts a lookup with text entered in its source field before Tab', async () => {
+  window.__sapB1PendingLookupQuery = 'Z999';
+  try {
+    render(
+      <SapLookupModal open title="List of Items" columns={columns}
+        rows={[{ code: 'A1', name: 'Alpha' }, { code: 'Z999', name: 'Remote item' }]}
+        onClose={jest.fn()} onSelect={jest.fn()} />,
+    );
+    expect(screen.getByLabelText('Find')).toHaveValue('Z999');
+    expect(screen.getByText('Remote item')).toBeInTheDocument();
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+  } finally {
+    window.__sapB1PendingLookupQuery = '';
+  }
+});

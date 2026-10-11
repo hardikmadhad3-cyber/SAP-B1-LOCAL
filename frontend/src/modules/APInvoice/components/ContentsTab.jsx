@@ -1,3 +1,6 @@
+import SapLookupTextInput from '../../../components/common/SapLookupTextInput';
+import SapInput from '../../../components/common/SapInput';
+import LiveUdfValueInput from '../../../components/sales-document/LiveUdfValueInput';
 import React from 'react';
 import TaxCodeLookup from '../../../components/TaxCodeLookup';
 import { useSapItemCodeTab } from '../../../utils/sapTabNavigation';
@@ -326,6 +329,10 @@ function EditableContentsTab({
     const value = line.udf?.[field.key] || '';
     const renderAsSelect = field.type === 'select' || isSapPairDropdownField(field);
 
+    if (field.lookupSource) {
+      return <LiveUdfValueInput field={field} line={line} value={value} disabled={disabled} className="po-grid__input" onChange={(nextValue) => onRowUdfChange && onRowUdfChange(rowIndex, field.key, nextValue)} />;
+    }
+
     if (renderAsSelect) {
       return (
         <select
@@ -359,7 +366,7 @@ function EditableContentsTab({
     }
 
     return (
-      <input
+      <SapInput
         className="po-grid__input"
         type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
         value={value}
@@ -488,7 +495,7 @@ function EditableContentsTab({
       return (
         <>
           <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
-            <input
+            <SapLookupTextInput
               className="po-grid__input"
               style={{ flex: 1, textAlign: 'left', border: lineErrors.itemNo ? '1px solid #c00' : undefined }}
               name="itemNo"

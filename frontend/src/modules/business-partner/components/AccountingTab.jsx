@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React, { useMemo, useState } from "react";
 import LookupField from "../../item-master/components/LookupField";
 
@@ -396,9 +397,9 @@ export default function AccountingTab({
 
               <div className="bp-accounting-field">
                 <label className="bp-accounting-field__label">Dunning Date</label>
-                <input
+                <SapDateInput
                   className="im-field__input"
-                  type="date"
+                  
                   name="DunningDate"
                   value={form.DunningDate || ""}
                   onChange={onChange}
@@ -548,9 +549,9 @@ export default function AccountingTab({
 
               <div className="bp-accounting-field bp-accounting-field--short">
                 <label className="bp-accounting-field__label">Expiration Date</label>
-                <input
+                <SapDateInput
                   className="im-field__input"
-                  type="date"
+                  
                   name="ExpirationDate"
                   value={form.ExpirationDate || ""}
                   onChange={onChange}

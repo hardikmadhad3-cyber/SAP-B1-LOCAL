@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 export default function AccountingTab({ header, onHeaderChange, paymentTermOptions }) {
   return (
     <div className="po-tab-panel">
@@ -79,8 +80,8 @@ export default function AccountingTab({ header, onHeaderChange, paymentTermOptio
         {/* Cancellation Date */}
         <div className="po-field">
           <label className="po-field__label">Cancellation Date</label>
-          <input
-            type="date"
+          <SapDateInput
+            
             className="po-field__input"
             name="cancellationDate"
             value={header.cancellationDate}
@@ -91,8 +92,8 @@ export default function AccountingTab({ header, onHeaderChange, paymentTermOptio
         {/* Required Date */}
         <div className="po-field">
           <label className="po-field__label">Required Date</label>
-          <input
-            type="date"
+          <SapDateInput
+            
             className="po-field__input"
             name="requiredDate"
             value={header.requiredDate}

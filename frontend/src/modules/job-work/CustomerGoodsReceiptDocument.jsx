@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import '../purchase-order/styles/purchaseOrder.css';
@@ -641,7 +642,7 @@ export default function CustomerGoodsReceiptDocument() {
           {pageState.saving ? 'Saving...' : docEntry ? 'Update' : 'Add'}
         </button>
         <button type="button" className="po-btn" onClick={backToList}>Cancel</button>
-        <button type="button" className="po-btn" onClick={backToList}>Find</button>
+<button type="button" className="po-btn" data-sap-find-action onClick={backToList}>Find</button>
         <button type="button" className="po-btn" onClick={openNew}>New</button>
         {goodsReceiptDocEntry ? (
           <PrintLayoutToolbar
@@ -819,11 +820,11 @@ export default function CustomerGoodsReceiptDocument() {
             </div>
             <div className="po-field jw-field">
               <label className="po-field__label">Document Date</label>
-              <input type="date" className="po-field__input" value={header.DocDate || ''} disabled={isLocked} onChange={(e) => handleHeaderChange('DocDate', e.target.value)} />
+              <SapDateInput  className="po-field__input" value={header.DocDate || ''} disabled={isLocked} onChange={(e) => handleHeaderChange('DocDate', e.target.value)} />
             </div>
             <div className="po-field jw-field">
               <label className="po-field__label">Posting Date</label>
-              <input type="date" className="po-field__input" value={header.PDate || ''} disabled={isLocked} onChange={(e) => handleHeaderChange('PDate', e.target.value)} />
+              <SapDateInput  className="po-field__input" value={header.PDate || ''} disabled={isLocked} onChange={(e) => handleHeaderChange('PDate', e.target.value)} />
             </div>
             <div className="po-field jw-field">
               <label className="po-field__label">Challan No</label>
@@ -831,7 +832,7 @@ export default function CustomerGoodsReceiptDocument() {
             </div>
             <div className="po-field jw-field">
               <label className="po-field__label">Challan Date</label>
-              <input type="date" className="po-field__input" value={header.ChallanDt || ''} onChange={(e) => handleHeaderChange('ChallanDt', e.target.value)} />
+              <SapDateInput  className="po-field__input" value={header.ChallanDt || ''} onChange={(e) => handleHeaderChange('ChallanDt', e.target.value)} />
             </div>
             <div className="po-field jw-field">
               <label className="po-field__label">Transporter Name</label>

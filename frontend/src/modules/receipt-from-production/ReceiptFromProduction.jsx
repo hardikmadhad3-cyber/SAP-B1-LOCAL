@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import "../../modules/item-master/styles/itemMaster.css";
 import "./receiptFromProduction.css";
@@ -695,7 +696,7 @@ export default function ReceiptFromProductionModule() {
           </button>
         )}
         <button className="im-btn" onClick={() => { resetForm(); setMode(MODES.ADD); }}>New</button>
-        <button className="im-btn" onClick={() => setMode(MODES.LIST)}>Find</button>
+<button className="im-btn" data-sap-find-action onClick={() => setMode(MODES.LIST)}>Find</button>
         <button className="im-btn" onClick={resetForm}>Cancel</button>
       </div>
 
@@ -759,10 +760,10 @@ export default function ReceiptFromProductionModule() {
           <div className="rfp-header-right">
             <div className="im-field">
               <label className="im-field__label rfp-lbl-r">Posting Date</label>
-              <input
+              <SapDateInput
                 className="im-field__input"
                 name="posting_date"
-                type="date"
+                
                 value={header.posting_date}
                 onChange={handleHeaderChange}
                 readOnly={isView}
@@ -772,10 +773,10 @@ export default function ReceiptFromProductionModule() {
 
             <div className="im-field">
               <label className="im-field__label rfp-lbl-r">Document Date</label>
-              <input
+              <SapDateInput
                 className="im-field__input"
                 name="document_date"
-                type="date"
+                
                 value={header.document_date}
                 onChange={handleHeaderChange}
                 readOnly={isView}

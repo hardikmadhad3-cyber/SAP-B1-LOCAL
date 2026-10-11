@@ -1,3 +1,4 @@
+import SapDateInput from '../components/common/SapDateInput';
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import BusinessPartnerLookupModal from "../components/reports/BusinessPartnerLookupModal";
@@ -330,8 +331,8 @@ function GeneralLedgerReportPage() {
                   ["documentDate", "Document Date"],
                 ].map(([key, label]) => <React.Fragment key={key}>
                   <label className="glr-check"><input type="checkbox" checked={formState.dateRanges[key].enabled} onChange={(event) => setDateRange(key, "enabled", event.target.checked)} /><span>{label}</span></label>
-                  <input type="date" value={formState.dateRanges[key].from} disabled={!formState.dateRanges[key].enabled} onChange={(event) => setDateRange(key, "from", event.target.value)} />
-                  <input type="date" value={formState.dateRanges[key].to} disabled={!formState.dateRanges[key].enabled} onChange={(event) => setDateRange(key, "to", event.target.value)} />
+                  <SapDateInput  value={formState.dateRanges[key].from} disabled={!formState.dateRanges[key].enabled} onChange={(event) => setDateRange(key, "from", event.target.value)} />
+                  <SapDateInput  value={formState.dateRanges[key].to} disabled={!formState.dateRanges[key].enabled} onChange={(event) => setDateRange(key, "to", event.target.value)} />
                 </React.Fragment>)}
               </div>
               <div className="glr-divider" />

@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React, { useEffect, useState } from "react";
 import LookupField from "../../item-master/components/LookupField";
 
@@ -528,7 +529,7 @@ export default function PaymentTab({
 
               <div className="im-field">
                 <label className="im-field__label">Expiration Date</label>
-                <input className="im-field__input" name="CreditCardExpiration" type="date" value={form.CreditCardExpiration || ""} onChange={onChange} />
+                <SapDateInput className="im-field__input" name="CreditCardExpiration"  value={form.CreditCardExpiration || ""} onChange={onChange} />
               </div>
 
               <div className="im-field">
@@ -659,7 +660,7 @@ export default function PaymentTab({
 
               <div className="im-field">
                 <label className="im-field__label">Date of Signature</label>
-                <input className="im-field__input" type="date" value={form.PaymentBankSignatureDate || ""} onChange={updateMainBankField("PaymentBankSignatureDate", "SignatureDate")} />
+                <SapDateInput className="im-field__input"  value={form.PaymentBankSignatureDate || ""} onChange={updateMainBankField("PaymentBankSignatureDate", "SignatureDate")} />
               </div>
             </div>
           </div>
@@ -687,9 +688,9 @@ export default function PaymentTab({
                       <tr key={`pay-date-${index}`}>
                         <td>{index + 1}</td>
                         <td>
-                          <input
+                          <SapDateInput
                             className={`bp-sap-grid__input${index === 0 ? " bp-sap-grid__input--active" : ""}`}
-                            type="date"
+                            
                             value={row.PaymentDate}
                             onChange={(e) => handlePaymentDateChange(index, e.target.value)}
                           />
@@ -786,7 +787,7 @@ export default function PaymentTab({
                           <input className="bp-sap-grid__input" value={row.MandateID || ""} onChange={(e) => handleBankRowChange(index, "MandateID", e.target.value)} />
                         </td>
                         <td>
-                          <input className="bp-sap-grid__input" type="date" value={row.SignatureDate || ""} onChange={(e) => handleBankRowChange(index, "SignatureDate", e.target.value)} />
+                          <SapDateInput className="bp-sap-grid__input"  value={row.SignatureDate || ""} onChange={(e) => handleBankRowChange(index, "SignatureDate", e.target.value)} />
                         </td>
                         <td>
                           <input className="bp-sap-grid__input" value={row.CustomerIdNumber || ""} onChange={(e) => handleBankRowChange(index, "CustomerIdNumber", e.target.value)} />

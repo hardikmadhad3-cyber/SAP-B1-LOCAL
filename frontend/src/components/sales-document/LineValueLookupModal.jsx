@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { matchesSapSearchText } from '../../utils/sapSearch';
 import SapModalShell from '../common/SapModalShell';
+import { consumePendingLookupQuery } from '../../utils/sapTabNavigation';
 
 export default function LineValueLookupModal({
   isOpen,
@@ -40,7 +41,9 @@ export default function LineValueLookupModal({
   }, [options, searchQuery]);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      setSearchQuery(consumePendingLookupQuery());
+    } else {
       setSearchQuery('');
       setSelectedIndex(-1);
       setShowCreateForm(false);

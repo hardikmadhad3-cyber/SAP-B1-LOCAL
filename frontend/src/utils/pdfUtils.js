@@ -192,3 +192,12 @@ export const savePdfBlobToTarget = async (blob, fileName = 'document.pdf', targe
 export const downloadPdfBlob = async (blob, fileName = 'document.pdf') => (
   savePdfBlobToTarget(blob, fileName)
 );
+
+export const downloadPdfUrl = async (url, fileName = 'report.pdf') => {
+  // Open the picker during the click gesture, before fetching the PDF bytes.
+  const target = await choosePdfSaveTarget(fileName);
+  if (target.cancelled) return { saved: false, cancelled: true };
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Could not read the PDF for download.');
+  return savePdfBlobToTarget(await response.blob(), fileName, target);
+};

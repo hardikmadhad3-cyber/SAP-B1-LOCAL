@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React, { useEffect, useMemo, useState } from 'react';
 import { fetchSalesOrderReferenceDocumentLookup } from '../../../api/salesOrderApi';
 import { fetchGoodsIssueList } from '../../../api/goodsIssueApi';
@@ -701,8 +702,8 @@ function ReferenceInformationModal({
                           />
                         </td>
                         <td>
-                          <input
-                            type="date"
+                          <SapDateInput
+                            
                             className="po-grid__input po-grid__input--text"
                             value={row.date}
                             disabled={!row.transactionType}

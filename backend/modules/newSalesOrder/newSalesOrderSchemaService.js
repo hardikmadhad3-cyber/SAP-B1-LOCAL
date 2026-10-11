@@ -1,4 +1,5 @@
 'use strict';
+const { applySapFormValueLists } = require('./sapFormValueLists');
 
 const crypto = require('crypto');
 const metadataRepository = require('./newSalesOrderMetadataRepository');
@@ -398,7 +399,8 @@ const buildDocumentSchema = ({ context, metadata, rawDocument = SALES_ORDER_DOCU
     lookupSources: [...LOOKUP_SOURCES],
   };
 
-  return { ...base, schemaVersion: generateSchemaVersion(base) };
+  const withFormValues = applySapFormValueLists(base, metadata?.formValueLists, document, layoutRows);
+  return { ...withFormValues, schemaVersion: generateSchemaVersion(withFormValues) };
 };
 
 const buildSalesOrderSchema = (options) => buildDocumentSchema({ ...options, rawDocument: SALES_ORDER_DOCUMENT });

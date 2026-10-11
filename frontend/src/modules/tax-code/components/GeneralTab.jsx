@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from "react";
 import LookupField from "../../item-master/components/LookupField";
 
@@ -101,10 +102,10 @@ export default function GeneralTab({ form, onChange, setForm, fetchTaxGLAccounts
 
         <div className="im-field">
           <label className="im-field__label">Effective From</label>
-          <input
+          <SapDateInput
             className="im-field__input"
             name="EffectiveFrom"
-            type="date"
+            
             value={form.EffectiveFrom || ""}
             onChange={onChange}
           />

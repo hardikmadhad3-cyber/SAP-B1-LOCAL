@@ -6,8 +6,12 @@ const hasEnteredUdfValue = (value) => {
 
 const isSapUdfKey = (key) => String(key || '').startsWith('U_');
 
-const getRowUdfSetting = (key, rowSettings = {}, matrixSettings = {}) =>
-  matrixSettings[key] || rowSettings[key];
+const getRowUdfSettings = (key, rowSettings = {}, matrixSettings = {}) => {
+  const matrixMatches = Object.entries(matrixSettings)
+    .filter(([matrixKey, setting]) => matrixKey === key || setting?.valueKey === key)
+    .map(([, setting]) => setting);
+  return matrixMatches.length ? matrixMatches : [rowSettings[key] || {}];
+};
 
 const resolveVisible = (field = {}, setting = {}) => (
   setting?.visible !== undefined ? setting.visible !== false : field.visible !== false
@@ -41,10 +45,10 @@ export const buildVisibleEnteredRowUdfPayload = (
     const key = field?.key;
     if (!key) return acc;
 
-    const setting = getRowUdfSetting(key, rowSettings, matrixSettings);
+    const settings = getRowUdfSettings(key, rowSettings, matrixSettings);
     const value = values?.[key];
 
-    if (canIncludeRowUdf(field, setting) && hasEnteredUdfValue(value)) {
+    if (settings.some((setting) => canIncludeRowUdf(field, setting)) && hasEnteredUdfValue(value)) {
       acc[key] = value;
     }
 
@@ -55,7 +59,8 @@ export const buildVisibleEnteredRowUdfPayload = (
     if (
       !isSapUdfKey(key) ||
       Object.prototype.hasOwnProperty.call(payload, key) ||
-      (!preserveUnmappedUdfs && !definedUdfKeys.has(key)) ||
+      definedUdfKeys.has(key) ||
+      !preserveUnmappedUdfs ||
       !hasEnteredUdfValue(value)
     ) {
       return;

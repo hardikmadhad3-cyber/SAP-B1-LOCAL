@@ -1,3 +1,4 @@
+import SapInput from '../../components/common/SapInput';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   fetchJobWorkByDocEntry,
@@ -321,7 +322,7 @@ export default function JobWorkDocumentPage({ transaction }) {
                   ))}
                 </select>
               ) : (
-                <input
+                <SapInput
                   type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
                   value={header[field.name] || ''}
                   onChange={(e) => handleHeaderChange(field.name, e.target.value)}
@@ -369,7 +370,7 @@ export default function JobWorkDocumentPage({ transaction }) {
                         ))}
                       </select>
                     ) : (
-                      <input
+                      <SapInput
                         type={field.type === 'number' ? 'number' : 'text'}
                         value={line[field.name] || ''}
                         onChange={(e) => handleLineChange(index, field.name, e.target.value)}

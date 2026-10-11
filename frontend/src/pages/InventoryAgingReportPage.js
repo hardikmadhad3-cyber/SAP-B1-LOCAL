@@ -1,3 +1,4 @@
+import SapDateInput from '../components/common/SapDateInput';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchItemGroups, fetchItemProperties } from "../api/itemApi";
@@ -258,9 +259,9 @@ function InventoryAgingReportPage() {
                 <label>Report Date</label>
                 <div className="iag-date-input">
                   <input value={criteria.reportDate} onChange={(event) => setField("reportDate", event.target.value)} />
-                  <input
+                  <SapDateInput
                     ref={reportDateNativeInputRef}
-                    type="date"
+                    
                     className="iag-date-native-input"
                     tabIndex={-1}
                     value={parseSapDateToIso(criteria.reportDate)}

@@ -221,17 +221,6 @@ function ReportRunnerPage() {
     window.open(pdfPreview.previewUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const downloadPreviewPdf = () => {
-    if (!pdfPreview.previewUrl) return;
-
-    const link = document.createElement('a');
-    link.href = pdfPreview.previewUrl;
-    link.download = pdfPreview.fileName || `${selectedReport?.reportCode || 'report'}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
-
   return (
     <div className="rs-direct-runner">
       {loading.target ? (
@@ -262,7 +251,6 @@ function ReportRunnerPage() {
         previewUrl={pdfPreview.previewUrl}
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
-        onDownload={downloadPreviewPdf}
         onOpen={openPreviewInNewTab}
       />
 

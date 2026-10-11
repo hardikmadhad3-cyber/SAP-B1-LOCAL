@@ -1,3 +1,4 @@
+import SapInput from '../../../components/common/SapInput';
 import React from 'react';
 
 const SELECT_PLACEHOLDER = '— Select —';
@@ -6,7 +7,7 @@ function TaxField({ label, name, value, onChange, isEditable, type = 'text', err
   return (
     <div className="sap-b1-tax-field">
       <label className="sap-b1-tax-label" htmlFor={`sap-tax-${name}`}>{label}</label>
-      <input
+      <SapInput
         id={`sap-tax-${name}`}
         type={type}
         className={`sap-b1-tax-control${error ? ' sap-b1-tax-control--error' : ''}`}

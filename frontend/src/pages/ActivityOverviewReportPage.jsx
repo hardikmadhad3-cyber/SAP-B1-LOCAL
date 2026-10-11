@@ -1,3 +1,4 @@
+import SapDateInput from '../components/common/SapDateInput';
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import BusinessPartnerLookupModal from "../components/reports/BusinessPartnerLookupModal";
@@ -531,14 +532,14 @@ function ActivityOverviewReportPage() {
           <div className="activity-overview-dates">
             <label>Activity Start Date</label>
             <span>From</span>
-            <input type="date" value={form.startDateFrom} onChange={(event) => updateField("startDateFrom", event.target.value)} />
+            <SapDateInput  value={form.startDateFrom} onChange={(event) => updateField("startDateFrom", event.target.value)} />
             <span>To</span>
-            <input type="date" value={form.startDateTo} onChange={(event) => updateField("startDateTo", event.target.value)} />
+            <SapDateInput  value={form.startDateTo} onChange={(event) => updateField("startDateTo", event.target.value)} />
             <label>Activity Closing Date</label>
             <span>From</span>
-            <input type="date" value={form.closeDateFrom} onChange={(event) => updateField("closeDateFrom", event.target.value)} />
+            <SapDateInput  value={form.closeDateFrom} onChange={(event) => updateField("closeDateFrom", event.target.value)} />
             <span>To</span>
-            <input type="date" value={form.closeDateTo} onChange={(event) => updateField("closeDateTo", event.target.value)} />
+            <SapDateInput  value={form.closeDateTo} onChange={(event) => updateField("closeDateTo", event.target.value)} />
           </div>
 
           <div className="activity-overview-checks">

@@ -111,6 +111,7 @@ const buildVisibilitySettings = (definitions = []) =>
     acc[field.key] = {
       visible: field.visible !== undefined ? field.visible : true,
       active: true,
+      ...(field.valueKey && field.valueKey !== field.key ? { valueKey: field.valueKey } : {}),
     };
     return acc;
   }, {});

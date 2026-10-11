@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import '../purchase-order/styles/purchaseOrder.css';
@@ -1552,8 +1553,8 @@ function InventoryTransfer() {
             </div>
             <div className="po-field">
               <label className="po-field__label">Posting Date</label>
-              <input
-                type="date"
+              <SapDateInput
+                
                 className={`po-field__input${
                   valErrors.header.postingDate ? ' po-field__input--error' : ''
                 }`}
@@ -1563,8 +1564,8 @@ function InventoryTransfer() {
             </div>
             <div className="po-field">
               <label className="po-field__label">Due Date</label>
-              <input
-                type="date"
+              <SapDateInput
+                
                 className={`po-field__input${
                   valErrors.header.dueDate ? ' po-field__input--error' : ''
                 }`}
@@ -1574,8 +1575,8 @@ function InventoryTransfer() {
             </div>
             <div className="po-field">
               <label className="po-field__label">Document Date</label>
-              <input
-                type="date"
+              <SapDateInput
+                
                 className={`po-field__input${
                   valErrors.header.documentDate ? ' po-field__input--error' : ''
                 }`}

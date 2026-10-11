@@ -163,6 +163,7 @@ export const hydrateWorkbookDocumentLine = ({
   normalizeUdfState,
   items = [],
   fallbackWarehouse = '',
+  fallbackBranch = '',
 }) => {
   const source = line || {};
   const udfs = getWorkbookLineUdfs(source);
@@ -284,13 +285,14 @@ export const hydrateWorkbookDocumentLine = ({
     ),
     countryOfOrigin: firstString(source.countryOfOrigin, source.CountryOfOrigin, source.CountryOrg),
     loc: firstString(source.loc, source.Loc, source.LocCode, source.LocationCode, source.Location),
-    branch: firstString(source.branch, source.Branch, source.BranchCode),
+    branch: firstString(source.branch, source.Branch, source.BranchCode, fallbackBranch),
     hsnCode: firstString(source.hsnCode, source.HSNCode, source.HsnCode, item.HSNCode, item.SWW, item.U_HSNCode),
     sacCode: firstString(source.sacCode, source.SACCode, source.SacCode),
     taxAmount: firstString(source.taxAmount, source.TaxAmount, source.LineTaxAmount, source.VatSum),
     weight: firstString(source.weight, source.Weight, source.Weight1),
     binLocationAllocation: firstString(source.binLocationAllocation, source.BinLocationAllocation),
     priceAfterDiscount: firstString(source.priceAfterDiscount, source.PriceAfterDiscount),
+    itemsPerUnit: firstString(source.itemsPerUnit, source.ItemsPerUnit, source.NumPerMsr),
     itemCost: firstString(source.itemCost, source.ItemCost, item.ItemCost, item.AvgPrice),
     commPercent: firstString(source.commPercent, source.CommissionPercent, source.CommPercent),
     assessableValue: firstString(source.assessableValue, source.AssessableValue),

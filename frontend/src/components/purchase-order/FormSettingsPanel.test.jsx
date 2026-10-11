@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import FormSettingsPanel, { filterDuplicateRowUdfFields } from './FormSettingsPanel';
+import { mergeContentSettingsFields } from '../../utils/formSettingsColumns';
 import useClosedDocumentViewMode from '../../hooks/useClosedDocumentViewMode';
 
 const fields = [
@@ -72,6 +73,32 @@ test('shows one visibility-only Content list and locks required identity fields'
   expect(uomVisibility).toBeEnabled();
   fireEvent.click(uomVisibility);
   expect(onSettingChange).toHaveBeenCalledWith('matrixColumns', 'uomName', 'visible', true);
+});
+
+test('keeps distinct published captions that point to the same company UDF', () => {
+  const matrix = [
+    { key: 'U_Com', valueKey: 'U_Com', label: 'Commission', companyQueryLayoutColumn: true },
+    { key: 'U_Com__layout_2', valueKey: 'U_Com', label: 'Commission', companyQueryLayoutColumn: true },
+  ];
+  expect(mergeContentSettingsFields(matrix, [{ key: 'U_Com', label: 'Commission' }])
+    .map((field) => field.key)).toEqual(['U_Com', 'U_Com__layout_2']);
+});
+
+test('lets Sales Order hide a current-company header UDF through Form Settings', () => {
+  const onSettingChange = jest.fn();
+  render(
+    <FormSettingsPanel
+      isOpen
+      showHeaderUdfSettings
+      headerUdfFields={[{ key: 'U_Buyer', label: 'Buyer Name', visible: true }]}
+      formSettings={{ headerUdfs: { U_Buyer: { visible: true } } }}
+      onSettingChange={onSettingChange}
+    />,
+  );
+
+  const row = screen.getByText('Buyer Name').closest('.border.rounded');
+  fireEvent.click(row.querySelector('input[type="checkbox"]'));
+  expect(onSettingChange).toHaveBeenCalledWith('headerUdfs', 'U_Buyer', 'visible', false);
 });
 
 test('lets a saved user preference show a column hidden by the SAP default layout', () => {

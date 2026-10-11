@@ -1,5 +1,7 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
-import { calculateDocumentRounding, getDocumentRoundingPolicy } from '../../utils/documentRounding';
+import { calculateDocumentRounding, getDocumentRoundingPolicy, getDocumentRoundingPayloadAmount } from '../../utils/documentRounding';
+import DocumentRoundingInput from '../../components/sales-document/DocumentRoundingInput';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import './styles/Delivery.css';
@@ -38,6 +40,7 @@ import useDocumentDraftTask from '../../hooks/useDocumentDraftTask';
 import { copyToDocument } from '../../services/documentCopyService';
 import { filterWarehousesByBranch, getWarehouseBranchId } from '../../utils/warehouseBranch';
 import { hydrateDocumentLineFromItem, mergeItemMaster } from '../../utils/documentItemHydration';
+import { getSelectableBusinessPartners, isSelectableBpCode, markResolvedBpLookup } from '../../utils/documentBpSelection';
 import { applyUomCodeSelection, getItemDefaultUom, getLineUomOptions } from '../../utils/documentUom';
 import { getSapVisibleDocumentSeries, pickDocumentSeries, canUseManualSeries } from '../../utils/seriesDefaults';
 import {
@@ -46,11 +49,12 @@ import {
   isValidManualDocumentNumber,
 } from '../../utils/documentSeries';
 import { readGeneralSettings } from '../../utils/generalSettingsStorage';
-import { useCompanyScopedFormSettings } from '../../utils/formSettingsStorage';
+import { useStandardSalesFormSettings } from '../../utils/standardSalesFormSettings';
+import { applyCopiedDeliveryQuantities } from './deliveryCopyQuantities';
 import { buildCompanyFormQueryContext } from '../../utils/companyFormQueryContext';
 import { updateFormSettingPreference } from '../../utils/formSettingsPreferences';
 import { buildVisibleEnteredRowUdfPayload } from '../../utils/rowUdfPayload';
-import { convertDocumentAmountForDisplay, resolveDisplayCurrency } from '../../utils/documentCurrency';
+import { convertDocumentAmountForDisplay, inferDocumentCurrencyMode, resolveDisplayCurrency } from '../../utils/documentCurrency';
 import { getStateCodeValue, getStateDisplayName } from '../../utils/stateDisplay';
 import { findTaxCode, getTaxComponentCodes } from '../../utils/taxCodeComponents';
 import { getDocumentLinePayableTax } from '../../utils/documentLineTax';
@@ -81,7 +85,6 @@ import {
   buildSalesDocumentLiveFields,
   filterLayoutToCurrentSchema,
   getSalesDocumentCompanyScopeKey,
-  isSalesDocumentFieldMetadataReady,
   loadSalesDocumentFieldLookupOptions,
 } from '../../utils/salesDocumentLiveFields';
 import { buildDeliveryLiveMatrixColumns } from './deliveryLiveMatrix';
@@ -269,6 +272,10 @@ const findWarehouse = (warehouses = [], warehouseCode = '') => {
 };
 const getWarehouseBranchValue = (warehouses = [], warehouseCode = '') =>
   normalizeSubmitBranch(getWarehouseBranchId(findWarehouse(warehouses, warehouseCode)));
+const getWarehouseLocationValue = (warehouses = [], warehouseCode = '') => {
+  const warehouse = findWarehouse(warehouses, warehouseCode);
+  return warehouse?.LocationCode != null ? String(warehouse.LocationCode) : '';
+};
 const resolveBatchWarehouseCode = (lineWarehouse = '', headerWarehouse = '') =>
   String(headerWarehouse || lineWarehouse || '').trim();
 const alignBranchWithWarehouse = (branch, warehouseCode, warehouses = []) => {
@@ -498,7 +505,7 @@ const createLine = (rowUdfDefinitions = [], headerUdfsParam = {}) => ({
   freeText: '', countryOfOrigin: '', sacCode: '', blanketAgreementNo: '', blanketAgreementLine: '',
   commPercent: '', grossTotal: '', lineShippingType: '', lineDeliveryDate: '', wTaxLiable: '', taxLiable: '',
   withoutQtyPosting: '', enableSettingCost: '', returnCost: '',
-  openQty: '', deliveredQty: '', documentCreated: '',
+  openQty: '', orderedQty: '', qtyToShip: '', deliveredQty: '', documentCreated: '',
   loc: '', branch: '', lineNum: undefined, baseEntry: null, baseType: null, baseLine: null,
   batchManaged: false, serialManaged: false, binManaged: false,
   batches: [], serialNumbers: [], binAllocations: [],
@@ -635,23 +642,23 @@ function Delivery() {
   const [referenceDocuments, setReferenceDocuments] = useState([]);
   const [referenceDocumentsChanged, setReferenceDocumentsChanged] = useState(false);
   const [headerUdfs, setHeaderUdfs] = useState({});
-  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings, formSettingsStatus] = useCompanyScopedFormSettings(
-    FORM_SETTINGS_STORAGE_KEY,
+  const [formSettings, setFormSettings, formSettingsStorageKey, replaceFormSettings,
+    formSettingsStatus, effectiveMatrixColumnDefinitions, companyFormSettingsReady] = useStandardSalesFormSettings({
+    formKey: FORM_SETTINGS_STORAGE_KEY,
     readSavedFormSettings,
-    [headerUdfDefinitions, rowUdfDefinitions, matrixColumnDefinitions],
-    { saveMode: 'explicit' },
-  );
-  const companyFormSettingsReady = formSettingsStatus.loaded && isSalesDocumentFieldMetadataReady({
+    headerUdfDefinitions,
+    rowUdfDefinitions,
+    matrixColumnDefinitions,
     companyId: activeCompanyId,
     companyDb: activeCompanyDb,
-    hydratedScope: hydratedFieldMetadataScope,
+    hydratedFieldMetadataScope,
   });
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [refData, setRefData] = useState({
     company: '', vendors: [], contacts: [], pay_to_addresses: [], ship_to_addresses: [], bill_to_addresses: [], items: [],
-    warehouses: [], warehouse_addresses: [], company_address: {}, tax_codes: [],
+    warehouses: [], warehouse_addresses: [], locations: [], company_address: {}, tax_codes: [],
     payment_terms: [], payment_methods: [], shipping_types: [], branches: [], uom_groups: [],
     distribution_rules: [], sales_employees: [], quality_options: { buyer: [], seller: [] }, price_options: { buyer: [], seller: [] },
     decimal_settings: DEC, warnings: [], series: [], states: [], udf_metadata: { header: [], rows: [] },
@@ -684,6 +691,11 @@ function Delivery() {
     emptyMessage: 'No values found',
     allowCreate: true,
   });
+  const qualityLookupRequest = useRef(0);
+  useEffect(() => {
+    qualityLookupRequest.current += 1;
+    setQualityModal((previous) => ({ ...previous, open: false, options: [] }));
+  }, [activeCompanyId, activeCompanyDb]);
   const [freightModal, setFreightModal] = useState({ open: false, freightCharges: [], loading: false });
   const [exchangeRatesModal, setExchangeRatesModal] = useState({
     open: false,
@@ -950,6 +962,9 @@ function Delivery() {
       hsnCode: line?.hsnCode || line?.HSNCode || item?.HSNCode || item?.SWW || item?.U_HSNCode || '',
       quantity: String(line?.quantity ?? line?.Quantity ?? ''),
       openQty: String(line?.openQty ?? line?.OpenQuantity ?? line?.OpenQty ?? ''),
+      orderedQty: String(line?.orderedQty ?? line?.OrderedQuantity ?? line?.OrderedQty ?? ''),
+      qtyToShip: String(line?.qtyToShip ?? line?.QtyToShip ?? ''),
+      balanceQty: String(line?.balanceQty ?? line?.BalanceQty ?? ''),
       unitPrice: String(line?.unitPrice ?? line?.UnitPrice ?? line?.Price ?? ''),
       uomName: line?.uomName || line?.UoMName || line?.UomName || line?.UnitMsr || line?.unitMsr || item?.SalesUnit || rawUomCode,
       price: String(firstNonBlank(line?.price, line?.Price, line?.unitPrice, line?.UnitPrice)),
@@ -1171,7 +1186,7 @@ function Delivery() {
             ...prev,
             company: '',
             vendors: [], contacts: [], pay_to_addresses: [], ship_to_addresses: [], bill_to_addresses: [],
-            items: [], warehouses: [], warehouse_addresses: [], company_address: {}, tax_codes: [],
+            items: [], warehouses: [], warehouse_addresses: [], locations: [], company_address: {}, tax_codes: [],
             payment_terms: [], payment_methods: [], shipping_types: [], branches: [], states: [], uom_groups: [],
             distribution_rules: [], sales_employees: [], quality_options: { buyer: [], seller: [] }, price_options: { buyer: [], seller: [] },
             eway_bill_formats: [],
@@ -1262,12 +1277,14 @@ function Delivery() {
             system_currency: refDataRes.data.system_currency || refDataRes.data.local_currency || '',
             currencies: refDataRes.data.currencies || [],
             vendors: vendorRows,
+            bp_selection_policy: refDataRes.data.bp_selection_policy || null,
             contacts: refDataRes.data.contacts || [],
             pay_to_addresses: refDataRes.data.pay_to_addresses || [],
             ship_to_addresses: refDataRes.data.ship_to_addresses || [],
             bill_to_addresses: refDataRes.data.bill_to_addresses || [],
             items: refDataRes.data.items || [],
             warehouses: refDataRes.data.warehouses || [],
+            locations: refDataRes.data.locations || [],
             warehouse_addresses: refDataRes.data.warehouse_addresses || [],
             company_address: refDataRes.data.company_address || {},
             tax_codes: refDataRes.data.tax_codes || [],
@@ -1342,10 +1359,10 @@ function Delivery() {
     replaceFormSettings(readSavedFormSettings(
       headerUdfDefinitions,
       rowUdfDefinitions,
-      matrixColumnDefinitions,
+      effectiveMatrixColumnDefinitions,
       formSettingsStorageKey,
     ));
-  }, [companyFormSettingsReady, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, matrixColumnDefinitions, replaceFormSettings, rowUdfDefinitions]);
+  }, [companyFormSettingsReady, effectiveMatrixColumnDefinitions, formSettingsStatus.hasUnsavedChanges, formSettingsStorageKey, headerUdfDefinitions, replaceFormSettings, rowUdfDefinitions]);
 
   useEffect(() => {
     if (currentDocEntry || requestedEditDocEntry || isHydratingDocumentRef.current) return;
@@ -1443,6 +1460,13 @@ function Delivery() {
           ...prev,
           ...INIT_HEADER,
           ...(so.header || {}),
+          currencyMode: inferDocumentCurrencyMode({
+            currency: so.header?.currency,
+            cardCode: so.header?.customerCode || so.header?.customer,
+            businessPartners: refData.vendors,
+            localCurrency: refData.local_currency,
+            systemCurrency: refData.system_currency,
+          }),
           vendor: so.header?.customerCode || so.header?.customer || '',
           contactPerson: so.header?.contactPerson || '',
           name: so.header?.customerName || so.header?.name || '',
@@ -1474,7 +1498,7 @@ function Delivery() {
         }));
         
         const hydratedLoadedLines = loadedLines.length
-          ? loadedLines.map(l => hydrateLoadedLine(l))
+          ? loadedLines.map(l => hydrateLoadedLine({ ...l, branch: l.branch || so.header?.branch || '' }))
           : [createLine(rowUdfDefinitions)];
         loadedLinesSignatureRef.current = getDeliveryLinesUpdateSignature(hydratedLoadedLines);
         setLines(hydratedLoadedLines);
@@ -1671,7 +1695,7 @@ function Delivery() {
           taxCodeManuallyOverridden: Boolean(String(normalizedLine.taxCode || l.taxCode || l.TaxCode || l.VatGroup || '').trim()),
           stcode: normalizedLine.stcode || l.stcode || '',
           branch: normalizedLine.branch || copiedLocation.branch,
-          loc: normalizedLine.loc || copiedLocation.branch,
+          loc: normalizedLine.loc || getWarehouseLocationValue(refData.warehouses, normalizedLine.whse || l.whse || l.WarehouseCode || l.WhsCode || copiedLocation.warehouse),
           whse: normalizedLine.whse || l.whse || l.WarehouseCode || l.WhsCode || copiedLocation.warehouse,
           baseEntry,
           baseType,
@@ -1966,7 +1990,7 @@ function Delivery() {
     taxAmt = roundTo(taxAmt + freightTaxAmt, numDec.tax);
     const totalBeforeRounding = roundTo(discSub + freight + taxAmt, numDec.totalPaymentDue);
     const { roundingAmount, total } = calculateDocumentRounding(
-      totalBeforeRounding, header.rounding, numDec.totalPaymentDue, currentDocEntry ? header : null, getDocumentRoundingPolicy(refData, header),
+      totalBeforeRounding, header.rounding, numDec.totalPaymentDue, (currentDocEntry || header.roundingAmountIsManual) ? header : null, getDocumentRoundingPolicy(refData, header),
     );
     return {
       subtotal,
@@ -2458,6 +2482,7 @@ function Delivery() {
     }
     
     if (name === 'vendor') {
+      markResolvedBpLookup(e.target, value, refData.vendors, refData.bp_selection_policy);
       setHeader(prev => {
         const prep = { ...prev, [name]: value };
         const { nextHeader } = syncVendor(value, prep);
@@ -2735,6 +2760,7 @@ function Delivery() {
         next.serialNumbers = [];
         next.binAllocations = [];
         const selectedWarehouse = refData.warehouses.find((row) => String(row.WhsCode) === String(value || ''));
+        next.loc = selectedWarehouse?.LocationCode != null ? String(selectedWarehouse.LocationCode) : '';
         next.binManaged = ['Y', 'YES', '1', 'TRUE'].includes(String(selectedWarehouse?.BinActivat || '').toUpperCase());
         next.hasBatchesAvailable = false; // Reset batch availability
         
@@ -2899,14 +2925,14 @@ function Delivery() {
     
     console.log('âž• [Delivery] Adding new line with header values:', {
       branch: header.branch,
-      loc: header.branch,
+      loc: getWarehouseLocationValue(refData.warehouses, header.warehouse),
       whse: header.warehouse
     });
     
     setLines(p => [...p, { 
       ...createLine(rowUdfDefinitions, headerUdfs), 
       branch: header.branch || '', 
-      loc: header.branch || '',
+      loc: getWarehouseLocationValue(refData.warehouses, header.warehouse),
       whse: header.warehouse || ''
     }]);
   };
@@ -2945,7 +2971,9 @@ function Delivery() {
     }));
   };
   const updateFormSetting = (g, k, prop, val) => setFormSettings((previous) => (
-    updateFormSettingPreference(previous, g, k, prop, val)
+    updateFormSettingPreference(previous, g, k, prop, val, {
+      editableSapControlledGroups: ['matrixColumns', 'rowUdfs', 'headerUdfs'],
+    })
   ));
   const toggleHeaderUdfs = () => {
     setFormSettingsOpen(false);
@@ -3105,6 +3133,7 @@ function Delivery() {
   // â”€â”€ BP Modal handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleBpSelect = (bp) => {
     const code = bp.CardCode;
+    if (!isSelectableBpCode(code, refData.bp_selection_policy)) return;
     setHeader(prev => {
       const prep = { ...prev, vendor: code };
       const { nextHeader } = syncVendor(code, prep);
@@ -3274,14 +3303,37 @@ function Delivery() {
       lineIndex,
       field,
       title: nextConfig.title,
-      options: nextConfig.options,
+      options: [],
       searchPlaceholder: nextConfig.searchPlaceholder,
-      emptyMessage: nextConfig.emptyMessage,
+      emptyMessage: 'Loading this company’s SAP values...',
       allowCreate: nextConfig.allowCreate !== false,
+    });
+    const aliasByField = {
+      buyerQuality: 'U_Buyer_Quality', sellerQuality: 'U_Seller_Quality',
+      buyerPrice: 'U_Buyer_Price', sellerPrice: 'U_Seller_Price',
+    };
+    const alias = aliasByField[field];
+    if (!alias) {
+      setQualityModal((previous) => ({ ...previous, options: nextConfig.options, emptyMessage: nextConfig.emptyMessage }));
+      return;
+    }
+    const currentRequest = ++qualityLookupRequest.current;
+    loadSalesDocumentFieldLookupOptions({
+      fetchLookup: fetchSalesDocumentLookup,
+      source: 'udf-valid-values',
+      field: { id: `DLN1.${alias}` },
+      documentType: 'DELIVERY',
+    }).then((options) => {
+      if (qualityLookupRequest.current !== currentRequest) return;
+      setQualityModal((previous) => ({ ...previous, options, emptyMessage: nextConfig.emptyMessage }));
+    }).catch((error) => {
+      if (qualityLookupRequest.current !== currentRequest) return;
+      setQualityModal((previous) => ({ ...previous, options: [], emptyMessage: error?.response?.data?.detail || 'Unable to load this company’s SAP values.' }));
     });
   };
 
   const closeQualityModal = () => {
+    qualityLookupRequest.current += 1;
     setQualityModal({
       open: false,
       lineIndex: -1,
@@ -3693,7 +3745,7 @@ function Delivery() {
     console.log('ðŸ”„ [Delivery] header.branch type:', typeof header.branch);
     console.log('ðŸ”„ [Delivery] Current lines count:', lines.length);
     
-    if (!header.branch || !lines.some(l => String(l.branch || '') !== String(header.branch) || String(l.loc || '') !== String(header.branch))) return;
+    if (!header.branch || !lines.some(l => String(l.branch || '') !== String(header.branch))) return;
 
     if (header.branch) {
       console.log('ðŸ”„ [Delivery] Syncing branch to all lines:', header.branch);
@@ -3701,8 +3753,7 @@ function Delivery() {
         console.log('ðŸ”„ [Delivery] Previous lines:', prev.map(l => ({ itemNo: l.itemNo, branch: l.branch, loc: l.loc })));
         const updated = prev.map(l => ({ 
           ...l, 
-          branch: String(header.branch), 
-          loc: String(header.branch)
+          branch: String(header.branch)
         }));
         console.log('âœ… [Delivery] Updated lines:', updated.map(l => ({ itemNo: l.itemNo, branch: l.branch, loc: l.loc })));
         return updated;
@@ -3721,8 +3772,7 @@ function Delivery() {
         console.log('ðŸ”„ [Delivery] Initial branch sync needed');
         setLines(prev => prev.map(l => ({ 
           ...l, 
-          branch: String(header.branch), 
-          loc: String(header.branch)
+          branch: String(header.branch)
         })));
       }
     }
@@ -3760,7 +3810,7 @@ function Delivery() {
             return l;
           }
           changed = true;
-          return { ...l, whse: '', hasBatchesAvailable: false, batches: [] };
+          return { ...l, whse: '', loc: '', hasBatchesAvailable: false, batches: [] };
         });
         return changed ? nextLines : prev;
       });
@@ -3770,7 +3820,8 @@ function Delivery() {
     setLines(prev => {
       let changed = false;
       const nextLines = prev.map((line, index) => {
-      const next = { ...line, whse: header.warehouse };
+      const next = { ...line, whse: header.warehouse,
+        loc: line.whse === header.warehouse ? line.loc : getWarehouseLocationValue(refData.warehouses, header.warehouse) };
 
       if (next.itemNo && next.batchManaged) {
         next.hasBatchesAvailable = false;
@@ -3787,7 +3838,7 @@ function Delivery() {
       }
 
       if (
-        line.whse === next.whse &&
+        line.whse === next.whse && line.loc === next.loc &&
         line.hasBatchesAvailable === next.hasBatchesAvailable &&
         JSON.stringify(line.batches || []) === JSON.stringify(next.batches || [])
       ) {
@@ -3849,6 +3900,11 @@ function Delivery() {
     if (!isUpdate) {
       const vc = String(header.vendor || '').trim();
       if (!vc) { e.header.vendor = 'Select a customer.'; e.form = 'Please correct the highlighted fields.'; return e; }
+      if (!isSelectableBpCode(vc, refData.bp_selection_policy)) {
+        e.header.vendor = `Use ${refData.bp_selection_policy.preferredCardCode} for this customer.`;
+        e.form = 'Please correct the highlighted fields.';
+        return e;
+      }
     }
     
     if (!String(header.postingDate || '').trim()) { e.header.postingDate = 'Posting date is required.'; e.form = 'Please correct the highlighted fields.'; return e; }
@@ -4227,7 +4283,7 @@ function Delivery() {
 
     const newLines = sourceLines.map((line, idx) => {
       const normalizedLine = normaliseDocumentLine(line, idx, baseEntry, baseType, copiedLocation.branch);
-      return hydrateLoadedLine({
+      const hydrated = hydrateLoadedLine({
         ...createLine(rowUdfDefinitions),
         ...normalizedLine,
         baseEntry: line.baseEntry ?? line.BaseEntry ?? baseEntry,
@@ -4237,12 +4293,19 @@ function Delivery() {
         taxCodeManuallyOverridden: Boolean(String(normalizedLine.taxCode || line.taxCode || line.TaxCode || line.VatGroup || '').trim()),
         stcode: normalizedLine.stcode || line.stcode || '',
         branch: normalizedLine.branch || copiedLocation.branch,
-        loc: normalizedLine.loc || copiedLocation.branch,
+        loc: normalizedLine.loc || getWarehouseLocationValue(refData.warehouses, normalizedLine.whse || line.whse || line.WarehouseCode || line.WhsCode || copiedLocation.warehouse),
         whse: normalizedLine.whse || line.whse || line.WarehouseCode || line.WhsCode || copiedLocation.warehouse,
         udf: normalizeCompanyUdfState(
           rowUdfDefinitions,
           mergeUdfValues(pickLineUdfValues(line), line.line_udfs, line.lineUdfs, line.udf)
         ),
+      });
+      return applyCopiedDeliveryQuantities({
+        line: hydrated,
+        sourceLine: line,
+        sourceType,
+        matrixFields: effectiveMatrixColumnDefinitions,
+        rowUdfFields: rowUdfDefinitions,
       });
     });
     const nextLines = newLines.length > 0 ? newLines : [createLine(rowUdfDefinitions)];
@@ -4483,7 +4546,8 @@ function Delivery() {
         contactPerson: header.contactPerson,
         series: header.series ? Number(header.series) : undefined,
         totalPaymentDue: fmtDec(totals.total, numDec.totalPaymentDue),
-        roundingAmount: fmtDec(totals.roundingAmount, numDec.totalPaymentDue),
+        roundingAmount: getDocumentRoundingPayloadAmount(header, fmtDec(totals.roundingAmount, numDec.totalPaymentDue)),
+        roundingAmountIsManual: header.roundingAmountIsManual === true,
       };
       
       const payload = {
@@ -4600,10 +4664,10 @@ function Delivery() {
   const visibleRowUdfs = rowUdfDefinitions.filter(f => formSettings.rowUdfs?.[f.key]?.visible !== false);
   const formSettingsMatrixFields = useMemo(() => {
     const layoutColumns = refData.line_field_metadata?.imported_layout?.columns || [];
-    const existingLineNumberColumn = matrixColumnDefinitions.find((column) => (
+    const existingLineNumberColumn = effectiveMatrixColumnDefinitions.find((column) => (
       String(column?.key || '').trim() === '__lineNumber'
     ));
-    if (existingLineNumberColumn) return matrixColumnDefinitions;
+    if (existingLineNumberColumn) return effectiveMatrixColumnDefinitions;
 
     const lineNumberColumn = layoutColumns.find((column) => {
       const identity = String(
@@ -4624,8 +4688,8 @@ function Delivery() {
       width: Number(lineNumberColumn?.width) || 42,
       sapControlled: true,
       readOnly: true,
-    }, ...matrixColumnDefinitions];
-  }, [matrixColumnDefinitions, refData.line_field_metadata?.imported_layout?.columns]);
+    }, ...effectiveMatrixColumnDefinitions];
+  }, [effectiveMatrixColumnDefinitions, refData.line_field_metadata?.imported_layout?.columns]);
   const isRightSidebarOpen = sidebarOpen || formSettingsOpen;
 
   useEffect(() => {
@@ -4996,19 +5060,19 @@ function Delivery() {
                     {/* Posting Date */}
                     <div className="del-field">
                       <label className="del-field__label">Posting Date *</label>
-                      <input type="date" name="postingDate" className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="postingDate" className={`del-field__input${valErrors.header.postingDate ? ' del-field__input--error' : ''}`} value={header.postingDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Delivery Date */}
                     <div className="del-field">
                       <label className="del-field__label">Delivery Date</label>
-                      <input type="date" name="deliveryDate" className="del-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="deliveryDate" className="del-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
                     </div>
 
                     {/* Document Date */}
                     <div className="del-field">
                       <label className="del-field__label">Document Date *</label>
-                      <input type="date" name="documentDate" className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} />
+                      <SapDateInput  name="documentDate" className={`del-field__input${valErrors.header.documentDate ? ' del-field__input--error' : ''}`} value={header.documentDate} onChange={handleHeaderChange} />
                     </div>
 
                   </div>
@@ -5058,6 +5122,7 @@ function Delivery() {
                 effectiveWarehouses={branchFilteredWarehouses}
                 fmtTaxLabel={fmtTaxLabel}
                 getBranchName={getBranchName}
+                locations={refData.locations || []}
                 valErrors={valErrors}
                 distributionRules={refData.distribution_rules || []}
                 onOpenQualityModal={openQualityModal}
@@ -5210,7 +5275,7 @@ function Delivery() {
                         <tr>
                           <td><input type="checkbox" className="" name="rounding" checked={header.rounding} onChange={handleHeaderChange} style={{ marginRight: 6 }} /><span>Rounding</span></td>
                           <td className="del-grid__cell--num">
-                            <input className="del-grid__input" value={formatDisplayMoney(totals.roundingAmount, numDec.totalPaymentDue)} readOnly />
+                            <DocumentRoundingInput className="del-grid__input" header={header} setHeader={setHeader} formattedAmount={formatDisplayMoney(totals.roundingAmount, numDec.totalPaymentDue)} disabled={!isDocumentEditable} onManualChange={markDirty} />
                           </td>
                         </tr>
                         <tr>
@@ -5345,13 +5410,14 @@ function Delivery() {
             onClose={() => setFormSettingsOpen(false)}
             matrixFields={formSettingsMatrixFields}
             headerUdfFields={headerUdfDefinitions}
+            showHeaderUdfSettings
             rowUdfFields={rowUdfDefinitions}
             formSettings={formSettings}
           onSettingChange={updateFormSetting}
           onColumnOrderChange={formSettingsStatus.reorder}
             settingsLoaded={companyFormSettingsReady}
-            editablePropertiesByGroup={{ matrixColumns: ['visible'], rowUdfs: ['visible'] }}
-            editableSapControlledProperties={{ matrixColumns: ['visible'], headerUdfs: [], rowUdfs: ['visible'] }}
+            editablePropertiesByGroup={{ matrixColumns: ['visible'], headerUdfs: ['visible'], rowUdfs: ['visible'] }}
+            editableSapControlledProperties={{ matrixColumns: ['visible'], headerUdfs: ['visible'], rowUdfs: ['visible'] }}
             isSaving={formSettingsStatus.saving}
             hasUnsavedChanges={formSettingsStatus.hasUnsavedChanges}
             saveError={formSettingsStatus.error}
@@ -5426,7 +5492,7 @@ function Delivery() {
         isOpen={bpModal}
         onClose={closeBpModal}
         onSelect={handleBpSelect}
-        businessPartners={refData.vendors || []}
+        businessPartners={getSelectableBusinessPartners(refData.vendors, refData.bp_selection_policy)}
       />
 
       {/* HSN Code Selection Modal */}

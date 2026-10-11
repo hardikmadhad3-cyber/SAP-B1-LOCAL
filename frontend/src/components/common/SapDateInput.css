@@ -1,0 +1,38 @@
+.sap-date-input {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.sap-date-input__text {
+  min-width: 0;
+  width: 100%;
+  padding-right: 30px !important;
+}
+
+.sap-date-input__icon {
+  position: absolute;
+  right: 8px;
+  color: #42556e;
+  font-size: 15px;
+  pointer-events: none;
+}
+
+.sap-date-input .sap-date-input__picker {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 30px !important;
+  height: 100%;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.sap-date-input:has(.sap-date-input__text:disabled) .sap-date-input__icon {
+  opacity: 0.55;
+}

@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from 'react';
 
 export default function ElectronicDocumentsTab({ header, onHeaderChange }) {
@@ -26,7 +27,7 @@ export default function ElectronicDocumentsTab({ header, onHeaderChange }) {
           </div>
           <div className="po-field">
             <label className="po-field__label">Date Received</label>
-            <input type="date" className="po-field__input" name="dateReceived" value={header.dateReceived} onChange={onHeaderChange} />
+            <SapDateInput  className="po-field__input" name="dateReceived" value={header.dateReceived} onChange={onHeaderChange} />
           </div>
         </div>
       </div>

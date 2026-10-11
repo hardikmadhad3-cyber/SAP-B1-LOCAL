@@ -1,6 +1,7 @@
 const db = require('./dbService');
 const arInvoiceDb = require('./arInvoiceDbService');
 const masterDataDbService = require('./masterDataDbService');
+const { getServiceDocumentAccounts } = require('./serviceDocumentAccountDbService');
 const hsnCodeDbService = require('./hsnCodeDbService');
 const { getHeaderUdfValues, getLineUdfValues, getMarketingDocumentUdfs } = require('./udfMetadataService');
 const { createTableColumnDetailsReader } = require('./salesDocumentDbCompatibility');
@@ -273,7 +274,7 @@ const loadReferenceDataUncached = async () => {
     sellerPriceOptions,
   ] = await runReferenceDataTasks([
     () => arInvoiceDb.getReferenceData(),
-    () => masterDataDbService.searchAccounts('', '', 5000, 0),
+    () => getServiceDocumentAccounts(),
     () => masterDataDbService.lookupDistributionRules(),
     () => masterDataDbService.lookupWithholdingTaxCodes('', 200),
     () => hsnCodeDbService.getSACCodes('', 5000, 0),
@@ -291,15 +292,7 @@ const loadReferenceDataUncached = async () => {
     items: serviceItems,
     locations,
     business_partners: businessPartners,
-    gl_accounts: accounts
-      .filter((account) => account.ActiveAccount !== 'tNO' && account.IsTitleAccount !== 'tYES')
-      .map((account) => ({
-        code: account.Code,
-        name: account.Name,
-        accountType: account.AccountType,
-        balance: account.Balance ?? 0,
-        inactive: account.ActiveAccount === 'tNO' ? 'Yes' : 'No',
-      })),
+    gl_accounts: accounts,
     distribution_rules: distributionRules,
     withholding_tax_codes: withholdingTaxCodes,
     sac_codes: sacCodes.map((sac) => ({

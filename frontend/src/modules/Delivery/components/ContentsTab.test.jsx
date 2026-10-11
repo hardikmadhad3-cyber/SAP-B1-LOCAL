@@ -5,21 +5,22 @@ import ContentsTab from './ContentsTab';
 const renderContentsTab = (matrixFields, overrides = {}) => render(
   <ContentsTab
     lines={overrides.lines || []}
-    onLineChange={jest.fn()}
+    onLineChange={overrides.onLineChange || jest.fn()}
     onNumBlur={jest.fn()}
     lineItemOptions={[]}
     onAddLine={jest.fn()}
     onRemoveLine={jest.fn()}
     onOpenBatchModal={jest.fn()}
     onOpenHSNModal={jest.fn()}
-    onOpenItemModal={jest.fn()}
+    onOpenItemModal={overrides.onOpenItemModal || jest.fn()}
     onOpenQualityModal={jest.fn()}
     onOpenPaymentTermsModal={jest.fn()}
     getUomOptions={() => []}
     effectiveTaxCodes={[]}
     effectiveWarehouses={[]}
     fmtTaxLabel={(value) => value}
-    getBranchName={(value) => value}
+    getBranchName={overrides.getBranchName || ((value) => value)}
+    locations={overrides.locations || []}
     valErrors={{ lines: [] }}
     matrixFields={matrixFields}
     rowUdfFields={overrides.rowUdfFields || []}
@@ -29,6 +30,38 @@ const renderContentsTab = (matrixFields, overrides = {}) => render(
     formSettingsReady={overrides.formSettingsReady}
   />
 );
+
+test('shows SAP location and branch names from their separate codes', () => {
+  renderContentsTab([
+    { key: 'loc', label: 'Loc.' },
+    { key: 'branch', label: 'Branch' },
+  ], {
+    lines: [{ loc: '8', branch: '3' }],
+    locations: [{ Code: 8, Location: 'UP' }, { Code: 3, Location: 'Ankleshwar' }],
+    getBranchName: (value) => value === '3' ? 'UP' : '',
+  });
+
+  expect(screen.getAllByDisplayValue('UP')).toHaveLength(2);
+  expect(screen.queryByDisplayValue('3')).not.toBeInTheDocument();
+});
+
+test('keeps a typed Item No. search phrase editable until Tab opens the lookup', () => {
+  const onLineChange = jest.fn();
+  const onOpenItemModal = jest.fn();
+  renderContentsTab([{ key: 'itemNo', label: 'Item No.' }], {
+    lines: [{ itemNo: '' }],
+    onLineChange,
+    onOpenItemModal,
+  });
+
+  const input = screen.getByPlaceholderText('Item Code');
+  fireEvent.change(input, { target: { value: 'fertilizer' } });
+  expect(input).toHaveValue('fertilizer');
+  expect(onLineChange).not.toHaveBeenCalled();
+
+  fireEvent.keyDown(input, { key: 'Tab' });
+  expect(onOpenItemModal).toHaveBeenCalledWith(0, 'fertilizer', []);
+});
 
 test('does not render document-line fields before company Form Settings are ready', () => {
   renderContentsTab([
@@ -99,6 +132,23 @@ test('keeps Bin Location Allocation compulsory on Delivery even when settings tr
   });
 
   expect(screen.getByText('Bin Location Allocation')).toBeInTheDocument();
+});
+
+test('published company Delivery layout keeps exactly its selected columns', () => {
+  renderContentsTab([
+    { key: '__lineNumber', label: '#', companyQueryLayoutColumn: true },
+    { key: 'itemNo', label: 'Item No.', companyQueryLayoutColumn: true },
+    { key: 'U_Rate', valueKey: 'U_Rate', label: 'Discount', isUdf: true, companyQueryLayoutColumn: true },
+  ], {
+    formSettings: { __companyQueryLayout: { isPublished: true }, matrixColumns: {
+      __lineNumber: { visible: true }, itemNo: { visible: true }, U_Rate: { visible: true },
+    } },
+  });
+
+  expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+    '#', 'Item No.', 'Discount', '',
+  ]);
+  expect(screen.queryByText('Bin Location Allocation')).not.toBeInTheDocument();
 });
 
 test('configured lookup overrides the specialized Delivery item renderer', () => {

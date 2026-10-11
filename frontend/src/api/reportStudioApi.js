@@ -53,12 +53,12 @@ const normalizeBusinessPartnerTypeLabel = (cardType) => {
   return cardType || '';
 };
 
-export const fetchReportParameterLookupOptions = async (lookup, query = '') => {
+export const fetchReportParameterLookupOptions = async (lookup, query = '', { skip = 0, top = 100 } = {}) => {
   const table = String(lookup?.table || '').trim().toUpperCase();
 
   if (table === 'OITM') {
     const items = await apiClient
-      .get('/items/search', { params: { query, top: 200 } })
+      .get('/items/search', { params: { query, top, skip } })
       .then((response) => response.data);
 
     return normalizeReportLookupResponse(table, lookup?.columns || [], items);
@@ -66,7 +66,7 @@ export const fetchReportParameterLookupOptions = async (lookup, query = '') => {
 
   if (table === 'OCRD_CUSTOMERS') {
     const items = await apiClient
-      .get('/lookups/customers', { params: { query, top: 200 } })
+      .get('/lookups/customers', { params: { query, top, skip } })
       .then((response) => normalizeBusinessPartnerLookupRows(response.data, 'Customer'));
 
     return normalizeReportLookupResponse(table, lookup?.columns || [], items);
@@ -74,7 +74,7 @@ export const fetchReportParameterLookupOptions = async (lookup, query = '') => {
 
   if (table === 'OCRD_SUPPLIERS') {
     const items = await apiClient
-      .get('/business-partners/search', { params: { query, type: 'cSupplier', top: 200 } })
+      .get('/business-partners/search', { params: { query, type: 'cSupplier', top, skip } })
       .then((response) => normalizeBusinessPartnerLookupRows(response.data, 'Vendor'));
 
     return normalizeReportLookupResponse(table, lookup?.columns || [], items);
@@ -82,7 +82,7 @@ export const fetchReportParameterLookupOptions = async (lookup, query = '') => {
 
   if (table === 'OCRD') {
     const items = await apiClient
-      .get('/business-partners/search', { params: { query, top: 200 } })
+      .get('/business-partners/search', { params: { query, top, skip } })
       .then((response) => normalizeBusinessPartnerLookupRows(response.data));
 
     return normalizeReportLookupResponse(table, lookup?.columns || [], items);

@@ -79,6 +79,7 @@ const buildVisibilitySettings = (definitions = []) =>
       sapControlled: Boolean(field.sapControlled),
       order: field.order,
       minWidth: field.minWidth,
+      ...(field.valueKey && field.valueKey !== field.key ? { valueKey: field.valueKey } : {}),
     };
     return acc;
   }, {});

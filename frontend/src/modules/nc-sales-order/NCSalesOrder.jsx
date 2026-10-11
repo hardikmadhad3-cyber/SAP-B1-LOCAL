@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import useConfirmationOnlyUpdate from '../../utils/useConfirmationOnlyUpdate';
 import useDocumentSeries from '../../hooks/useDocumentSeries';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
@@ -36,6 +37,7 @@ import { readGeneralSettings } from '../../utils/generalSettingsStorage';
 import { useCompanyScopedFormSettings } from '../../utils/formSettingsStorage';
 import { buildVisibleEnteredRowUdfPayload } from '../../utils/rowUdfPayload';
 import { getStateCodeValue, getStateDisplayName } from '../../utils/stateDisplay';
+import { getSalesOrderCommissionDefaults } from '../../utils/salesOrderCommissionDefault';
 import * as documentCurrencyUtils from '../../utils/documentCurrency';
 import { findTaxCode, getTaxComponentCodes, taxCodeHasComponent } from '../../utils/taxCodeComponents';
 import { consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
@@ -411,7 +413,7 @@ const FALLBACK_WAREHOUSES = [
 const DEC = { QtyDec: 2, PriceDec: 2, SumDec: 2, RateDec: 2, PercentDec: 2 };
 const TAB_NAMES = ['Contents', 'Logistics', 'Accounting', 'Tax', 'Electronic Documents', 'Attachments'];
 
-const createLine = (rowUdfDefinitions = ROW_UDF_DEFINITIONS) => ({
+const createLine = (rowUdfDefinitions = ROW_UDF_DEFINITIONS, companyDb = '') => ({
     itemServiceType: 'Item',
     itemNo: '', itemDescription: '',
     sellerQuality: '', buyerQuality: '',
@@ -420,7 +422,7 @@ const createLine = (rowUdfDefinitions = ROW_UDF_DEFINITIONS) => ({
     sellerDelivery: '', buyerDelivery: '',
     sellerBrokerageAmtPer: '', sellerBrokeragePercent: '',
     sellerBrokerage: '', buyerBrokerage: '',
-    specialRebate: '', commission: '2.5', sellerBrokeragePerQty: '', unitPriceUdf: '',
+    specialRebate: '', commission: getSalesOrderCommissionDefaults(companyDb, rowUdfDefinitions).commission, sellerBrokeragePerQty: '', unitPriceUdf: '',
     qtySpecialInstruction: '', deliverySpecialInstruction: '',
     buyerPaymentTerms: '', sellerPaymentTerms: '', buyerSpecialInstruction: '', sellerSpecialInstruction: '',
     buyerBillDiscount: '', sellerBillDiscount: '', sellerItem: '', sellerQty: '',
@@ -472,6 +474,7 @@ function NCSalesOrder() {
     const navigate = useNavigate();
     const { company } = useAuth();
     const activeCompanyId = company?.companyId || '';
+    const activeCompanyDb = company?.dbName || '';
     const { removeTask, upsertTask } = useSapWindowTaskbarActions();
     const formRef = useRef(null);
     const handledCopyFromRef = useRef('');
@@ -484,7 +487,11 @@ function NCSalesOrder() {
     const [header, setHeader] = useState(() => createInitialHeader(generalSettingsRef.current));
     const [headerUdfDefinitions, setHeaderUdfDefinitions] = useState(HEADER_UDF_DEFINITIONS);
     const [rowUdfDefinitions, setRowUdfDefinitions] = useState(ROW_UDF_DEFINITIONS);
-    const [lines, setLines] = useState([createLine()]);
+    const createCompanyLine = useCallback(
+        (definitions = rowUdfDefinitions) => createLine(definitions, activeCompanyDb),
+        [activeCompanyDb, rowUdfDefinitions],
+    );
+    const [lines, setLines] = useState(() => [createCompanyLine()]);
     const [attachments] = useState(INIT_ATTACH);
     const [activeTab, setActiveTab] = useState('Contents');
     const [headerUdfs, setHeaderUdfs] = useState(() => normalizeUdfState(HEADER_UDF_DEFINITIONS));
@@ -524,7 +531,7 @@ function NCSalesOrder() {
         restoreDraft: (draft) => {
             setCurrentDocEntry(draft.currentDocEntry || null);
             setHeader(draft.header || createInitialHeader(generalSettingsRef.current));
-            setLines(Array.isArray(draft.lines) && draft.lines.length ? draft.lines : [createLine()]);
+            setLines(Array.isArray(draft.lines) && draft.lines.length ? draft.lines : [createCompanyLine()]);
             setHeaderUdfs(draft.headerUdfs || normalizeUdfState(HEADER_UDF_DEFINITIONS));
             setActiveTab(draft.activeTab || 'Contents');
             setIsDirty(Boolean(draft.isDirty));
@@ -920,7 +927,7 @@ function NCSalesOrder() {
                             }
 
                             return applyLineCalculatedFields({
-                                ...createLine(rowUdfDefinitions),
+                                ...createCompanyLine(rowUdfDefinitions),
                                 ...l,
                                 lineNum: l.lineNum ?? l.LineNum ?? index,
                                 hsnCode: hsnCode,
@@ -932,7 +939,7 @@ function NCSalesOrder() {
                                 udf: normalizeUdfState(rowUdfDefinitions, l.udf || {})
                             });
                         })
-                        : [createLine(rowUdfDefinitions)]
+                        : [createCompanyLine(rowUdfDefinitions)]
                 );
                 setHeaderUdfs(normalizeUdfState(headerUdfDefinitions, so.header_udfs || {}));
                 setSnapshotPending(true);
@@ -1965,7 +1972,7 @@ function NCSalesOrder() {
         // ðŸš¨ SKIP ALL VALIDATION DURING COPY MODE
         if (copyFromMode) {
             setLines(p => [...p, {
-                ...createLine(rowUdfDefinitions),
+                ...createCompanyLine(rowUdfDefinitions),
                 branch: header.branch || '',
                 loc: resolveLineLocation(header.warehouse, header.branch),
                 whse: header.warehouse || ''
@@ -2032,7 +2039,7 @@ function NCSalesOrder() {
         setValErrors(p => ({ ...p, form: '' }));
         setPageState(p => ({ ...p, error: '' }));
         setLines(p => [...p, {
-            ...createLine(rowUdfDefinitions),
+            ...createCompanyLine(rowUdfDefinitions),
             branch: header.branch || '',
             loc: resolveLineLocation(header.warehouse, header.branch),
             whse: header.warehouse || ''
@@ -2421,7 +2428,7 @@ function NCSalesOrder() {
 
         const rawLines = copySource.lines;
         const copiedLines = rawLines.map((line, idx) => applyLineCalculatedFields({
-            ...createLine(rowUdfDefinitions),
+            ...createCompanyLine(rowUdfDefinitions),
             ...normaliseDocumentLine(line, idx, copySource.docEntry, baseType, normHeader.branch),
             stcode: line.STCODE || line.STACode || line.stcode || '',
             documentCreated: line.DocumentCreated || line.documentCreated || copySource.header.DocumentCreated || normHeader.documentCreated || '',
@@ -2434,7 +2441,7 @@ function NCSalesOrder() {
             ...normHeader,
             warehouse: normHeader.warehouse || firstLineWarehouse || prev.warehouse || '',
         }));
-        setLines(copiedLines.length > 0 ? copiedLines : [createLine(rowUdfDefinitions)]);
+        setLines(copiedLines.length > 0 ? copiedLines : [createCompanyLine(rowUdfDefinitions)]);
         setHeaderUdfs(normalizeUdfState(headerUdfDefinitions, sourceHeaderUdfs));
         setFreightModal({ open: false, freightCharges: Array.isArray(sourceFreightCharges) ? sourceFreightCharges : [], loading: false });
 
@@ -2564,7 +2571,7 @@ function NCSalesOrder() {
             header,
             initialHeader: createInitialHeader(generalSettingsRef.current),
             lines,
-            createLine,
+            createLine: createCompanyLine,
             rowUdfDefinitions,
             setCurrentDocEntry,
             setHeader,
@@ -2855,7 +2862,7 @@ function NCSalesOrder() {
             const resetHeader = createInitialHeader(generalSettingsRef.current);
             setSnapshotPending(false);
             setIsDirty(false);
-            setCurrentDocEntry(null); setHeader(resetHeader); setLines([createLine(rowUdfDefinitions)]);
+            setCurrentDocEntry(null); setHeader(resetHeader); setLines([createCompanyLine(rowUdfDefinitions)]);
             setFreightModal({ open: false, freightCharges: [], loading: false });
             defaultToVendorAppliedRef.current = '';
             setHeaderUdfs(createUdfState(headerUdfDefinitions)); setActiveTab('Contents');
@@ -2883,7 +2890,7 @@ function NCSalesOrder() {
         const resetHeader = createInitialHeader(generalSettingsRef.current);
         setSnapshotPending(false);
         setIsDirty(false);
-        setCurrentDocEntry(null); setHeader(resetHeader); setLines([createLine(rowUdfDefinitions)]);
+        setCurrentDocEntry(null); setHeader(resetHeader); setLines([createCompanyLine(rowUdfDefinitions)]);
         setFreightModal({ open: false, freightCharges: [], loading: false });
         defaultToVendorAppliedRef.current = '';
         setHeaderUdfs(createUdfState(headerUdfDefinitions)); setActiveTab('Contents');
@@ -3321,20 +3328,19 @@ function NCSalesOrder() {
                                         {/* Posting Date */}
                                         <div className="so-field">
                                             <label className="so-field__label">Posting Date *</label>
-                                            <input type="date" name="postingDate" className="so-field__input" value={header.postingDate} onChange={handleHeaderChange} />
+                                            <SapDateInput  name="postingDate" className="so-field__input" value={header.postingDate} onChange={handleHeaderChange} />
                                         </div>
 
                                         {/* Delivery Date */}
                                         <div className="so-field">
                                             <label className="so-field__label">Delivery Date</label>
-                                            <input type="date" name="deliveryDate" className="so-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
+                                            <SapDateInput  name="deliveryDate" className="so-field__input" value={header.deliveryDate} onChange={handleHeaderChange} />
                                         </div>
 
                                         {/* Document Date */}
                                         <div className="so-field">
                                             <label className="so-field__label">Document Date *</label>
-                                            <input
-                                                type="date"
+                                            <SapDateInput
                                                 name="documentDate"
                                                 className="so-field__input"
                                                 value={header.documentDate}

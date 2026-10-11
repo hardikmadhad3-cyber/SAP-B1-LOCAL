@@ -133,8 +133,32 @@ test('builds schema-only UDFs and reconciles them with the current SAP layout', 
   expect(result.rowUdfFields.map((field) => field.key)).toEqual(['U_Agent']);
   expect(result.rowUdfFields[0].lookupSource).toBe('udf:QUT1:U_Agent');
   expect(result.usedSapLayout).toBe(true);
-  expect(result.matrixColumns.map((column) => column.valueKey || column.key)).toContain('U_Agent');
+  expect(result.matrixColumns.map((column) => column.valueKey || column.key)).not.toContain('U_Agent');
   expect(result.matrixColumns.map((column) => column.valueKey || column.key)).not.toContain('U_OtherCompany');
+});
+
+test('an explicit company layout shows only selected line fields and retains physical UDF payload keys', () => {
+  const result = buildSalesDocumentLiveFields({
+    schema: quotationSchema,
+    documentType: 'SALES_QUOTATION',
+    headerTable: 'OQUT',
+    lineTable: 'QUT1',
+    companyId: 7,
+    companyDb: 'SBODEMO',
+    includeLineNumber: false,
+    referenceMatrixColumns: [
+      { key: 'itemNo', sapField: 'ItemCode', label: 'Item No.' },
+      { key: 'quantity', sapField: 'Quantity', label: 'Quantity' },
+    ],
+    layoutResponse: { data: { source: 'sap-form-settings', columns: [
+      { fieldName: 'ItemCode', columnTitle: 'Item No.', visible: true, columnOrder: 1 },
+      { fieldName: 'U_Agent', columnTitle: 'Commission Agent', visible: true, columnOrder: 2, isUdf: true },
+    ] } },
+  });
+
+  expect(result.matrixColumns.map((column) => column.valueKey || column.key)).toEqual(['itemNo', 'U_Agent']);
+  expect(result.matrixColumns[1].label).toBe('Commission Agent');
+  expect(result.matrixColumns[1].fieldName).toBe('U_Agent');
 });
 
 test('uses current-company purchase schema when SAP layout is unavailable and falls back only without live metadata', () => {
@@ -307,4 +331,19 @@ test('loads every lookup page instead of stopping at the first page', async () =
   expect(fetchLookup).toHaveBeenNthCalledWith(1, 'custom:7', expect.objectContaining({ page: 1, limit: 100 }));
   expect(fetchLookup).toHaveBeenNthCalledWith(2, 'custom:7', expect.objectContaining({ page: 2, limit: 100 }));
   expect(options.map((option) => option.value)).toEqual(['A', 'B']);
+});
+
+test('preserves SAP form lookup identity and layout position for quality columns', () => {
+  const schema = { companyId: 2, companyDb: 'NCPL_110126', documentType: 'SALES_ORDER',
+    headerFields: [], lineFields: [{ id: 'RDR1.U_Seller_Quality', sapField: 'U_Seller_Quality',
+      databaseField: 'U_Seller_Quality', storage: 'udf', label: 'Seller - Quality', type: 'text',
+      order: 6, lookup: { source: 'sap-user-values', fieldId: 'RDR1.U_Seller_Quality' }, lookupSource: 'sap-user-values' }] };
+  const live = buildSalesDocumentLiveFields({ schema, documentType: 'SALES_ORDER', headerTable: 'ORDR', lineTable: 'RDR1',
+    companyId: 2, companyDb: 'NCPL_110126', layoutResponse: { source: 'live-sap-metadata', columns: [{
+      fieldName: 'U_Seller_Quality', columnUid: 'U_Seller_Quality', columnTitle: 'Seller - Quality', columnOrder: 6, isUdf: true,
+    }] } });
+  const quality = live.matrixColumns.find(c => c.key === 'U_Seller_Quality');
+  expect(quality.lookupSource).toBe('sap-user-values');
+  expect(quality.schemaFieldId).toBe('RDR1.U_Seller_Quality');
+  expect(quality.order).toBe(6);
 });

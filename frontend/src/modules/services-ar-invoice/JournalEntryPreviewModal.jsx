@@ -1,3 +1,4 @@
+import SapDateInput from '../../components/common/SapDateInput';
 import React, { useEffect, useMemo, useState } from 'react';
 
 const toNumber = (value) => {
@@ -116,15 +117,15 @@ function JournalEntryPreviewModal({
           </div>
           <div>
             <label>Posting Date</label>
-            <input type="date" value={activeEntry?.postingDate || ''} readOnly />
+            <SapDateInput  value={activeEntry?.postingDate || ''} readOnly />
           </div>
           <div>
             <label>Due Date</label>
-            <input type="date" value={activeEntry?.dueDate || ''} readOnly />
+            <SapDateInput  value={activeEntry?.dueDate || ''} readOnly />
           </div>
           <div>
             <label>Document Date</label>
-            <input type="date" value={activeEntry?.documentDate || ''} readOnly />
+            <SapDateInput  value={activeEntry?.documentDate || ''} readOnly />
           </div>
           <div>
             <label>Origin</label>

@@ -1,3 +1,4 @@
+import SapInput from '../../components/common/SapInput';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   fetchGatePassByDocEntry,
@@ -130,7 +131,7 @@ export default function GatePassTransactionForm({ transaction }) {
       return <textarea value={value || ''} onChange={(e) => onChange(field.name, e.target.value)} />;
     }
     return (
-      <input
+      <SapInput
         type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
         value={value || ''}
         onChange={(e) => onChange(field.name, e.target.value)}

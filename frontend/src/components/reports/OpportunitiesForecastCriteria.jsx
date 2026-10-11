@@ -1,3 +1,4 @@
+import SapInput from '../common/SapInput';
 import React, { useMemo, useState } from 'react';
 import { matchesSapSearchText } from '../../utils/sapSearch';
 
@@ -303,9 +304,9 @@ function RangeCriteriaModal({ title, type, value, onClose, onApply }) {
         <div className="opp-lookup-modal__accent" />
         <div className="opp-range-modal__body">
           <label>From</label>
-          <input className="sap-report-input" type={inputType} value={localValue.from} onChange={(event) => setLocalValue((current) => ({ ...current, from: event.target.value }))} autoFocus />
+          <SapInput className="sap-report-input" type={inputType} value={localValue.from} onChange={(event) => setLocalValue((current) => ({ ...current, from: event.target.value }))} autoFocus />
           <label>To</label>
-          <input className="sap-report-input" type={inputType} value={localValue.to} onChange={(event) => setLocalValue((current) => ({ ...current, to: event.target.value }))} />
+          <SapInput className="sap-report-input" type={inputType} value={localValue.to} onChange={(event) => setLocalValue((current) => ({ ...current, to: event.target.value }))} />
         </div>
         <div className="opp-lookup-modal__footer">
           <button type="button" className="sales-analysis__sap-btn sap-report-btn sap-report-btn--primary" onClick={() => onApply(localValue)}>OK</button>

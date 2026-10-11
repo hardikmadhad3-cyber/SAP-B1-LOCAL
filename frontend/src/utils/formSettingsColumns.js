@@ -190,7 +190,7 @@ export const mergeContentSettingsFields = (
     const tokens = [field.key, field.valueKey, field.fieldName, field.sapField, field.aliasId]
       .map(normalizeIdentity)
       .filter(Boolean);
-    if (tokens.some((token) => identities.has(token))) return;
+    if (!field.companyQueryLayoutColumn && tokens.some((token) => identities.has(token))) return;
     tokens.forEach((token) => identities.add(token));
     fields.push({ ...field, settingsGroup });
   };

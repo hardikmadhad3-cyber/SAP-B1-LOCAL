@@ -2,6 +2,7 @@
 
 const authDbService = require('../../services/authDbService');
 const readOnlyDbService = require('./newSalesOrderReadOnlyDbService');
+const { readSapFormValueLists } = require('./sapFormValueLists');
 const {
   SALES_DOCUMENTS,
   SALES_ORDER_DOCUMENT,
@@ -369,6 +370,7 @@ const createNewSalesOrderMetadataRepository = ({
 
     return {
       dialect,
+      formValueLists: await readSapFormValueLists({ context, document, dialect, getTableColumns, readOnlyDb }),
       physical: {
         [document.headerTable]: headerColumns,
         [document.lineTable]: lineColumns,

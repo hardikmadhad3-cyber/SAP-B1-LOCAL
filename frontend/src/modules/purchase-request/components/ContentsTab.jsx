@@ -1,3 +1,7 @@
+import SapLookupTextInput from '../../../components/common/SapLookupTextInput';
+import SapInput from '../../../components/common/SapInput';
+import LiveUdfValueInput from '../../../components/sales-document/LiveUdfValueInput';
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from 'react';
 import TaxCodeLookup from '../../../components/TaxCodeLookup';
 import { getLineTotalsForDisplay } from '../../../utils/lineTotals';
@@ -119,6 +123,10 @@ export default function ContentsTab({
       || setting.active === false;
     const updateValue = (nextValue) => onRowUdfChange && onRowUdfChange(index, field.key, nextValue);
 
+    if (field.lookupSource) {
+      return <td key={column.key}><LiveUdfValueInput field={field} line={line} value={value} disabled={disabled} onChange={updateValue} /></td>;
+    }
+
     if (field.type === 'select' || (field.options || []).length) {
       return (
         <td key={column.key}>
@@ -148,7 +156,7 @@ export default function ContentsTab({
 
     return (
       <td key={column.key}>
-        <input
+        <SapInput
           className="so-grid__input"
           type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
           value={value}
@@ -212,7 +220,7 @@ export default function ContentsTab({
       return (
         <td key={column.key}>
           <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <input
+            <SapLookupTextInput
               className="so-grid__input"
               style={{ flex: 1, textAlign: 'left', border: valErrors.lines[index]?.itemNo ? '1px solid #c00' : undefined }}
               name="itemNo"
@@ -261,8 +269,8 @@ export default function ContentsTab({
     if (column.key === 'requiredDate') {
       return (
         <td key={column.key}>
-          <input
-            type="date"
+          <SapDateInput
+            
             className="so-grid__input"
             name="requiredDate"
             value={line.requiredDate || ''}

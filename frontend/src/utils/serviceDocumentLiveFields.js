@@ -17,6 +17,9 @@ const SERVICE_FIELD_KEYS = Object.freeze({
   ACCOUNT: 'glAccount',
   ACCOUNTCODE: 'glAccount',
   ACCTCODE: 'glAccount',
+  GLACCOUNTNAME: 'glAccountName',
+  ACCOUNTNAME: 'glAccountName',
+  ACCTNAME: 'glAccountName',
   QUANTITY: 'sQty',
   SQTY: 'sQty',
   UNITPRICE: 'unitPrice',
@@ -54,6 +57,9 @@ const SERVICE_FIELD_KEYS = Object.freeze({
   PRICEAFTERDISC: 'priceAfterDisc',
   TAXAMOUNT: 'taxAmountLC',
   VATSUM: 'taxAmountLC',
+  COSTSHEET: 'costSheet',
+  CONTAINERTYPE: 'containerType',
+  TAXCODEREPEAT: 'taxCodeRepeat',
   REQUIREDDATE: 'requiredDate',
   REQDATE: 'requiredDate',
   PACKAGEQUANTITY: 'noOfPackages',
@@ -150,6 +156,53 @@ export const getSapStandardServiceMatrixColumns = () => (
     active: !column.readOnly,
   }))
 );
+
+// Published SQL aliases describe the visible matrix; the physical SAP field
+// still determines which document-line property is edited and sent to SAP.
+export const buildServiceCompanyQueryColumns = ({ queryLayout, liveMatrixColumns = [], rowUdfFields = [] } = {}) => {
+  if (!queryLayout?.isPublished || !Array.isArray(queryLayout.columns) || !queryLayout.columns.length) return null;
+  const udfs = new Map(rowUdfFields.map((field) => [String(field.key || '').toUpperCase(), field]));
+  const usedKeys = new Set();
+  return queryLayout.columns.map((column, index) => {
+    const alias = String(column.key || column.label || '').trim();
+    const physical = String(column.fieldName || alias).trim();
+    if (token(physical) === 'LINENUM' || token(alias) === 'LINENUMBER' || alias === '#') return null;
+    const udf = /^U_/i.test(physical) ? udfs.get(physical.toUpperCase()) : null;
+    if (/^U_/i.test(physical) && !udf) return null;
+    const valueKey = udf ? udf.key : (
+      liveMatrixColumns.find((field) => [field.fieldName, field.sapField, field.key, field.valueKey]
+        .some((candidate) => token(candidate) === token(physical)))?.valueKey
+      || SERVICE_FIELD_KEYS[token(physical)]
+      || SERVICE_FIELD_KEYS[token(alias)]
+      || ''
+    );
+    const base = udf || liveMatrixColumns.find((field) => field.key === valueKey) || {};
+    const rawKey = udf ? `udf:${udf.key}` : (valueKey || `query:${alias || index}`);
+    let key = rawKey;
+    let duplicate = 2;
+    while (usedKeys.has(key)) key = `${rawKey}:${duplicate++}`;
+    usedKeys.add(key);
+    const width = Number(base.minWidth || base.width) || 140;
+    return {
+      ...base,
+      key,
+      valueKey: valueKey || key,
+      udfKey: udf?.key,
+      isUdf: Boolean(udf),
+      fieldName: physical,
+      label: String(column.label || alias).replace(/_/g, ' '),
+      width,
+      minWidth: width,
+      order: Number(column.order) || index + 1,
+      columnOrder: Number(column.order) || index + 1,
+      visible: true,
+      readOnly: !udf && !valueKey ? true : Boolean(base.readOnly),
+      active: !(!udf && !valueKey) && !base.readOnly
+        && (udf ? udf.editable !== false : base.active !== false),
+      companyQueryLayoutColumn: true,
+    };
+  }).filter(Boolean);
+};
 
 const isUdf = (field = {}) => (
   String(field.storage || '').toLowerCase() === 'udf'

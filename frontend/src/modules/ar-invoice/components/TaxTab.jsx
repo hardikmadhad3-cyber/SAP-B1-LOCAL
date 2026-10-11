@@ -1,3 +1,4 @@
+import SapDateInput from '../../../components/common/SapDateInput';
 import React from 'react';
 
 export default function TaxTab({
@@ -27,7 +28,7 @@ export default function TaxTab({
 
               <div className="sap-form-row">
                 <label className="del-field__label" htmlFor="taxInvoiceDate">Original Invoice Date{taxInvoiceReferenceRequired ? ' *' : ''}</label>
-                <input id="taxInvoiceDate" className={`del-field__input${errors.taxInvoiceDate ? ' del-field__input--error' : ''}`} type="date" name="taxInvoiceDate" value={header.taxInvoiceDate || ''} onChange={onHeaderChange} disabled={!isEditable} title={errors.taxInvoiceDate || 'Date of the original tax invoice'} />
+                <SapDateInput id="taxInvoiceDate" className={`del-field__input${errors.taxInvoiceDate ? ' del-field__input--error' : ''}`}  name="taxInvoiceDate" value={header.taxInvoiceDate || ''} onChange={onHeaderChange} disabled={!isEditable} title={errors.taxInvoiceDate || 'Date of the original tax invoice'} />
               </div>
             </>
           )}
