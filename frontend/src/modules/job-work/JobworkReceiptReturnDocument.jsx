@@ -7,7 +7,6 @@ import './styles/customerGoodsReceipt.css';
 import ItemSelectionModal from '../../components/common/ItemSelectionModal';
 import BusinessPartnerModal from '../sales-order/components/BusinessPartnerModal';
 import BatchAllocationModal from '../../components/BatchAllocationModal';
-import PrintLayoutToolbar from '../../components/print-layout/PrintLayoutToolbar';
 import { createActiveCompanyScopedRouteState } from '../../utils/companyStorageScope';
 import { fetchGoodsIssueBatchesByItem, fetchGoodsIssueSeries } from '../../api/goodsIssueApi';
 import { fetchGoodsReceiptBatchesByItem, fetchGoodsReceiptNextBatchNumber, fetchGoodsReceiptSeries } from '../../api/goodsReceiptApi';
@@ -641,22 +640,6 @@ export default function JobworkReceiptReturnDocument() {
         <button type="button" className="po-btn" onClick={backToList}>Cancel</button>
 <button type="button" className="po-btn" data-sap-find-action onClick={backToList}>Find</button>
         <button type="button" className="po-btn" onClick={openNew}>New</button>
-        {goodsIssueDocEntry ? (
-          <PrintLayoutToolbar
-            documentType="inventoryGenExit" documentLabel="Goods Issue (RM)" docEntry={goodsIssueDocEntry} docNumber={goodsIssueDocNum}
-            classPrefix="po"
-            onSuccess={(m) => setPageState((c) => ({ ...c, error: '', success: m }))}
-            onError={(m) => setPageState((c) => ({ ...c, error: m, success: '' }))}
-          />
-        ) : null}
-        {goodsReceiptDocEntry ? (
-          <PrintLayoutToolbar
-            documentType="inventoryGoodsReceipt" documentLabel="Goods Receipt (Finished Goods)" docEntry={goodsReceiptDocEntry} docNumber={goodsReceiptDocNum}
-            classPrefix="po"
-            onSuccess={(m) => setPageState((c) => ({ ...c, error: '', success: m }))}
-            onError={(m) => setPageState((c) => ({ ...c, error: m, success: '' }))}
-          />
-        ) : null}
       </div>
 
       {pageState.loading && <div className="po-alert po-alert--success">Loading...</div>}

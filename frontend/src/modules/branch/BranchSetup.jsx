@@ -109,19 +109,11 @@ export default function BranchSetup() {
       BPLName: branch.BPLName.trim(),
     };
 
-    // Only add optional fields if they have values
-    if (branch.BPLNameForeign?.trim()) {
-      payload.BPLNameForeign = branch.BPLNameForeign.trim();
-    }
-    if (branch.VATRegNum?.trim()) {
-      payload.VATRegNum = branch.VATRegNum.trim();
-    }
-    if (branch.RepName?.trim()) {
-      payload.RepName = branch.RepName.trim();
-    }
-    if (branch.Industry?.trim()) {
-      payload.Industry = branch.Industry.trim();
-    }
+    // Optional fields are always sent, so an emptied field is cleared.
+    payload.BPLNameForeign = branch.BPLNameForeign?.trim() || "";
+    payload.VATRegNum = branch.VATRegNum?.trim() || "";
+    payload.RepName = branch.RepName?.trim() || "";
+    payload.Industry = branch.Industry?.trim() || "";
 
     return payload;
   };

@@ -15,7 +15,6 @@ import ReferenceInformationModal, {
 import BatchAllocationModal from '../../components/BatchAllocationModal';
 import DistributionRuleAssignmentModal from '../../components/DistributionRuleAssignmentModal';
 import LineValueLookupModal from '../../components/sales-document/LineValueLookupModal';
-import InventoryPrintLayoutActions from '../../components/print-layout/InventoryPrintLayoutActions';
 import JournalEntryPreviewButton from '../../components/journal-entry/JournalEntryPreviewButton';
 import { useSapWindowTaskbarActions } from '../../components/SapWindowTaskbarContext';
 import {
@@ -52,9 +51,11 @@ import {
   readSavedFormSettings,
 } from '../../config/inventoryDocumentForm';
 import { openLinkedReferenceDocument } from '../../utils/sapLinkedNavigation';
-import { replaceRouteStatePreservingWindow } from '../../utils/copyToState';
+import { reloadRouteDocument, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
 import useDocumentDraftTask from '../../hooks/useDocumentDraftTask';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
 const TAB_NAMES = ['Contents', 'Attachments'];
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -165,7 +166,7 @@ function GoodsReceipt() {
     [headerUdfFields, rowUdfFields, GOODS_RECEIPT_MATRIX_COLUMNS],
     { saveMode: 'explicit' },
   );
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [distributionRules, setDistributionRules] = useState([]);
   const [distributionDimensions, setDistributionDimensions] = useState([]);
@@ -221,6 +222,7 @@ function GoodsReceipt() {
     seriesOptions[0] ||
     null;
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const primaryActionLabel = pageState.posting
     ? 'Saving...'
@@ -591,9 +593,9 @@ function GoodsReceipt() {
         setIsDirty(false);
         setPageState((current) => ({
           ...current,
-          success: document.docNum
+          success: location.state?.documentStatusMessage || (document.docNum
             ? `Goods Receipt ${document.docNum} loaded.`
-            : 'Goods Receipt loaded.',
+            : 'Goods Receipt loaded.'),
         }));
       } catch (error) {
         if (!ignore) {
@@ -1448,6 +1450,15 @@ function GoodsReceipt() {
         <button type="button" className="po-btn sap-document-toolbar__new" onClick={resetForm}>
           New
         </button>
+        <DocumentStatusActions
+          type="goods-receipt"
+          docEntry={currentDocEntry}
+          actions={['cancel']}
+          className="po-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'goodsReceiptDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
         <button
           type="button"
           className="po-btn sap-document-toolbar__duplicate"
@@ -1472,15 +1483,6 @@ function GoodsReceipt() {
         >
           Form Settings
         </button>
-        <InventoryPrintLayoutActions
-          documentKey="goodsReceipt"
-          docEntry={currentDocEntry}
-          docNumber={header.number}
-          series={header.series}
-          disabled={pageState.posting || pageState.loading}
-          onSuccess={(message) => setPageState((current) => ({ ...current, error: '', success: message }))}
-          onError={(message) => setPageState((current) => ({ ...current, success: '', error: message }))}
-        />
         <JournalEntryPreviewButton
           documentType="goodsReceipt"
           documentLabel="Goods Receipt"
@@ -1690,7 +1692,7 @@ function GoodsReceipt() {
       {valErrors.form && <div className="po-alert po-alert--error">{valErrors.form}</div>}
 
       <div className="po-header-card gr-goods-receipt__footer-card" style={{ marginTop: 0 }}>
-        <div>
+        <div className="sap-document-footer-fields">
           <div>
             <div className="po-field" style={{ alignItems: 'flex-start' }}>
               <label className="po-field__label" style={{ paddingTop: 4 }}>

@@ -3,37 +3,64 @@
    while the app migrates toward reusable SAP components. */
 
 :root {
-  --sap-font-family: "Bahnschrift", "Segoe UI", "Trebuchet MS", Arial, sans-serif;
-  --sap-page-bg: #f0f3f7;
+  /* SAP Fiori Horizon visual language on classic SAP B1 density:
+     Horizon colours, flat buttons, light tables; compact sizes below. */
+  --sap-font-family: "72", "72full", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --sap-page-bg: #f5f6f7;
   --sap-surface: #ffffff;
-  --sap-surface-soft: #f7fafc;
-  --sap-toolbar-bg: #e9eff5;
-  --sap-tab-bg: #e8edf2;
-  --sap-border: #c8d2dc;
-  --sap-border-strong: #9aa8b6;
-  --sap-border-soft: #dfe6ee;
-  --sap-text: #172334;
-  --sap-text-muted: #5d6f82;
-  --sap-heading: #123b63;
-  --sap-primary: #006fb8;
-  --sap-primary-dark: #00558f;
-  --sap-primary-soft: rgba(0, 111, 184, 0.15);
-  --sap-danger: #b42318;
-  --sap-success: #137333;
-  --sap-warning: #8a5a00;
-  --sap-radius-xs: 2px;
-  --sap-radius-sm: 4px;
-  --sap-radius-md: 6px;
-  --sap-shadow-modal: 0 16px 42px rgba(16, 32, 48, 0.22);
-  --sap-control-height: 22px;
-  --sap-control-font-size: 12px;
-  --sap-grid-font-size: 11px;
-  --sap-row-hover: #f3f8fd;
-  --sap-row-even: #fafbfd;
-  --sap-button-bg: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%);
-  --sap-button-bg-hover: linear-gradient(180deg, #ffffff 0%, #dfe8f1 100%);
-  --sap-button-primary-bg: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary-dark) 100%);
-  --sap-button-primary-bg-hover: linear-gradient(180deg, #087ec8 0%, #00619e 100%);
+  --sap-surface-soft: #f7f8f9;
+  --sap-toolbar-bg: #ffffff;
+  --sap-tab-bg: transparent;
+  --sap-border: #d9dde1;
+  --sap-border-strong: #8396a8;
+  --sap-border-soft: #e5e8eb;
+  --sap-text: #1d2d3e;
+  --sap-text-muted: #556b82;
+  --sap-heading: #1d2d3e;
+  --sap-primary: #0070f2;
+  --sap-primary-dark: #0064d9;
+  --sap-primary-soft: rgba(0, 112, 242, 0.14);
+  --sap-link: #0064d9;
+  --sap-focus: #0032a5;
+  --sap-danger: #aa0808;
+  --sap-success: #256f3a;
+  --sap-warning: #b44f00;
+  --sap-info: #0064d9;
+  --sap-radius-xs: 4px;
+  --sap-radius-sm: 6px;
+  --sap-radius-md: 10px;
+  --sap-radius-lg: 14px;
+  --sap-shadow-card: 0 0 2px rgba(34, 53, 72, 0.12), 0 2px 4px rgba(34, 53, 72, 0.08);
+  --sap-shadow-modal: 0 0 4px rgba(34, 53, 72, 0.16), 0 16px 40px rgba(34, 53, 72, 0.22);
+  --sap-overlay-bg: rgba(29, 45, 62, 0.4);
+  /* SAP Fiori compact density: 24px controls. Type scale: 12 / 13 / 14 / 20px,
+     weights 400 / 600 / 700, no uppercase labels. */
+  --sap-control-height: 24px;
+  /* Right-hand Header UDF / Form Settings panel on document pages. */
+  --sap-side-panel-width: clamp(260px, 20vw, 320px);
+  --sap-button-height: 24px;
+  --sap-page-font-size: 13px;
+  --sap-control-font-size: 13px;
+  --sap-small-font-size: 12px;
+  --sap-grid-font-size: 13px;
+  --sap-section-font-size: 14px;
+  --sap-title-font-size: 20px;
+  --sap-font-weight-regular: 400;
+  --sap-font-weight-semibold: 600;
+  --sap-font-weight-bold: 700;
+  --sap-button-font-weight: 400;
+  --sap-row-hover: #f2f7fe;
+  --sap-row-even: #fafbfc;
+  --sap-row-selected: #e8f3ff;
+  --sap-grid-header-bg: #f5f6f7;
+  --sap-field-readonly-bg: #f5f6f7;
+  /* Flat Horizon buttons: default = white with blue text, primary = filled. */
+  --sap-button-bg: #ffffff;
+  --sap-button-bg-hover: #eaecee;
+  --sap-button-text: #0064d9;
+  --sap-button-border: #bcc3ca;
+  --sap-button-primary-bg: #0070f2;
+  --sap-button-primary-bg-hover: #0064d9;
 }
 
 :is(
@@ -50,7 +77,7 @@
   font-family: var(--sap-font-family);
   color: var(--sap-text);
   background: var(--sap-page-bg);
-  font-size: 13px;
+  font-size: var(--sap-page-font-size);
 }
 
 .sap-document-page {
@@ -121,6 +148,60 @@
 
 .sap-document-toolbar :is(.po-dropdown, .so-dropdown, .del-dropdown, .sap-document-toolbar__copy) {
   order: 5;
+}
+
+/* Data menu (Close / Cancel Document) follows Copy From / Copy To. Its own
+   open/close rules: lazily loaded pages (payments) lack the family dropdown CSS. */
+.sap-document-toolbar :is(.sap-document-toolbar__data) {
+  order: 6;
+}
+
+.sap-document-toolbar__data {
+  position: relative;
+}
+
+.sap-document-toolbar__data.active {
+  z-index: 9998;
+}
+
+.sap-document-toolbar__data > [role="menu"] {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  display: none;
+  flex-direction: column;
+  min-width: 180px;
+  background: var(--sap-surface);
+  border: 1px solid var(--sap-border);
+  border-radius: var(--sap-radius-sm);
+  box-shadow: var(--sap-shadow-modal);
+  overflow: hidden;
+  z-index: 9999;
+}
+
+.sap-document-toolbar__data.active > [role="menu"] {
+  display: flex;
+}
+
+.sap-document-toolbar__data > [role="menu"] > button {
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--sap-border-soft);
+  background: var(--sap-surface);
+  color: var(--sap-text);
+  font-size: var(--sap-control-font-size);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sap-document-toolbar__data > [role="menu"] > button:last-child {
+  border-bottom: 0;
+}
+
+.sap-document-toolbar__data > [role="menu"] > button:hover,
+.sap-document-toolbar__data > [role="menu"] > button:focus-visible {
+  background: var(--sap-primary-soft);
 }
 
 .sap-document-toolbar :is(.sap-document-toolbar__duplicate) {
@@ -205,7 +286,7 @@
   .uom-toolbar__title
 ) {
   color: var(--sap-heading);
-  font-size: 14px;
+  font-size: var(--sap-title-font-size);
   line-height: 1.2;
 }
 
@@ -221,13 +302,13 @@
   .rfp-row-btn,
   .rfp-alloc-btn
 ) {
-  min-height: 24px;
+  min-height: var(--sap-button-height);
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-sm);
   background: var(--sap-button-bg);
   color: var(--sap-text);
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   line-height: 1.2;
   cursor: pointer;
 }
@@ -244,17 +325,17 @@
   .rfp-row-btn,
   .rfp-alloc-btn
 ):hover:not(:disabled) {
-  background: linear-gradient(180deg, #ffffff 0%, #dfe8f1 100%);
+  background: var(--sap-button-bg-hover);
 }
 
 :is(.po-btn--primary, .so-btn--primary, .del-btn--primary, .im-btn--primary, .uom-btn--primary) {
   border-color: var(--sap-primary-dark);
-  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary-dark) 100%);
+  background: var(--sap-button-primary-bg);
   color: #ffffff;
 }
 
 :is(.po-btn--primary, .so-btn--primary, .del-btn--primary, .im-btn--primary, .uom-btn--primary):hover:not(:disabled) {
-  background: linear-gradient(180deg, #087ec8 0%, #00619e 100%);
+  background: var(--sap-button-primary-bg-hover);
 }
 
 :is(.po-btn--danger, .so-btn--danger, .del-btn--danger, .im-btn--danger, .bom-row-btn--del, .rfp-row-btn--del) {
@@ -331,22 +412,22 @@
 }
 
 :is(.modal .btn, [role="dialog"] .btn) {
-  min-height: 24px !important;
+  min-height: var(--sap-button-height) !important;
   height: auto !important;
   padding: 3px 12px !important;
   border: 1px solid var(--sap-border-strong) !important;
   border-radius: var(--sap-radius-sm) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%) !important;
+  background: var(--sap-button-bg) !important;
   color: var(--sap-text) !important;
   font-family: var(--sap-font-family) !important;
-  font-size: 12px !important;
+  font-size: var(--sap-control-font-size) !important;
   font-weight: 600 !important;
   line-height: 1.2 !important;
   box-shadow: none !important;
 }
 
 :is(.modal .btn:hover, [role="dialog"] .btn:hover):not(:disabled) {
-  background: linear-gradient(180deg, #ffffff 0%, #dfe8f1 100%) !important;
+  background: var(--sap-button-bg-hover) !important;
   color: var(--sap-text) !important;
 }
 
@@ -359,7 +440,7 @@
   [role="dialog"] .btn-warning
 ) {
   border-color: var(--sap-primary-dark) !important;
-  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary-dark) 100%) !important;
+  background: var(--sap-button-primary-bg) !important;
   color: #ffffff !important;
 }
 
@@ -371,13 +452,13 @@
   [role="dialog"] .btn-success:hover,
   [role="dialog"] .btn-warning:hover
 ):not(:disabled) {
-  background: linear-gradient(180deg, #087ec8 0%, #00619e 100%) !important;
+  background: var(--sap-button-primary-bg-hover) !important;
   color: #ffffff !important;
 }
 
 :is(.modal .btn-secondary, .modal .btn-outline-secondary, [role="dialog"] .btn-secondary, [role="dialog"] .btn-outline-secondary) {
   border-color: var(--sap-border-strong) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%) !important;
+  background: var(--sap-button-bg) !important;
   color: var(--sap-text) !important;
 }
 
@@ -417,7 +498,7 @@
 }
 
 .sap-state-lookup .modal-title {
-  font-size: 12px !important;
+  font-size: var(--sap-control-font-size) !important;
   font-weight: 700 !important;
 }
 
@@ -434,9 +515,9 @@
   width: 30px;
   min-width: 30px;
   height: 24px !important;
-  min-height: 24px !important;
+  min-height: var(--sap-button-height) !important;
   padding: 0 !important;
-  font-size: 13px !important;
+  font-size: var(--sap-page-font-size) !important;
   line-height: 1 !important;
 }
 
@@ -455,14 +536,14 @@
 .sap-state-lookup__filter label {
   margin: 0;
   color: var(--sap-text);
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
   font-weight: 700;
 }
 
 .sap-state-lookup__filter input {
   height: 28px;
   background: var(--sap-surface) !important;
-  font-size: 12px !important;
+  font-size: var(--sap-control-font-size) !important;
 }
 
 .sap-state-lookup__table-wrap {
@@ -474,7 +555,7 @@
 }
 
 .sap-state-lookup__table {
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
 }
 
 .sap-state-lookup__table th {
@@ -527,7 +608,7 @@
 .sap-state-lookup__count {
   align-self: flex-end;
   color: var(--sap-text-muted);
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
   font-weight: 700;
 }
 
@@ -564,7 +645,7 @@
   .rfp-lbl-r
 ) {
   color: var(--sap-text-muted);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 :is(
@@ -639,7 +720,7 @@
   .ifp-readonly,
   .rfp-readonly
 ) {
-  background: #edf1f5;
+  background: var(--sap-field-readonly-bg);
   color: var(--sap-text-muted);
 }
 
@@ -886,7 +967,7 @@
   padding: 8px 10px;
   margin-bottom: 12px;
   border-radius: var(--sap-radius-sm);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 .del-alert--warning {
@@ -916,7 +997,7 @@
 
 .del-grid__input {
   width: 100%;
-  height: 22px;
+  height: var(--sap-control-height);
   padding: 0 4px;
   border: 1px solid transparent;
   background: transparent;
@@ -962,7 +1043,7 @@
 
 .sap-pdf-preview__title {
   color: var(--sap-heading);
-  font-size: 13px;
+  font-size: var(--sap-page-font-size);
   font-weight: 700;
 }
 
@@ -971,7 +1052,7 @@
   margin-top: 2px;
   overflow: hidden;
   color: var(--sap-text-muted);
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -987,11 +1068,11 @@
   height: 28px;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-xs);
-  background: linear-gradient(180deg, #ffffff 0%, #e8ecf0 100%);
+  background: var(--sap-button-bg);
   color: var(--sap-text);
   cursor: pointer;
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 .sap-pdf-preview__button {
@@ -1006,7 +1087,7 @@
 
 .sap-pdf-preview__button:hover,
 .sap-pdf-preview__close:hover {
-  background: linear-gradient(180deg, #f0f4f8 0%, #dde3ea 100%);
+  background: var(--sap-button-bg-hover);
 }
 
 .sap-pdf-preview__frame {
@@ -1055,14 +1136,14 @@
 
 .sap-print-params__title {
   color: var(--sap-heading);
-  font-size: 13px;
+  font-size: var(--sap-page-font-size);
   font-weight: 700;
 }
 
 .sap-print-params__layout {
   margin-top: 2px;
   color: var(--sap-text-muted);
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
 }
 
 .sap-print-params__close {
@@ -1070,10 +1151,10 @@
   height: 24px;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-xs);
-  background: linear-gradient(180deg, #ffffff 0%, #e8ecf0 100%);
+  background: var(--sap-button-bg);
   color: var(--sap-text);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 700;
 }
 
@@ -1092,7 +1173,7 @@
   gap: 12px;
   margin: 0 0 12px;
   color: var(--sap-text);
-  font-size: 13px;
+  font-size: var(--sap-page-font-size);
 }
 
 .sap-print-params__field span {
@@ -1109,7 +1190,7 @@
   background: var(--sap-surface);
   color: var(--sap-text);
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 .sap-print-params__field input:focus,
@@ -1133,11 +1214,11 @@
   height: 26px;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-xs);
-  background: linear-gradient(180deg, #ffffff 0%, #e8ecf0 100%);
+  background: var(--sap-button-bg);
   color: var(--sap-text);
   cursor: pointer;
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 600;
 }
 
@@ -1147,7 +1228,7 @@
 
 .sap-print-params__button:hover:not(:disabled),
 .sap-print-params__close:hover:not(:disabled) {
-  background: linear-gradient(180deg, #f0f4f8 0%, #dde3ea 100%);
+  background: var(--sap-button-bg-hover);
 }
 
 .sap-layout-chooser__trigger {
@@ -1208,7 +1289,7 @@
   display: flex;
   align-items: center;
   color: #000;
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 .sap-layout-chooser__grid {
@@ -1230,7 +1311,7 @@
   color: #000;
   cursor: default;
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 400;
   text-align: left;
 }
@@ -1266,7 +1347,7 @@
   color: var(--sap-text);
   cursor: pointer;
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 .sap-layout-chooser__button--primary {
@@ -1349,7 +1430,7 @@
   padding: 0;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-md);
-  background: linear-gradient(180deg, #ffffff 0%, #edf3f8 100%);
+  background: var(--sap-button-bg);
   color: var(--sap-text);
   font-family: var(--sap-font-family);
   font-size: 15px;
@@ -1398,9 +1479,9 @@
   padding: 0;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-sm);
-  background: linear-gradient(180deg, #fff8c9 0%, #f4d45d 100%);
-  color: #6b5200;
-  font-size: 11px;
+  background: var(--sap-surface);
+  color: var(--sap-link);
+  font-size: var(--sap-small-font-size);
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -1439,7 +1520,7 @@
   bottom: 1px;
   width: 24px;
   border-left: 1px solid var(--sap-border-strong);
-  background: linear-gradient(180deg, #f8fafc 0%, #e8eef5 100%);
+  background: var(--sap-button-bg);
   pointer-events: none;
   z-index: 1;
 }
@@ -1460,7 +1541,7 @@
 }
 
 .po-udf-select-control.is-disabled::before {
-  background: #edf1f5;
+  background: var(--sap-field-readonly-bg);
 }
 
 .po-udf-select-control.is-disabled::after {
@@ -1552,7 +1633,7 @@
   border-bottom: 1px solid var(--sap-border);
   background: var(--sap-toolbar-bg);
   color: var(--sap-heading);
-  font-size: 13px;
+  font-size: var(--sap-page-font-size);
   font-weight: 700;
 }
 
@@ -1568,7 +1649,7 @@
   height: 24px;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-sm);
-  background: linear-gradient(180deg, #ffffff 0%, #edf3f8 100%);
+  background: var(--sap-button-bg);
   color: transparent;
   cursor: pointer;
   font-size: 0;
@@ -1580,7 +1661,7 @@
   display: grid;
   place-items: center;
   color: #1b3958;
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
   font-weight: 700;
 }
 
@@ -1600,7 +1681,7 @@
 .sap-copy-from-filter label {
   flex: 0 0 auto;
   color: var(--sap-text);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 700;
 }
 
@@ -1627,7 +1708,7 @@
   border-bottom: 1px solid #f1c9c4;
   background: #fff3f1;
   color: var(--sap-danger);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 700;
 }
 
@@ -1702,25 +1783,25 @@
 .sap-copy-from-footer span {
   margin-left: auto;
   color: var(--sap-text-muted);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 .sap-copy-from-btn {
   min-width: 92px;
-  min-height: 24px;
+  min-height: var(--sap-button-height);
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-sm);
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%);
+  background: var(--sap-button-bg);
   color: var(--sap-text);
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 700;
   cursor: pointer;
 }
 
 .sap-copy-from-btn--primary {
   border-color: var(--sap-primary-dark);
-  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary-dark) 100%);
+  background: var(--sap-button-primary-bg);
   color: #ffffff;
 }
 
@@ -1800,13 +1881,13 @@
   background: var(--sap-toolbar-bg);
   color: var(--sap-heading);
   font-family: var(--sap-font-family);
-  font-size: 14px;
+  font-size: var(--sap-title-font-size);
   font-weight: 700;
 }
 
 :is(.sales-analysis-window__title, .prr-titlebar > span, .sap-report-title) {
   color: var(--sap-heading);
-  font-size: 14px;
+  font-size: var(--sap-title-font-size);
   font-weight: 700;
 }
 
@@ -1831,7 +1912,7 @@
   height: 24px;
   border: 1px solid rgba(168, 183, 199, 0.95);
   border-radius: 8px;
-  background: linear-gradient(180deg, #ffffff 0%, #edf3f9 100%);
+  background: var(--sap-button-bg);
   color: transparent;
   cursor: pointer;
   font-size: 0;
@@ -1844,7 +1925,7 @@
   .prr-titlebar-btn,
   .sap-report-window-control
 ):hover {
-  background: linear-gradient(180deg, #ffffff 0%, #f5f8fc 100%);
+  background: var(--sap-button-bg);
 }
 
 :is(
@@ -1858,7 +1939,7 @@
   display: grid;
   place-items: center;
   color: #1b3958;
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
   font-weight: 700;
   line-height: 1;
 }
@@ -1916,21 +1997,21 @@
   min-height: 26px;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-sm);
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%);
+  background: var(--sap-button-bg);
   color: var(--sap-text);
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 700;
   cursor: pointer;
 }
 
 :is(.sales-analysis__sap-btn, .prr-button, .rs-btn, .sap-report-btn):hover:not(:disabled) {
-  background: linear-gradient(180deg, #ffffff 0%, #dfe8f1 100%);
+  background: var(--sap-button-bg-hover);
 }
 
 :is(.rs-btn--primary, .sap-report-btn--primary) {
   border-color: var(--sap-primary-dark);
-  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary-dark) 100%);
+  background: var(--sap-button-primary-bg);
   color: #ffffff;
 }
 
@@ -1950,7 +2031,7 @@
   background: var(--sap-surface);
   color: var(--sap-text);
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 :is(
@@ -2066,16 +2147,16 @@
   .rs-btn,
   .sar-cfl-btn
 ) {
-  min-height: 24px !important;
+  min-height: var(--sap-button-height) !important;
   height: auto !important;
-  padding: 3px 12px !important;
-  border: 1px solid var(--sap-border-strong) !important;
+  padding: 3px 14px !important;
+  border: 1px solid var(--sap-button-border) !important;
   border-radius: var(--sap-radius-sm) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%) !important;
-  color: var(--sap-text) !important;
+  background: var(--sap-button-bg) !important;
+  color: var(--sap-button-text) !important;
   font-family: var(--sap-font-family) !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
+  font-size: var(--sap-control-font-size) !important;
+  font-weight: var(--sap-button-font-weight) !important;
   line-height: 1.2 !important;
   box-shadow: none !important;
   cursor: pointer;
@@ -2110,8 +2191,8 @@
   .rs-btn,
   .sar-cfl-btn
 ):hover:not(:disabled) {
-  background: linear-gradient(180deg, #ffffff 0%, #dfe8f1 100%) !important;
-  color: var(--sap-text) !important;
+  background: var(--sap-button-bg-hover) !important;
+  color: var(--sap-button-text) !important;
 }
 
 .app-shell :is(
@@ -2133,7 +2214,7 @@
   .rs-btn--primary
 ) {
   border-color: var(--sap-primary-dark) !important;
-  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary-dark) 100%) !important;
+  background: var(--sap-button-primary-bg) !important;
   color: #ffffff !important;
 }
 
@@ -2155,7 +2236,7 @@
   .sap-report-btn--primary,
   .rs-btn--primary
 ):hover:not(:disabled) {
-  background: linear-gradient(180deg, #087ec8 0%, #00619e 100%) !important;
+  background: var(--sap-button-primary-bg-hover) !important;
   color: #ffffff !important;
 }
 
@@ -2167,9 +2248,9 @@
   .so-btn-secondary,
   .sales-analysis__sap-btn--secondary
 ) {
-  border-color: var(--sap-border-strong) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%) !important;
-  color: var(--sap-text) !important;
+  border-color: var(--sap-button-border) !important;
+  background: var(--sap-button-bg) !important;
+  color: var(--sap-button-text) !important;
 }
 
 .app-shell :is(
@@ -2184,8 +2265,8 @@
   .bom-row-btn--del,
   .rfp-row-btn--del
 ) {
-  border-color: #d9aaa5 !important;
-  background: linear-gradient(180deg, #ffffff 0%, #fff0ee 100%) !important;
+  border-color: #f2b8b8 !important;
+  background: var(--sap-surface) !important;
   color: var(--sap-danger) !important;
 }
 
@@ -2247,7 +2328,7 @@
 }
 
 .app-shell .po-page.sap-document-page .po-layout.is-sidebar-open {
-  grid-template-columns: minmax(0, 1fr) minmax(250px, 320px) !important;
+  grid-template-columns: minmax(0, 1fr) var(--sap-side-panel-width) !important;
 }
 
 .app-shell .po-page.sap-document-page .po-header-card {
@@ -2290,7 +2371,7 @@
 
 .app-shell .po-page.sap-document-page .po-field__label {
   flex: 0 0 110px !important;
-  font-size: 12px !important;
+  font-size: var(--sap-control-font-size) !important;
   line-height: 1.2 !important;
   text-align: right !important;
   white-space: nowrap !important;
@@ -2299,9 +2380,9 @@
 }
 
 .app-shell .po-page.sap-document-page :is(.po-field__input, .po-field__select) {
-  height: 22px !important;
-  min-height: 22px !important;
-  font-size: 12px !important;
+  height: var(--sap-control-height) !important;
+  min-height: var(--sap-control-height) !important;
+  font-size: var(--sap-control-font-size) !important;
 }
 
 .app-shell .po-page.sap-document-page .po-field__input {
@@ -2323,12 +2404,12 @@
 }
 
 .app-shell .po-page.sap-document-page :is(.po-field__input:read-only, .po-field__input:disabled, .po-field__select:disabled) {
-  background: #edf1f5 !important;
+  background: var(--sap-field-readonly-bg) !important;
   color: var(--sap-text-muted) !important;
 }
 
 .app-shell .po-page.sap-document-page .po-field > div button {
-  height: 22px !important;
+  height: var(--sap-control-height) !important;
   min-width: 28px !important;
 }
 
@@ -2389,7 +2470,7 @@
   border-bottom: 1px solid var(--sap-border) !important;
   background: var(--sap-toolbar-bg) !important;
   color: var(--sap-heading) !important;
-  font-size: 14px !important;
+  font-size: var(--sap-title-font-size) !important;
   font-weight: 700 !important;
 }
 
@@ -2397,14 +2478,14 @@
   width: 28px !important;
   min-width: 28px !important;
   height: 24px !important;
-  min-height: 24px !important;
+  min-height: var(--sap-button-height) !important;
   padding: 0 !important;
   border: 1px solid var(--sap-border-strong) !important;
   border-radius: var(--sap-radius-sm) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%) !important;
+  background: var(--sap-button-bg) !important;
   color: var(--sap-text-muted) !important;
   font-family: var(--sap-font-family) !important;
-  font-size: 13px !important;
+  font-size: var(--sap-page-font-size) !important;
   font-weight: 700 !important;
   line-height: 1 !important;
 }
@@ -2469,33 +2550,33 @@
 
 .sap-setup-footer button {
   min-width: 86px !important;
-  min-height: 24px !important;
+  min-height: var(--sap-button-height) !important;
   height: auto !important;
   margin-right: 8px !important;
   padding: 3px 12px !important;
   border: 1px solid var(--sap-border-strong) !important;
   border-radius: var(--sap-radius-sm) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%) !important;
+  background: var(--sap-button-bg) !important;
   color: var(--sap-text) !important;
   font-family: var(--sap-font-family) !important;
-  font-size: 12px !important;
+  font-size: var(--sap-control-font-size) !important;
   font-weight: 700 !important;
   line-height: 1.2 !important;
   box-shadow: none !important;
 }
 
 .sap-setup-footer button:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ffffff 0%, #dfe8f1 100%) !important;
+  background: var(--sap-button-bg-hover) !important;
 }
 
 .sap-setup-footer .sap-setup-primary {
   border-color: var(--sap-primary-dark) !important;
-  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary-dark) 100%) !important;
+  background: var(--sap-button-primary-bg) !important;
   color: #ffffff !important;
 }
 
 .sap-setup-footer .sap-setup-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #087ec8 0%, #00619e 100%) !important;
+  background: var(--sap-button-primary-bg-hover) !important;
   color: #ffffff !important;
 }
 
@@ -2603,7 +2684,7 @@
 
 .sap-document-page .sap-banking-layout__sidebar .po-udf-sidebar-header h6,
 .sap-document-page .sap-banking-layout__sidebar .po-udf-sidebar-body h6 {
-  font-size: 13px;
+  font-size: var(--sap-page-font-size);
 }
 
 .sap-document-page .sap-banking-layout__sidebar .po-udf-sidebar-body .mb-4 {
@@ -2616,7 +2697,7 @@
 }
 
 .sap-document-page .sap-banking-layout__sidebar .po-udf-sidebar-body .small {
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
 }
 
 .sap-document-page .sap-banking-layout__sidebar .po-udf-sidebar-body .d-flex.gap-2 {
@@ -2692,7 +2773,7 @@
 .sap-pdf-preview__button,
 .service-je-actions button {
   min-width: 74px !important;
-  min-height: 24px !important;
+  min-height: var(--sap-button-height) !important;
   height: auto !important;
   padding: 3px 12px !important;
   border: 1px solid var(--sap-border-strong) !important;
@@ -2792,9 +2873,12 @@
   gap: 8px !important;
 }
 
+/* Overlays are portaled into .app-shell__content, which is the scroll
+   container: absolute positioning there only covers the first screen and
+   drifts once the page is scrolled, so pin them to the viewport. */
 .sap-modal-shell__overlay,
 .sap-lookup-modal__overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 21000;
   display: flex;
@@ -2806,18 +2890,6 @@
 
 .sap-modal-shell__overlay--nested {
   z-index: 21100;
-}
-
-.app-shell__content > .sap-modal-shell__overlay,
-.page-window-frame .sap-modal-shell__overlay,
-.app-shell__content > .sap-lookup-modal__overlay,
-.page-window-frame .sap-lookup-modal__overlay {
-  position: absolute;
-}
-
-body > .sap-modal-shell__overlay,
-body > .sap-lookup-modal__overlay {
-  position: fixed;
 }
 
 .sap-modal-shell,
@@ -2833,7 +2905,7 @@ body > .sap-lookup-modal__overlay {
   background: var(--sap-surface);
   color: var(--sap-text);
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 400;
   line-height: 1.25;
   box-shadow: var(--sap-shadow-modal);
@@ -2841,7 +2913,7 @@ body > .sap-lookup-modal__overlay {
 
 .sap-modal-shell__body :is(label, input, select, textarea) {
   font-family: var(--sap-font-family) !important;
-  font-size: 12px !important;
+  font-size: var(--sap-control-font-size) !important;
   line-height: 1.25 !important;
 }
 
@@ -2849,11 +2921,6 @@ body > .sap-lookup-modal__overlay {
 .sap-modal-shell--standard { width: min(640px, calc(100% - 40px)); }
 .sap-modal-shell--wide { width: min(980px, calc(100% - 40px)); }
 .sap-modal-shell--workspace { width: min(1200px, calc(100% - 32px)); max-height: calc(100% - 32px); }
-
-body > .sap-modal-shell__overlay .sap-modal-shell,
-body > .sap-lookup-modal__overlay .sap-lookup-modal {
-  max-height: calc(100vh - 48px);
-}
 
 .sap-modal-shell__header,
 .sap-modal-shell__footer,
@@ -2873,7 +2940,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   padding: 7px 10px 7px 12px;
   border-bottom: 1px solid var(--sap-border);
   color: var(--sap-heading);
-  font-size: 14px;
+  font-size: var(--sap-title-font-size);
   font-weight: 700;
 }
 
@@ -2882,13 +2949,13 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   width: 28px;
   min-width: 28px;
   height: 24px;
-  min-height: 24px;
+  min-height: var(--sap-button-height);
   padding: 0;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-sm);
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%);
+  background: var(--sap-button-bg);
   color: var(--sap-text-muted);
-  font-size: 13px;
+  font-size: var(--sap-page-font-size);
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -2914,7 +2981,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
 
 .sap-modal-shell__button {
   min-width: 74px;
-  min-height: 24px;
+  min-height: var(--sap-button-height);
   padding: 3px 12px;
   border: 1px solid var(--sap-border-strong) !important;
   border-radius: var(--sap-radius-sm) !important;
@@ -2966,7 +3033,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   min-width: 32px;
   margin: 0;
   color: var(--sap-text);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 700;
 }
 
@@ -2978,7 +3045,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   border-radius: var(--sap-radius-xs);
   background: var(--sap-surface);
   color: var(--sap-text);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   padding: 2px 7px;
 }
 
@@ -3000,7 +3067,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   border-collapse: collapse;
   color: var(--sap-text);
   font-family: var(--sap-font-family);
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
 }
 
 .sap-lookup-modal__table th {
@@ -3045,7 +3112,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
 .sap-lookup-modal__empty {
   padding: 28px 12px;
   color: var(--sap-text-muted);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   text-align: center;
 }
 
@@ -3058,7 +3125,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
 .sap-lookup-modal__footer span {
   margin-right: auto;
   color: var(--sap-text-muted);
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
   font-weight: 700;
 }
 
@@ -3068,19 +3135,19 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   gap: 6px;
   margin-right: 8px;
   color: var(--sap-text-muted);
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
   font-weight: 700;
 }
 
 .sap-lookup-modal__btn {
   min-width: 74px;
-  min-height: 24px;
+  min-height: var(--sap-button-height);
   padding: 3px 12px;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-sm);
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%);
+  background: var(--sap-button-bg);
   color: var(--sap-text);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   font-weight: 700;
   line-height: 1.2;
   cursor: pointer;
@@ -3088,7 +3155,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
 
 .sap-lookup-modal__btn--primary {
   border-color: var(--sap-primary-dark);
-  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary-dark) 100%);
+  background: var(--sap-button-primary-bg);
   color: #ffffff;
 }
 
@@ -3178,7 +3245,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   border-bottom: 1px solid var(--sap-border) !important;
   background: var(--sap-toolbar-bg) !important;
   color: var(--sap-heading) !important;
-  font-size: 14px !important;
+  font-size: var(--sap-title-font-size) !important;
   font-weight: 700 !important;
 }
 
@@ -3220,7 +3287,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   width: 28px !important;
   min-width: 28px !important;
   height: 24px !important;
-  min-height: 24px !important;
+  min-height: var(--sap-button-height) !important;
   padding: 0 !important;
   border: 1px solid var(--sap-border-strong) !important;
   border-radius: var(--sap-radius-sm) !important;
@@ -3234,7 +3301,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   width: 28px !important;
   min-width: 28px !important;
   height: 24px !important;
-  min-height: 24px !important;
+  min-height: var(--sap-button-height) !important;
   padding: 0 !important;
   border: 1px solid var(--sap-border-strong) !important;
   border-radius: var(--sap-radius-sm) !important;
@@ -3298,7 +3365,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   background-color: var(--sap-surface);
   color: var(--sap-text);
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 :is(
@@ -3393,7 +3460,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
 }
 
 .ip-payment-means-layer {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 100200;
   display: flex;
@@ -3406,13 +3473,14 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
 .ip-payment-means {
   width: 632px;
   max-width: calc(100% - 40px);
-  overflow: hidden;
+  max-height: calc(100vh - 48px);
+  overflow: auto;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-md);
   background: var(--sap-surface);
   color: var(--sap-text);
   font-family: var(--sap-font-family);
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   box-shadow: var(--sap-shadow-modal);
 }
 
@@ -3425,7 +3493,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   border-bottom: 1px solid var(--sap-border);
   background: var(--sap-toolbar-bg);
   color: var(--sap-heading);
-  font-size: 14px;
+  font-size: var(--sap-title-font-size);
   font-weight: 700;
 }
 
@@ -3440,21 +3508,21 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   grid-template-columns: 118px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
-  min-height: 24px;
+  min-height: var(--sap-button-height);
 }
 
 .ip-payment-means__currency input,
 .ip-payment-means__panel input,
 .ip-payment-means__panel select,
 .ip-payment-means__footer-fields input {
-  height: 22px;
+  height: var(--sap-control-height);
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-xs);
   background: var(--sap-surface);
   color: var(--sap-text);
   padding: 0 5px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 .ip-payment-means__currency input:focus,
@@ -3523,7 +3591,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   background: #fff1f1;
   color: var(--sap-danger);
   padding: 6px 8px;
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
 }
 
 .ip-payment-means__actions {
@@ -3539,10 +3607,10 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   padding: 3px 18px;
   border: 1px solid var(--sap-border-strong);
   border-radius: var(--sap-radius-sm);
-  background: linear-gradient(180deg, #ffffff 0%, #e8edf2 100%);
+  background: var(--sap-button-bg);
   color: var(--sap-text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--sap-control-font-size);
   line-height: 16px;
   white-space: nowrap;
   cursor: pointer;
@@ -3550,7 +3618,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
 
 .ip-payment-means .po-btn--primary {
   border-color: var(--sap-primary-dark);
-  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary-dark) 100%);
+  background: var(--sap-button-primary-bg);
   color: #ffffff;
 }
 
@@ -3565,9 +3633,25 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   .ip-payments-page,
   .op-payments-page
 ) :is(.po-field, .so-field, .del-field, .im-field) {
-  min-height: 26px;
+  min-height: var(--sap-button-height);
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 0;
+}
+
+/* SAP B1 header rows sit ~24px apart; the old 8px grid gap + 6px field
+   margin made every header 40px/row and pushed the lines grid off-screen. */
+.app-shell :is(
+  .sap-document-page,
+  .po-page,
+  .so-page,
+  .del-page,
+  .im-page,
+  .bom-page,
+  .uom-page,
+  .ip-payments-page,
+  .op-payments-page
+) :is(.po-field-grid, .so-field-grid, .del-field-grid, .im-field-grid) {
+  row-gap: 3px;
 }
 
 .app-shell :is(
@@ -3598,8 +3682,8 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   .ip-payments-page,
   .op-payments-page
 ) :is(.po-field__input, .po-field__select, .so-field__input, .so-field__select, .del-field__input, .del-field__select, .im-field__input, .im-field__select) {
-  height: 22px;
-  min-height: 22px;
+  height: var(--sap-control-height);
+  min-height: var(--sap-control-height);
 }
 
 @media (max-width: 900px) {
@@ -3647,7 +3731,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   width: 100% !important;
   justify-self: stretch !important;
   color: var(--sap-text) !important;
-  font-size: 12px !important;
+  font-size: var(--sap-control-font-size) !important;
   font-weight: 400 !important;
   line-height: 1.25 !important;
   text-align: right !important;
@@ -3661,7 +3745,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   color: var(--sap-text) !important;
   box-shadow: var(--sap-shadow-modal) !important;
   font-family: var(--sap-font-family) !important;
-  font-size: 12px !important;
+  font-size: var(--sap-control-font-size) !important;
 }
 
 .so-reference-modal__titlebar,
@@ -3673,7 +3757,7 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
   border-bottom: 1px solid var(--sap-border) !important;
   background: var(--sap-toolbar-bg) !important;
   color: var(--sap-heading) !important;
-  font-size: 14px !important;
+  font-size: var(--sap-title-font-size) !important;
   font-weight: 700 !important;
 }
 
@@ -3803,5 +3887,1848 @@ body > .sap-lookup-modal__overlay .sap-lookup-modal {
 
   .sap-address-modal .sap-address-modal__field > span {
     text-align: left !important;
+  }
+}
+
+/* Document Lines matrix: SAP B1 keeps the matrix a fixed-height window with
+   its own scrollbars. Without a cap the table grows with the page, so the
+   horizontal scrollbar sits below the fold and every line needs a page
+   scroll. Page-specific caps (Services A/P, Purchase Request) still win. */
+.app-shell :is(.so-grid-wrap__scroller--contents, .del-grid-wrap__scroller--contents) {
+  max-height: clamp(220px, calc(100vh - 360px), 520px);
+  overflow: auto;
+}
+
+.app-shell :is(.so-grid-wrap__scroller--contents, .del-grid-wrap__scroller--contents) thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+/* Header UDF sidebar on laptop screens. Page breakpoints are viewport based
+   but the app navigation already takes ~290px, so at 1366px the document body
+   was left ~650px and header inputs collapsed ("BP Curren", tiny Buyer Code).
+   Narrow the UDF column and the label column instead of stacking the header,
+   which would double its height. Below 993px (1200px for PO) pages stack. */
+@media (min-width: 993px) and (max-width: 1600px) {
+  .app-shell :is(.sap-document-layout, .so-layout, .del-layout).is-sidebar-open {
+    grid-template-columns: minmax(0, 1fr) clamp(220px, 17vw, 260px);
+    gap: 10px;
+  }
+
+  .app-shell .is-sidebar-open :is(.so-field, .del-field, .po-field) {
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .app-shell .is-sidebar-open :is(.so-field__label, .del-field__label, .po-field__label) {
+    flex-basis: 104px;
+    max-width: 104px;
+  }
+
+  .app-shell .is-sidebar-open .so-header-columns {
+    column-gap: 12px;
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1600px) {
+  .app-shell .po-layout.is-sidebar-open {
+    grid-template-columns: minmax(0, 1fr) clamp(220px, 17vw, 260px);
+    gap: 10px;
+  }
+}
+
+/* Older setup families (Tax Code, Payment Terms, Shipping Type, Branch, Chart
+   of Accounts, QC, WhatsApp) predate the im-* family and each shipped a
+   private copy of its look. Pull them onto the same tokens so every setup
+   window matches Warehouse / Item Master. `.app-shell` scoping is required:
+   module CSS loads lazily after this file and would win a specificity tie. */
+.app-shell :is(.tc-page, .pt-page, .st-page, .br-page, .coa-page, .qc-page, .wac-page) {
+  font-family: var(--sap-font-family);
+  font-size: var(--sap-page-font-size);
+  color: var(--sap-text);
+  background: var(--sap-page-bg);
+}
+
+.app-shell :is(.tc-toolbar, .pt-toolbar, .st-toolbar, .br-toolbar, .coa-toolbar, .qc-toolbar, .wac-toolbar) {
+  min-height: 38px;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 0;
+  background: var(--sap-toolbar-bg);
+  border-bottom: 1px solid var(--sap-border);
+}
+
+.app-shell :is(.tc-toolbar__title, .pt-toolbar__title, .st-toolbar__title, .br-toolbar__title, .coa-toolbar__title, .qc-toolbar__title, .wac-toolbar__title) {
+  color: var(--sap-heading);
+  font-size: var(--sap-title-font-size);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.app-shell :is(.tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .qc-btn) {
+  height: auto;
+  min-height: var(--sap-button-height);
+  padding: 3px 14px;
+  border: 1px solid var(--sap-border-strong);
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-button-bg);
+  color: var(--sap-text);
+  font-family: var(--sap-font-family);
+  font-size: var(--sap-control-font-size);
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.app-shell :is(.tc-btn--small, .pt-btn--small, .st-btn--small, .br-btn--small) {
+  min-height: 20px;
+  padding: 1px 8px;
+}
+
+.app-shell :is(.tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .qc-btn):hover:not(:disabled) {
+  background: var(--sap-button-bg-hover);
+}
+
+.app-shell :is(.tc-btn--primary, .pt-btn--primary, .st-btn--primary, .br-btn--primary, .coa-btn--primary, .qc-btn--primary) {
+  border-color: var(--sap-primary-dark);
+  background: var(--sap-button-primary-bg);
+  color: #ffffff;
+}
+
+.app-shell :is(.tc-btn--primary, .pt-btn--primary, .st-btn--primary, .br-btn--primary, .coa-btn--primary, .qc-btn--primary):hover:not(:disabled) {
+  background: var(--sap-button-primary-bg-hover);
+}
+
+.app-shell :is(.tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .qc-btn):disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.app-shell :is(
+  .tc-field__input, .tc-field__select,
+  .pt-field__input, .pt-field__select, .pt-grid__input,
+  .st-grid__input, .br-grid__input,
+  .coa-input, .coa-select,
+  .qc-input, .qc-select
+) {
+  height: var(--sap-control-height);
+  min-height: var(--sap-control-height);
+  padding: 0 5px;
+  border: 1px solid var(--sap-border-strong);
+  border-radius: var(--sap-radius-xs);
+  background: var(--sap-surface);
+  color: var(--sap-text);
+  font-family: var(--sap-font-family);
+  font-size: var(--sap-control-font-size);
+  box-sizing: border-box;
+}
+
+.app-shell :is(
+  .tc-field__input, .tc-field__select,
+  .pt-field__input, .pt-field__select, .pt-grid__input,
+  .st-grid__input, .br-grid__input,
+  .coa-input, .coa-select,
+  .qc-input, .qc-select
+):focus {
+  outline: none;
+  border-color: var(--sap-primary);
+  box-shadow: 0 0 0 2px var(--sap-primary-soft);
+}
+
+.app-shell :is(.tc-field__input--readonly, .coa-input--readonly, .st-grid__readonly, .br-grid__readonly),
+.app-shell :is(.tc-field__input, .pt-field__input, .coa-input, .qc-input):read-only {
+  background: var(--sap-field-readonly-bg);
+  color: var(--sap-text-muted);
+}
+
+.app-shell :is(.tc-field__label, .pt-field__label, .qc-workspace__field-label) {
+  color: var(--sap-text);
+  font-size: var(--sap-control-font-size);
+}
+
+.app-shell :is(.tc-tabs, .qc-workspace__mode-tabs) {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid var(--sap-primary);
+}
+
+.app-shell :is(.tc-tab, .qc-workspace__mode-btn) {
+  padding: 5px 14px;
+  border: 1px solid var(--sap-border);
+  border-bottom: 0;
+  border-radius: var(--sap-radius-sm) var(--sap-radius-sm) 0 0;
+  background: var(--sap-tab-bg);
+  color: var(--sap-text-muted);
+  font-family: var(--sap-font-family);
+  font-size: var(--sap-control-font-size);
+  cursor: pointer;
+}
+
+.app-shell :is(.tc-tab--active, .qc-workspace__mode-btn.is-active, .qc-workspace__mode-btn--active) {
+  border-color: var(--sap-primary);
+  background: var(--sap-surface);
+  color: var(--sap-heading);
+  font-weight: 700;
+}
+
+.app-shell :is(.tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid) {
+  border-collapse: collapse;
+  color: var(--sap-text);
+  font-family: var(--sap-font-family);
+  font-size: var(--sap-grid-font-size);
+}
+
+.app-shell :is(.tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid) th {
+  padding: 4px 6px;
+  border: 1px solid var(--sap-border);
+  background: var(--sap-toolbar-bg);
+  color: var(--sap-heading);
+  font-weight: 700;
+  text-align: left;
+}
+
+.app-shell :is(.tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid) td {
+  padding: 3px 4px;
+  border: 1px solid var(--sap-border-soft);
+  background: transparent;
+}
+
+.app-shell :is(.tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid) tbody tr:nth-child(even) {
+  background: var(--sap-row-even);
+}
+
+.app-shell :is(.tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid) tbody tr:hover {
+  background: var(--sap-row-hover);
+}
+
+.app-shell :is(.tc-alert, .pt-alert, .st-alert, .br-alert, .coa-alert, .qc-alert, .wac-alert) {
+  padding: 7px 12px;
+  border: 1px solid;
+  border-radius: var(--sap-radius-sm);
+  font-size: var(--sap-control-font-size);
+}
+
+.app-shell :is(.tc-alert--success, .pt-alert--success, .st-alert--success, .br-alert--success, .coa-alert--success, .qc-alert--success, .wac-alert--success) {
+  background: #e6f4ea;
+  border-color: #8bc49a;
+  color: var(--sap-success);
+}
+
+.app-shell :is(.tc-alert--error, .pt-alert--error, .st-alert--error, .br-alert--error, .coa-alert--error, .qc-alert--error, .wac-alert--error) {
+  background: #fde8e8;
+  border-color: #f5a0a0;
+  color: var(--sap-danger);
+}
+
+
+/* One backdrop for every page-level modal. There were 22 different dims
+   (0.08 to 0.42, black and slate), so popups looked unrelated page to page.
+   `body` lifts specificity over the lazily loaded module CSS; overlays that
+   sit inside another dialog (E-Way Bill lookup, nested shell) keep their own. */
+body :is(
+  .ap-wtax-overlay, .ap-tax-info-overlay, .sap-setup-overlay, .del-modal-overlay,
+  .ifp-po-modal-overlay, .batch-serial-modal-overlay, .im-modal-overlay, .pt-modal-overlay,
+  .po-modal-overlay, .qc-popup-backdrop, .rfp-po-modal-overlay, .rfp-alloc-modal-overlay,
+  .so-modal-overlay, .service-je-backdrop, .tc-modal-overlay, .uom-modal-overlay,
+  .activity-lookup-modal__backdrop, .campaign-lookup__backdrop, .fac-modal-backdrop, .gr-document__overlay,
+  .ipl-expanded-modal__backdrop, .opp-lookup-modal__backdrop, .query-manager-modal-overlay, .rs-modal__backdrop,
+  .sales-analysis-detail-modal__backdrop, .bp-lookup-modal__backdrop, .item-lookup-modal__backdrop, .sales-employee-lookup-modal__backdrop,
+  .sap-properties-modal__backdrop, .sap-pdf-preview__backdrop, .sap-print-params__backdrop, .sap-layout-chooser__backdrop,
+  .sap-copy-from-overlay, .sap-lookup-modal__overlay, .sap-modal-shell__overlay,
+  .ip-payment-means-layer, .ia-account-modal__backdrop
+) {
+  background: var(--sap-overlay-bg);
+}
+
+/* Popups are portaled into the scrolling `.app-shell__content`. An `absolute`
+   overlay there covers only the top of the scroll area, so on a scrolled page
+   the dim stops halfway and the dialog opens above the visible screen. Pin every
+   page-level overlay to the viewport. */
+body :is(
+  .ap-wtax-overlay, .ap-tax-info-overlay, .sap-setup-overlay, .del-modal-overlay,
+  .ifp-po-modal-overlay, .batch-serial-modal-overlay, .im-modal-overlay, .pt-modal-overlay,
+  .po-modal-overlay, .qc-popup-backdrop, .rfp-po-modal-overlay, .rfp-alloc-modal-overlay,
+  .so-modal-overlay, .service-je-backdrop, .tc-modal-overlay, .uom-modal-overlay,
+  .activity-lookup-modal__backdrop, .campaign-lookup__backdrop, .fac-modal-backdrop, .gr-document__overlay,
+  .ipl-expanded-modal__backdrop, .opp-lookup-modal__backdrop, .query-manager-modal-overlay, .rs-modal__backdrop,
+  .sales-analysis-detail-modal__backdrop, .bp-lookup-modal__backdrop, .item-lookup-modal__backdrop, .sales-employee-lookup-modal__backdrop,
+  .sap-properties-modal__backdrop, .sap-pdf-preview__backdrop, .sap-print-params__backdrop, .sap-layout-chooser__backdrop,
+  .sap-copy-from-overlay, .sap-lookup-modal__overlay, .sap-modal-shell__overlay,
+  .ip-payment-means-layer, .ia-account-modal__backdrop, .pipeline-dialog-layer, .stage-analysis-lookup-layer
+) {
+  position: fixed;
+  inset: 0;
+}
+
+body .sap-modal-shell__overlay.sap-modal-shell__overlay--nested {
+  background: transparent;
+}
+
+/* SAP B1 header: a left block (BP data) and a right block (numbering/dates)
+   pushed to the right edge. With `1fr` columns the inputs stretched across
+   the whole window when the UDF sidebar was closed; cap each column so the
+   header looks the same with or without the sidebar. Below 993px the page
+   stylesheets stack the header into one column. */
+@media (min-width: 993px) {
+  .app-shell :is(
+    .so-header-columns,
+    .del-header-card > .row,
+    .po-header-card > .row,
+    .po-header-card > .row.g-2,
+    .po-document-header-grid,
+    .gr-goods-receipt__header-grid,
+    .itr-transfer-request__header-grid,
+    .pr-header-grid,
+    .jw-header-grid,
+    .service-ap-header-grid,
+    .service-ar-header-grid
+  ) {
+    grid-template-columns: repeat(2, minmax(280px, 440px));
+    justify-content: space-between;
+  }
+
+  /* Single-column footers (Remarks / Journal Remark on inventory documents)
+     sit at SAP's left column width instead of spanning the window. */
+  .app-shell .sap-document-footer-fields {
+    max-width: 440px;
+  }
+}
+
+/* Same cap for the tab panels (Logistics, Accounting, Tax ...), so text
+   areas and selects do not run the full window width. */
+@media (min-width: 993px) {
+  .app-shell .sap-tab-grid {
+    grid-template-columns: repeat(2, minmax(280px, 520px));
+    justify-content: space-between;
+    row-gap: 4px;
+  }
+
+  .app-shell .so-logistics-grid {
+    grid-template-columns: minmax(300px, 520px) minmax(240px, 460px);
+    justify-content: space-between;
+  }
+}
+
+/* Compact density for every page family and the shared modal body. Module
+   stylesheets hard-code 12-13px text and 22-28px controls and load after this
+   file, so the sizes are re-applied here with `.app-shell` scope (higher
+   specificity). Change the --sap-*-font-size / height tokens to retune. */
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page
+) {
+  font-size: var(--sap-page-font-size);
+}
+
+:is(.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page
+), .sap-modal-shell__body) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  select
+) {
+  height: var(--sap-control-height);
+  min-height: var(--sap-control-height);
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: var(--sap-control-font-size);
+}
+
+:is(.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page
+), .sap-modal-shell__body) :is(textarea, label, button, [class*="__label"]) {
+  font-size: var(--sap-control-font-size);
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page
+) :is(
+  .po-btn, .so-btn, .del-btn, .im-btn, .uom-btn,
+  .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .qc-btn
+) {
+  height: auto;
+  min-height: var(--sap-button-height);
+  padding: 2px 12px;
+  line-height: 1.2;
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page
+) :is(.po-tab, .so-tab, .del-tab, .im-tab, .tc-tab) {
+  padding: 4px 12px;
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page
+) :is(th, td) {
+  font-size: var(--sap-grid-font-size);
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page
+) [class*="toolbar__title"] {
+  font-size: var(--sap-title-font-size);
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page
+) [class*="section-title"] {
+  font-size: var(--sap-page-font-size);
+}
+
+/* Shared tab-panel helpers (Accounting / Logistics / Tax on every document).
+   These lived only in Delivery.css, which is lazy-loaded, so on Sales Order
+   etc. the Due Date controls fell back to `width: 100%` and stacked one per
+   line. Scoped to `.app-shell` to beat the family `__input { width: 100% }`. */
+.app-shell .sap-tab-column {
+  gap: 3px;
+}
+
+.app-shell .sap-form-row {
+  margin-bottom: 0;
+}
+
+@media (min-width: 701px) {
+  .app-shell .sap-form-row:not(.sap-form-row--stacked) {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+}
+
+.app-shell .sap-tab-section--full .sap-form-row {
+  max-width: 520px;
+}
+
+.app-shell .sap-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.app-shell .sap-inline-row > * {
+  min-width: 0;
+}
+
+.app-shell .sap-inline-row > span {
+  white-space: nowrap;
+}
+
+.app-shell .sap-inline-control {
+  flex: 1 1 120px;
+  width: auto;
+}
+
+.app-shell .sap-inline-control--short {
+  flex: 0 0 64px;
+}
+
+.app-shell .sap-inline-control--date {
+  flex: 0 0 110px;
+}
+
+.app-shell .sap-inline-control--mode {
+  flex: 0 0 120px;
+}
+
+.app-shell .sap-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 2px 0;
+}
+
+.app-shell .sap-checkbox-row input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.app-shell .sap-due-date-section {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--sap-border-soft);
+}
+
+/* Tax tab: the layouts reserved a fixed 330-372px window height and pushed
+   the "Supply Covered" block to the bottom with `margin-top: auto`, leaving a
+   large empty band mid-panel. Let the panel size to its content. */
+.app-shell .so-tax-panel .so-tax-b1-layout,
+.app-shell .sap-b1-tax-layout,
+.app-shell .sap-b1-tax-left {
+  min-height: 0;
+}
+
+.app-shell .so-tax-panel .so-tax-b1-bottom {
+  margin-top: 10px;
+}
+
+/* Align Export with the first field row (below the section heading). */
+.app-shell .so-tax-panel .so-tax-b1-export-check {
+  justify-self: start;
+  margin-top: 30px;
+}
+
+/* Page-level overlays at z-index 1000-2500 sat under the top bar (1405) and
+   the app navigation, so those stayed undimmed and the dialog looked
+   off-centre. Lift each by 18000: above the shell, still below the shared
+   lookups (21000) that these dialogs open, keeping their relative order. */
+body :is(.so-modal-overlay, .del-modal-overlay, .po-modal-overlay, .im-modal-overlay,
+  .pt-modal-overlay, .tc-modal-overlay, .uom-modal-overlay, .ifp-po-modal-overlay,
+  .rfp-po-modal-overlay, .query-manager-modal-overlay) { z-index: 19000; }
+body .rfp-alloc-modal-overlay { z-index: 19100; }
+body .gr-reference-modal__picker-overlay { z-index: 19200; }
+body :is(.so-reference-modal-overlay, .sales-analysis-detail-modal__backdrop) { z-index: 19300; }
+body .opp-lookup-modal__backdrop { z-index: 19450; }
+body .rs-modal__backdrop { z-index: 19600; }
+body .ia-account-modal__backdrop { z-index: 19800; }
+body :is(.batch-serial-modal-overlay, .qc-popup-backdrop) { z-index: 20000; }
+body .sap-layout-chooser__backdrop { z-index: 20140; }
+body .ipl-expanded-modal__backdrop { z-index: 20500; }
+
+/* Two-column field grids (document footers: Sales Employee / Owner / Remarks
+   next to Tax Summary, plus Delivery and PO header blocks) get the same
+   440px column cap as the header so nothing runs the full window width. */
+@media (min-width: 993px) {
+  .app-shell .sap-document-page :is(.so-field-grid, .del-field-grid):not(.so-field-grid--single, .del-field-grid--single, [class*="service-a"]) {
+    grid-template-columns: repeat(2, minmax(240px, 440px));
+    justify-content: space-between;
+  }
+
+  /* PO family grids are auto-fit (1-4 columns): keep that, only cap width. */
+  .app-shell .sap-document-page .po-field-grid {
+    grid-template-columns: repeat(auto-fit, minmax(230px, 440px));
+  }
+}
+
+/* Empty date fields: show the dd/mm/yyyy hint only while typing in the field,
+   so a header full of empty dates does not look like placeholder noise. The
+   placeholder attribute stays for screen readers. */
+.sap-date-input__text:not(:focus)::placeholder {
+  color: transparent;
+}
+
+/* Services A/R + A/P (invoice, credit memo): their header grid ends on
+   `minmax(0, 1fr) minmax(0, 0.92fr) !important`, so with the UDF sidebar
+   closed both blocks ran the full window width. Same 440px cap and
+   right-aligned block as every other document; !important is needed to beat
+   the page's own !important rule. Below 993px the pages stack as before. */
+@media (min-width: 993px) {
+  .app-shell .sap-document-page :is(.service-ap-header-grid, .service-ar-header-grid) {
+    grid-template-columns: repeat(2, minmax(260px, 440px)) !important;
+    justify-content: space-between;
+  }
+
+  .app-shell .sap-document-page :is(.service-ap-footer-grid, .service-ar-footer-grid) {
+    grid-template-columns: minmax(260px, 440px) minmax(260px, 340px);
+    justify-content: space-between;
+  }
+}
+
+/* Shared document tab layout (components/document/DocumentTabLayout.jsx).
+   Every Logistics / Accounting / Tax tab on Sales, Purchase and Service
+   documents renders through these classes, so they look identical. */
+.app-shell .sap-doc-tab {
+  padding: 10px 14px 12px;
+  background: var(--sap-surface);
+  font-size: var(--sap-control-font-size);
+}
+
+.app-shell .sap-doc-tab__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 480px));
+  justify-content: space-between;
+  column-gap: 32px;
+  align-items: start;
+}
+
+.app-shell .sap-doc-tab__column {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  min-width: 0;
+}
+
+.app-shell .sap-doc-tab__section {
+  display: grid;
+  gap: 3px;
+  max-width: 480px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--sap-border-soft);
+}
+
+.app-shell .sap-doc-tab__section-title {
+  margin-bottom: 2px;
+  color: var(--sap-heading);
+  font-size: var(--sap-page-font-size);
+  font-weight: 700;
+}
+
+.app-shell .sap-doc-field {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-height: var(--sap-button-height);
+  margin: 0;
+}
+
+.app-shell .sap-doc-field__label {
+  color: var(--sap-text);
+  font-size: var(--sap-control-font-size);
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.app-shell .sap-doc-field__control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.app-shell .sap-doc-field__control > :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, .sap-date-input),
+.app-shell .sap-doc-field__lookup > :is(input, select, textarea, .sap-date-input) {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--sap-border-strong);
+  border-radius: var(--sap-radius-xs);
+  background: var(--sap-surface);
+  color: var(--sap-text);
+  font-family: var(--sap-font-family);
+  font-size: var(--sap-control-font-size);
+}
+
+.app-shell .sap-doc-field__control :is(input, select):is(:disabled, [readonly]) {
+  background: var(--sap-field-readonly-bg);
+  color: var(--sap-text-muted);
+}
+
+.app-shell .sap-doc-field__control textarea {
+  min-height: 52px;
+  padding: 3px 5px;
+  resize: vertical;
+}
+
+.app-shell .sap-doc-field__control :is(input, select, textarea):focus {
+  outline: none;
+  border-color: var(--sap-primary);
+  box-shadow: 0 0 0 2px var(--sap-primary-soft);
+}
+
+.app-shell .sap-doc-field__lookup {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-shell .sap-doc-field__lookup-btn {
+  flex: 0 0 26px;
+  height: var(--sap-control-height);
+  min-height: var(--sap-control-height);
+  padding: 0;
+  border: 1px solid var(--sap-border-strong);
+  border-radius: var(--sap-radius-xs);
+  background: var(--sap-button-bg);
+  color: var(--sap-text);
+  font-size: var(--sap-control-font-size);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.app-shell .sap-doc-field__lookup-btn:hover:not(:disabled) {
+  background: var(--sap-button-bg-hover);
+}
+
+.app-shell .sap-doc-field__lookup-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.app-shell .sap-doc-field__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 0;
+  color: var(--sap-text);
+  font-size: var(--sap-control-font-size);
+  cursor: pointer;
+}
+
+.app-shell .sap-doc-field__checkbox input {
+  margin: 0;
+}
+
+.app-shell .sap-doc-field__inline-text {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.app-shell .sap-doc-field__control > .sap-doc-field__short {
+  flex: 0 0 64px;
+  width: 64px;
+}
+
+@media (max-width: 992px) {
+  .app-shell .sap-doc-tab__columns {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 3px;
+  }
+}
+
+@media (max-width: 560px) {
+  .app-shell .sap-doc-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
+
+/* The shared tab panel draws the box under the tab strip on every page.
+   Purchase pages also wrap tab content in `.po-tab-panel`; flatten that
+   wrapper so there is never a box inside a box. */
+.app-shell .sap-doc-tab {
+  border: 1px solid var(--sap-border);
+  border-top: 0;
+  border-radius: 0 0 var(--sap-radius-sm) var(--sap-radius-sm);
+}
+
+.app-shell :is(.po-tab-panel, .so-tab-panel, .del-tab-panel, .im-tab-panel):has(> .sap-doc-tab) {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Shared Attachments tab (components/document/DocumentAttachmentsTab.jsx). */
+.app-shell .sap-doc-attachments {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px;
+  gap: 10px;
+  align-items: start;
+}
+
+.app-shell .sap-doc-attachments__grid-wrap {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--sap-border-soft);
+}
+
+.app-shell .sap-doc-attachments__grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--sap-grid-font-size);
+}
+
+.app-shell .sap-doc-attachments__grid th {
+  position: sticky;
+  top: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--sap-border);
+  background: var(--sap-toolbar-bg);
+  color: var(--sap-heading);
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.app-shell .sap-doc-attachments__grid td {
+  height: 20px;
+  padding: 2px 6px;
+  border: 1px solid var(--sap-border-soft);
+  white-space: nowrap;
+}
+
+.app-shell .sap-doc-attachments__grid tbody tr:nth-child(even) {
+  background: var(--sap-row-even);
+}
+
+.app-shell .sap-doc-attachments__grid tbody tr:hover {
+  background: var(--sap-row-hover);
+  cursor: pointer;
+}
+
+.app-shell .sap-doc-attachments__grid tbody tr.is-selected {
+  background: #d7e8f7;
+}
+
+.app-shell .sap-doc-attachments__empty {
+  padding: 16px !important;
+  color: var(--sap-text-muted);
+  text-align: center;
+}
+
+.app-shell .sap-doc-attachments__actions {
+  display: grid;
+  gap: 4px;
+}
+
+.app-shell .sap-doc-attachments__btn {
+  min-height: var(--sap-button-height);
+  padding: 2px 8px;
+  border: 1px solid var(--sap-border-strong);
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-button-bg);
+  color: var(--sap-text);
+  font-family: var(--sap-font-family);
+  font-size: var(--sap-control-font-size);
+  cursor: pointer;
+}
+
+.app-shell .sap-doc-attachments__btn--primary {
+  border-color: var(--sap-primary-dark);
+  background: var(--sap-button-primary-bg);
+  color: #ffffff;
+}
+
+.app-shell .sap-doc-attachments__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+/* ======================================================================
+   Fiori Horizon skin (classic SAP B1 density). Visual language only:
+   flat buttons, Horizon colours, icon-tab-bar tabs, light tables, soft
+   cards. Scoped to `.app-shell` so it wins over every module stylesheet.
+   ====================================================================== */
+
+/* ---- Buttons ---------------------------------------------------------- */
+.app-shell :is(
+  .po-btn, .so-btn, .del-btn, .im-btn, .uom-btn,
+  .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .qc-btn,
+  .bom-row-btn, .bom-attach-btn, .ifp-row-btn, .rfp-row-btn, .rfp-alloc-btn,
+  .sap-doc-field__lookup-btn, .sap-doc-attachments__btn,
+  .sap-modal-shell__button, .sap-lookup-modal__btn
+) {
+  border: 1px solid var(--sap-button-border);
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-button-bg);
+  color: var(--sap-button-text);
+  font-family: var(--sap-font-family);
+  font-weight: 600;
+  box-shadow: none;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.app-shell :is(
+  .po-btn, .so-btn, .del-btn, .im-btn, .uom-btn,
+  .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .qc-btn,
+  .bom-row-btn, .bom-attach-btn, .ifp-row-btn, .rfp-row-btn, .rfp-alloc-btn,
+  .sap-doc-field__lookup-btn, .sap-doc-attachments__btn,
+  .sap-modal-shell__button, .sap-lookup-modal__btn
+):hover:not(:disabled) {
+  border-color: var(--sap-button-border);
+  background: var(--sap-button-bg-hover);
+  color: var(--sap-button-text);
+}
+
+.app-shell :is(
+  .po-btn, .so-btn, .del-btn, .im-btn, .uom-btn,
+  .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .qc-btn,
+  .sap-doc-field__lookup-btn, .sap-doc-attachments__btn,
+  .sap-modal-shell__button, .sap-lookup-modal__btn
+):active:not(:disabled) {
+  background: #dee2e5;
+}
+
+.app-shell :is(
+  .po-btn--primary, .so-btn--primary, .del-btn--primary, .im-btn--primary, .uom-btn--primary,
+  .tc-btn--primary, .pt-btn--primary, .st-btn--primary, .br-btn--primary, .coa-btn--primary, .qc-btn--primary,
+  .sap-doc-attachments__btn--primary, .sap-modal-shell__button--primary, .sap-lookup-modal__btn--primary
+) {
+  border-color: var(--sap-button-primary-bg);
+  background: var(--sap-button-primary-bg);
+  color: #ffffff;
+}
+
+.app-shell :is(
+  .po-btn--primary, .so-btn--primary, .del-btn--primary, .im-btn--primary, .uom-btn--primary,
+  .tc-btn--primary, .pt-btn--primary, .st-btn--primary, .br-btn--primary, .coa-btn--primary, .qc-btn--primary,
+  .sap-doc-attachments__btn--primary, .sap-modal-shell__button--primary, .sap-lookup-modal__btn--primary
+):hover:not(:disabled) {
+  border-color: var(--sap-button-primary-bg-hover);
+  background: var(--sap-button-primary-bg-hover);
+  color: #ffffff;
+}
+
+.app-shell :is(.po-btn--danger, .so-btn--danger, .del-btn--danger, .im-btn--danger, .qc-btn--danger),
+.app-shell :is(.po-btn--danger, .so-btn--danger, .del-btn--danger, .im-btn--danger, .qc-btn--danger):hover:not(:disabled) {
+  border-color: #f2b8b8;
+  color: var(--sap-danger);
+}
+
+.app-shell :is(
+  .po-btn, .so-btn, .del-btn, .im-btn, .uom-btn,
+  .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .qc-btn,
+  .sap-doc-field__lookup-btn, .sap-doc-attachments__btn,
+  .sap-modal-shell__button, .sap-lookup-modal__btn
+):disabled {
+  border-color: var(--sap-border);
+  background: var(--sap-button-bg);
+  color: var(--sap-text-muted);
+  opacity: 0.5;
+}
+
+/* Visible keyboard focus everywhere (Fiori focus outline). */
+.app-shell :is(button, [role="button"], a, [role="tab"]):focus-visible {
+  outline: 2px solid var(--sap-focus);
+  outline-offset: 1px;
+}
+
+/* ---- Fields ----------------------------------------------------------- */
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea
+) {
+  border: 1px solid var(--sap-border-strong);
+  border-radius: var(--sap-radius-xs);
+  background-color: var(--sap-surface);
+  color: var(--sap-text);
+  font-family: var(--sap-font-family);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):hover:not(:disabled):not([readonly]) {
+  border-color: var(--sap-link);
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus {
+  outline: none;
+  border-color: var(--sap-primary);
+  box-shadow: 0 0 0 2px var(--sap-primary-soft);
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):is(:disabled, [readonly]) {
+  border-color: var(--sap-border);
+  background-color: var(--sap-field-readonly-bg);
+  color: var(--sap-text-muted);
+}
+
+.app-shell :is(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--sap-primary);
+}
+
+/* ---- Tabs: Fiori icon tab bar (text tabs, blue underline) ------------- */
+.app-shell :is(.po-tabs, .so-tabs, .del-tabs, .im-tabs, .tc-tabs) {
+  gap: 0;
+  border-bottom: 1px solid var(--sap-border);
+  background: transparent;
+}
+
+.app-shell :is(.po-tab, .so-tab, .del-tab, .im-tab, .tc-tab) {
+  position: relative;
+  margin: 0;
+  padding: 6px 14px 7px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sap-text-muted);
+  font-family: var(--sap-font-family);
+  font-size: var(--sap-control-font-size);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.app-shell :is(.po-tab, .so-tab, .del-tab, .im-tab, .tc-tab):hover {
+  background: transparent;
+  color: var(--sap-link);
+}
+
+.app-shell :is(.po-tab--active, .so-tab--active, .del-tab--active, .im-tab--active, .tc-tab--active),
+.app-shell :is(.po-tab--active, .so-tab--active, .del-tab--active, .im-tab--active, .tc-tab--active):hover {
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sap-link);
+}
+
+.app-shell :is(.po-tab--active, .so-tab--active, .del-tab--active, .im-tab--active, .tc-tab--active)::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--sap-primary);
+}
+
+.app-shell :is(.po-tab-panel, .so-tab-panel, .del-tab-panel, .im-tab-panel, .sap-doc-tab) {
+  border-color: var(--sap-border-soft);
+  background: var(--sap-surface);
+}
+
+/* ---- Tables ----------------------------------------------------------- */
+.app-shell :is(
+  .po-grid, .so-grid, .del-grid, .im-grid, .bom-grid, .ifp-grid, .rfp-grid, .uom-grid, .uom-def-grid,
+  .tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid, .sap-lookup-modal__table, .sap-doc-attachments__grid
+) th {
+  border-color: var(--sap-border);
+  background: var(--sap-grid-header-bg);
+  color: var(--sap-text);
+  font-weight: 700;
+}
+
+.app-shell :is(
+  .po-grid, .so-grid, .del-grid, .im-grid, .bom-grid, .ifp-grid, .rfp-grid, .uom-grid, .uom-def-grid,
+  .tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid, .sap-lookup-modal__table, .sap-doc-attachments__grid
+) td {
+  border-color: var(--sap-border-soft);
+}
+
+.app-shell :is(
+  .po-grid, .so-grid, .del-grid, .im-grid, .bom-grid, .ifp-grid, .rfp-grid, .uom-grid, .uom-def-grid,
+  .tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid, .sap-lookup-modal__table, .sap-doc-attachments__grid
+) tbody tr:hover > td {
+  background-color: var(--sap-row-hover);
+}
+
+.app-shell :is(.sap-lookup-modal__table, .sap-doc-attachments__grid) tbody tr.is-selected > td {
+  background-color: var(--sap-row-selected);
+  box-shadow: inset 0 -1px 0 var(--sap-primary);
+}
+
+/* ---- Cards (document header / footer, setup headers) ------------------ */
+.app-shell :is(.so-header-card, .del-header-card, .po-header-card, .im-header-card, .udf-card, .ls-card) {
+  border: 1px solid var(--sap-border-soft);
+  border-radius: var(--sap-radius-md);
+  background: var(--sap-surface);
+  box-shadow: var(--sap-shadow-card);
+}
+
+/* ---- Toolbars & section titles --------------------------------------- */
+.app-shell :is(.po-toolbar, .so-toolbar, .del-toolbar, .im-toolbar, .uom-toolbar, .sap-document-toolbar,
+  .tc-toolbar, .pt-toolbar, .st-toolbar, .br-toolbar, .coa-toolbar, .qc-toolbar, .wac-toolbar) {
+  background: var(--sap-surface);
+  border-bottom: 1px solid var(--sap-border-soft);
+}
+
+.app-shell [class*="toolbar__title"] {
+  color: var(--sap-heading);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.app-shell :is([class*="section-title"], .sap-doc-tab__section-title) {
+  color: var(--sap-heading);
+  font-weight: 700;
+}
+
+/* ---- Message strips --------------------------------------------------- */
+.app-shell :is(.po-alert, .so-alert, .del-alert, .im-alert, .uom-alert,
+  .tc-alert, .pt-alert, .st-alert, .br-alert, .coa-alert, .qc-alert, .wac-alert) {
+  border: 1px solid;
+  border-left-width: 4px;
+  border-radius: var(--sap-radius-sm);
+  font-size: var(--sap-control-font-size);
+}
+
+.app-shell :is(.po-alert--success, .so-alert--success, .del-alert--success, .im-alert--success, .uom-alert--success,
+  .tc-alert--success, .pt-alert--success, .st-alert--success, .br-alert--success, .coa-alert--success, .qc-alert--success, .wac-alert--success) {
+  border-color: #a9dbb8;
+  border-left-color: var(--sap-success);
+  background: #f1fbf4;
+  color: var(--sap-success);
+}
+
+.app-shell :is(.po-alert--error, .so-alert--error, .del-alert--error, .im-alert--error, .uom-alert--error,
+  .tc-alert--error, .pt-alert--error, .st-alert--error, .br-alert--error, .coa-alert--error, .qc-alert--error, .wac-alert--error) {
+  border-color: #f2c4c4;
+  border-left-color: var(--sap-danger);
+  background: #fff4f4;
+  color: var(--sap-danger);
+}
+
+.app-shell :is(.po-alert--warning, .so-alert--warning, .del-alert--warning) {
+  border-color: #f5d0a9;
+  border-left-color: var(--sap-warning);
+  background: #fff8f0;
+  color: var(--sap-warning);
+}
+
+/* ---- Dialogs ---------------------------------------------------------- */
+.sap-modal-shell,
+.sap-lookup-modal {
+  border: 0;
+  border-radius: var(--sap-radius-lg);
+  box-shadow: var(--sap-shadow-modal);
+}
+
+.sap-modal-shell__header,
+.sap-lookup-modal__header {
+  min-height: 40px;
+  padding: 8px 12px 8px 16px;
+  border-bottom: 1px solid var(--sap-border-soft);
+  background: var(--sap-surface);
+  font-size: 14px;
+}
+
+.sap-modal-shell__footer,
+.sap-lookup-modal__footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--sap-border-soft);
+  background: var(--sap-surface);
+}
+
+.sap-modal-shell__close,
+.sap-lookup-modal__close {
+  border: 0;
+  border-radius: var(--sap-radius-sm);
+  background: transparent;
+  color: var(--sap-text-muted);
+}
+
+.sap-modal-shell__close:hover:not(:disabled),
+.sap-lookup-modal__close:hover:not(:disabled) {
+  background: var(--sap-button-bg-hover);
+  color: var(--sap-text);
+}
+
+/* Grid cells keep the SAP matrix look: inputs blend into the cell and only
+   show a field border on hover / focus (the cell already draws the lines). */
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) td :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: transparent;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) td :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):hover:not(:disabled):not([readonly]) {
+  border-color: var(--sap-border-strong);
+  background-color: var(--sap-surface);
+}
+
+.app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page,
+  .uom-page, .ip-payments-page, .op-payments-page, .inventory-document-page,
+  .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page, .wac-page,
+  .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) td :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus {
+  border-color: var(--sap-primary);
+  background-color: var(--sap-surface);
+  box-shadow: inset 0 0 0 1px var(--sap-primary);
+}
+
+/* ======================================================================
+   SAP B1 Fiori (Horizon, compact density) - full object-page look.
+   Last layer in this file. `html body .app-shell` outranks the older
+   per-family rules so every document / setup page gets the same look.
+   Sizes come from the density tokens in :root (26px controls, 13px text).
+   ====================================================================== */
+
+/* ---- Page & object-page header --------------------------------------- */
+html body .app-shell :is(.sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page,
+  .ip-payments-page, .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page,
+  .br-page, .coa-page, .wac-page, .gp-page, .job-work-page, .udf-page) {
+  background: var(--sap-page-bg);
+  color: var(--sap-text);
+  font-family: var(--sap-font-family);
+  font-size: var(--sap-page-font-size);
+}
+
+html body .app-shell :is(.po-toolbar, .so-toolbar, .del-toolbar, .im-toolbar, .uom-toolbar, .sap-document-toolbar,
+  .tc-toolbar, .pt-toolbar, .st-toolbar, .br-toolbar, .coa-toolbar, .qc-toolbar, .wac-toolbar) {
+  align-items: center;
+  gap: 4px;
+  min-height: 52px;
+  padding: 10px 20px;
+  border-bottom: 0;
+  background: var(--sap-surface);
+  box-shadow: inset 0 -1px 0 var(--sap-border-soft);
+}
+
+html body .app-shell [class*="toolbar__title"] {
+  color: var(--sap-heading);
+  font-size: var(--sap-title-font-size);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* Header actions: Fiori transparent buttons; only the primary is filled. */
+html body .app-shell .sap-document-toolbar :is(.po-btn, .so-btn, .del-btn):not(:is(.po-btn--primary, .so-btn--primary, .del-btn--primary)),
+html body .app-shell :is(.im-toolbar, .tc-toolbar, .pt-toolbar, .st-toolbar, .br-toolbar, .coa-toolbar, .uom-toolbar) > :is(.im-btn, .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .uom-btn):not([class*="--primary"]) {
+  border-color: transparent;
+  background: transparent;
+}
+
+html body .app-shell .sap-document-toolbar :is(.po-btn, .so-btn, .del-btn):not(:is(.po-btn--primary, .so-btn--primary, .del-btn--primary)):hover:not(:disabled),
+html body .app-shell :is(.im-toolbar, .tc-toolbar, .pt-toolbar, .st-toolbar, .br-toolbar, .coa-toolbar, .uom-toolbar) > :is(.im-btn, .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .uom-btn):not([class*="--primary"]):hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--sap-button-bg-hover);
+}
+
+/* Print / layout row: a quiet sub-toolbar instead of a boxed strip. */
+html body .app-shell .sap-document-toolbar > :is(.po-print-tools, .so-print-tools, .del-print-tools) {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-surface-soft);
+  box-shadow: none;
+}
+
+html body .app-shell :is(.po-print-tools, .so-print-tools, .del-print-tools) label,
+html body .app-shell :is(.po-print-tools, .so-print-tools, .del-print-tools) span {
+  color: var(--sap-text-muted);
+}
+
+/* ---- Buttons (Fiori compact) ------------------------------------------ */
+html body .app-shell :is(
+  .po-btn, .so-btn, .del-btn, .im-btn, .uom-btn, .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .qc-btn,
+  .sap-doc-attachments__btn, .sap-modal-shell__button, .sap-lookup-modal__btn
+) {
+  height: auto;
+  min-height: var(--sap-button-height);
+  padding: 3px 12px;
+  border-radius: var(--sap-radius-sm);
+  font-size: var(--sap-control-font-size);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Value-help ("...") buttons sit flush against their field. */
+html body .app-shell :is(.so-btn--lookup, .del-btn--lookup, .po-lookup-btn, .im-lookup-btn, .sap-doc-field__lookup-btn) {
+  min-width: var(--sap-control-height);
+  height: var(--sap-control-height);
+  min-height: var(--sap-control-height);
+  padding: 0 6px;
+  border-color: var(--sap-button-border);
+  background: var(--sap-surface);
+  color: var(--sap-link);
+}
+
+/* ---- Forms: Horizon fields, muted labels, more air ------------------- */
+html body .app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page, .ip-payments-page,
+  .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page,
+  .wac-page, .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  select
+) {
+  height: var(--sap-control-height);
+  min-height: var(--sap-control-height);
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--sap-radius-xs);
+  background-color: var(--sap-surface);
+  box-shadow: inset 0 0 0 1px rgba(85, 107, 130, 0.25), inset 0 -1px 0 #556b82;
+  font-size: var(--sap-control-font-size);
+}
+
+html body .app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page, .ip-payments-page,
+  .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page,
+  .wac-page, .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) textarea {
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--sap-radius-xs);
+  background-color: var(--sap-surface);
+  box-shadow: inset 0 0 0 1px rgba(85, 107, 130, 0.25), inset 0 -1px 0 #556b82;
+  font-size: var(--sap-control-font-size);
+}
+
+html body .app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page, .ip-payments-page,
+  .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page,
+  .wac-page, .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  select, textarea
+):hover:not(:disabled):not([readonly]) {
+  box-shadow: inset 0 0 0 1px var(--sap-link), inset 0 -1px 0 var(--sap-link);
+}
+
+html body .app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page, .ip-payments-page,
+  .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page,
+  .wac-page, .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  select, textarea
+):focus {
+  outline: 2px solid var(--sap-focus);
+  outline-offset: -2px;
+  box-shadow: inset 0 -1px 0 var(--sap-link);
+}
+
+html body .app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page, .ip-payments-page,
+  .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page,
+  .wac-page, .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  select, textarea
+):is(:disabled, [readonly]) {
+  background-color: var(--sap-field-readonly-bg);
+  box-shadow: inset 0 0 0 1px rgba(85, 107, 130, 0.18);
+  color: var(--sap-text);
+}
+
+/* Labels: Fiori form labels are muted and left-aligned. */
+html body .app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page, .ip-payments-page,
+  .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page,
+  .wac-page, .gp-page, .job-work-page, .udf-page, .sap-modal-shell
+) :is([class*="field__label"], .sap-doc-field__label, .so-tax-label) {
+  color: var(--sap-text-muted);
+  font-size: var(--sap-control-font-size);
+  font-weight: 400;
+  text-align: left;
+}
+
+/* Header form rows: 140px label column, 6px between rows. */
+html body .app-shell :is(.sap-document-page, .po-page, .so-page, .del-page, .im-page) :is(.po-field, .so-field, .del-field) {
+  grid-template-columns: 140px minmax(0, 1fr);
+  min-height: calc(var(--sap-control-height) + 2px);
+  gap: 10px;
+}
+
+html body .app-shell :is(.sap-document-page, .po-page, .so-page, .del-page, .im-page) :is(.po-field__label, .so-field__label, .del-field__label, .im-field__label) {
+  flex: 0 0 140px;
+  max-width: 140px;
+}
+
+html body .app-shell :is(.sap-document-page, .po-page, .so-page, .del-page, .im-page) :is(.po-field-grid, .so-field-grid, .del-field-grid, .im-field-grid) {
+  row-gap: 6px;
+}
+
+html body .app-shell .sap-doc-field {
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 10px;
+  min-height: calc(var(--sap-control-height) + 2px);
+}
+
+html body .app-shell :is(.sap-doc-tab__column, .sap-doc-tab__section) {
+  gap: 6px;
+}
+
+@media (min-width: 993px) {
+  html body .app-shell :is(
+    .so-header-columns, .del-header-card > .row, .po-header-card > .row, .po-header-card > .row.g-2, .po-document-header-grid
+  ) {
+    grid-template-columns: repeat(2, minmax(300px, 480px));
+    column-gap: 48px;
+  }
+
+  html body .app-shell .is-sidebar-open :is(.so-field, .del-field, .po-field) {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+}
+
+/* ---- Cards ------------------------------------------------------------ */
+html body .app-shell :is(.so-header-card, .del-header-card, .po-header-card, .im-header-card, .udf-card, .ls-card) {
+  padding: 16px 20px;
+  border: 0;
+  border-radius: var(--sap-radius-lg);
+  box-shadow: var(--sap-shadow-card);
+}
+
+/* ---- Tabs: Fiori icon tab bar ---------------------------------------- */
+html body .app-shell :is(.po-tabs, .so-tabs, .del-tabs, .im-tabs, .tc-tabs) {
+  margin-top: 12px;
+  padding: 0 12px;
+  border-bottom: 0;
+  border-radius: var(--sap-radius-lg) var(--sap-radius-lg) 0 0;
+  background: var(--sap-surface);
+  box-shadow: inset 0 -1px 0 var(--sap-border-soft);
+}
+
+html body .app-shell :is(.po-tab, .so-tab, .del-tab, .im-tab, .tc-tab) {
+  min-height: 40px;
+  padding: 10px 14px;
+  font-size: var(--sap-control-font-size);
+  font-weight: 600;
+}
+
+html body .app-shell :is(.po-tab--active, .so-tab--active, .del-tab--active, .im-tab--active, .tc-tab--active)::after {
+  right: 10px;
+  left: 10px;
+  bottom: 0;
+}
+
+html body .app-shell :is(.po-tab-panel, .so-tab-panel, .del-tab-panel, .im-tab-panel, .sap-doc-tab) {
+  padding: 14px 20px 18px;
+  border: 0;
+  border-radius: 0 0 var(--sap-radius-lg) var(--sap-radius-lg);
+  background: var(--sap-surface);
+  box-shadow: var(--sap-shadow-card);
+}
+
+html body .app-shell :is(.po-tab-panel, .so-tab-panel, .del-tab-panel, .im-tab-panel):has(> .sap-doc-tab) {
+  padding: 0;
+  box-shadow: none;
+}
+
+/* ---- Tables: Fiori responsive table ---------------------------------- */
+html body .app-shell :is(
+  .po-grid, .so-grid, .del-grid, .im-grid, .bom-grid, .ifp-grid, .rfp-grid, .uom-grid, .uom-def-grid,
+  .tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid, .sap-lookup-modal__table, .sap-doc-attachments__grid
+) :is(th, td) {
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  font-size: var(--sap-grid-font-size);
+}
+
+html body .app-shell :is(
+  .po-grid, .so-grid, .del-grid, .im-grid, .bom-grid, .ifp-grid, .rfp-grid, .uom-grid, .uom-def-grid,
+  .tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid, .sap-lookup-modal__table, .sap-doc-attachments__grid
+) th {
+  height: 34px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #a8b2bd;
+  background: var(--sap-surface);
+  color: var(--sap-text);
+  font-weight: 700;
+}
+
+html body .app-shell :is(
+  .po-grid, .so-grid, .del-grid, .im-grid, .bom-grid, .ifp-grid, .rfp-grid, .uom-grid, .uom-def-grid,
+  .tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid, .sap-lookup-modal__table, .sap-doc-attachments__grid
+) td {
+  height: 34px;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--sap-border-soft);
+  background-color: transparent;
+}
+
+html body .app-shell :is(
+  .po-grid, .so-grid, .del-grid, .im-grid, .bom-grid, .ifp-grid, .rfp-grid, .uom-grid, .uom-def-grid,
+  .tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid
+) tbody tr:nth-child(even) {
+  background: transparent;
+}
+
+html body .app-shell :is(.so-grid-wrap--contents, .del-grid-wrap--contents, .po-grid-wrap, .im-grid-wrap, .sap-doc-attachments__grid-wrap) {
+  border: 1px solid var(--sap-border-soft);
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-surface);
+}
+
+/* Cell inputs blend into the row (same selector weight as the field rule,
+   plus `td`, so they win); field look returns on hover / focus. */
+html body .app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page, .ip-payments-page,
+  .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page,
+  .wac-page, .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) td :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  select, textarea
+) {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+html body .app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page, .ip-payments-page,
+  .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page,
+  .wac-page, .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) td :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  select, textarea
+):hover:not(:disabled):not([readonly]) {
+  background-color: var(--sap-surface);
+  box-shadow: inset 0 0 0 1px rgba(85, 107, 130, 0.25), inset 0 -1px 0 #556b82;
+}
+
+html body .app-shell :is(
+  .sap-document-page, .po-page, .so-page, .del-page, .im-page, .bom-page, .uom-page, .ip-payments-page,
+  .op-payments-page, .inventory-document-page, .qc-page, .tc-page, .pt-page, .st-page, .br-page, .coa-page,
+  .wac-page, .gp-page, .job-work-page, .udf-page, .sap-find-page, .sap-modal-shell
+) td :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  select, textarea
+):focus {
+  background-color: var(--sap-surface);
+  outline: 2px solid var(--sap-focus);
+  outline-offset: -2px;
+}
+
+/* ---- Section titles --------------------------------------------------- */
+html body .app-shell :is([class*="section-title"], .sap-doc-tab__section-title) {
+  margin-bottom: 6px;
+  color: var(--sap-heading);
+  font-size: 14px;
+  font-weight: 700;
+  border: 0;
+}
+
+/* ---- Fiori polish: type scale, tighter spacing, flat header actions ---- */
+
+/* Type scale: 20px page title, 14px section titles, 13px body, 12px meta. */
+html body .app-shell [class*="toolbar__title"] {
+  font-size: var(--sap-title-font-size);
+  font-weight: var(--sap-font-weight-bold);
+}
+
+html body .app-shell :is([class*="section-title"], .sap-doc-tab__section-title) {
+  font-size: var(--sap-section-font-size);
+  font-weight: var(--sap-font-weight-semibold);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+html body .app-shell :is(.po-tab, .so-tab, .del-tab, .im-tab, .tc-tab) {
+  min-height: 36px;
+  padding: 8px 14px;
+  font-weight: var(--sap-font-weight-regular);
+}
+
+html body .app-shell :is(.po-tab--active, .so-tab--active, .del-tab--active, .im-tab--active, .tc-tab--active) {
+  font-weight: var(--sap-font-weight-semibold);
+}
+
+/* Buttons: regular weight; the one primary action is semibold. */
+html body .app-shell :is(
+  .po-btn--primary, .so-btn--primary, .del-btn--primary, .im-btn--primary, .uom-btn--primary,
+  .tc-btn--primary, .pt-btn--primary, .st-btn--primary, .br-btn--primary, .coa-btn--primary, .qc-btn--primary,
+  .sap-doc-attachments__btn--primary, .sap-modal-shell__button--primary, .sap-lookup-modal__btn--primary,
+  button.btn-primary
+) {
+  font-weight: var(--sap-font-weight-semibold) !important;
+}
+
+/* Header actions are Fiori transparent buttons (the old global button
+   block uses !important, so these must too). */
+html body .app-shell .sap-document-toolbar :is(.po-btn, .so-btn, .del-btn):not(:is(.po-btn--primary, .so-btn--primary, .del-btn--primary)),
+html body .app-shell :is(.im-toolbar, .tc-toolbar, .pt-toolbar, .st-toolbar, .br-toolbar, .coa-toolbar, .uom-toolbar) > :is(.im-btn, .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .uom-btn):not([class*="--primary"]) {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--sap-button-text) !important;
+}
+
+html body .app-shell .sap-document-toolbar :is(.po-btn, .so-btn, .del-btn):not(:is(.po-btn--primary, .so-btn--primary, .del-btn--primary)):hover:not(:disabled),
+html body .app-shell :is(.im-toolbar, .tc-toolbar, .pt-toolbar, .st-toolbar, .br-toolbar, .coa-toolbar, .uom-toolbar) > :is(.im-btn, .tc-btn, .pt-btn, .st-btn, .br-btn, .coa-btn, .uom-btn):not([class*="--primary"]):hover:not(:disabled) {
+  background: var(--sap-button-bg-hover) !important;
+}
+
+html body .app-shell .sap-document-toolbar :is(.po-btn, .so-btn, .del-btn):disabled {
+  color: var(--sap-text-muted) !important;
+  opacity: 0.45;
+}
+
+/* Spacing: fit header + first document lines on one laptop screen. */
+html body .app-shell .app-shell__content {
+  padding: 8px 10px;
+}
+
+html body .app-shell :is(.po-toolbar, .so-toolbar, .del-toolbar, .im-toolbar, .uom-toolbar, .sap-document-toolbar,
+  .tc-toolbar, .pt-toolbar, .st-toolbar, .br-toolbar, .coa-toolbar, .qc-toolbar, .wac-toolbar) {
+  min-height: 44px;
+  padding: 8px 18px;
+}
+
+html body .app-shell .sap-document-toolbar > :is(.po-print-tools, .so-print-tools, .del-print-tools) {
+  margin-top: 4px;
+  padding: 4px 8px;
+}
+
+html body .app-shell :is(.so-header-card, .del-header-card, .po-header-card, .im-header-card, .udf-card, .ls-card) {
+  padding: 12px 18px;
+  border-radius: var(--sap-radius-lg);
+}
+
+html body .app-shell :is(.sap-document-page, .po-page, .so-page, .del-page, .im-page) :is(.po-field-grid, .so-field-grid, .del-field-grid, .im-field-grid) {
+  row-gap: 4px;
+}
+
+html body .app-shell :is(.sap-document-page, .po-page, .so-page, .del-page, .im-page) :is(.po-field, .so-field, .del-field) {
+  min-height: var(--sap-control-height);
+}
+
+html body .app-shell :is(.so-header-columns, .del-header-card > .row, .po-header-card > .row, .po-document-header-grid) {
+  row-gap: 4px;
+}
+
+html body .app-shell :is(.po-tabs, .so-tabs, .del-tabs, .im-tabs, .tc-tabs) {
+  margin-top: 8px;
+}
+
+html body .app-shell :is(.po-tab-panel, .so-tab-panel, .del-tab-panel, .im-tab-panel, .sap-doc-tab) {
+  padding: 10px 18px 14px;
+}
+
+html body .app-shell :is(.po-tab-panel, .so-tab-panel, .del-tab-panel, .im-tab-panel):has(> .sap-doc-tab) {
+  padding: 0;
+}
+
+html body .app-shell :is(.sap-doc-tab__column, .sap-doc-tab__section) {
+  gap: 4px;
+}
+
+html body .app-shell :is(
+  .po-grid, .so-grid, .del-grid, .im-grid, .bom-grid, .ifp-grid, .rfp-grid, .uom-grid, .uom-def-grid,
+  .tc-grid, .pt-grid, .st-grid, .br-grid, .qc-grid, .sap-lookup-modal__table, .sap-doc-attachments__grid
+) :is(th, td) {
+  height: 30px;
+}
+
+/* Values that were cut off at 13px. */
+html body .app-shell .sap-input-group--currency select[name="currencyMode"] {
+  flex: 0 0 auto;
+  min-width: 128px;
+}
+
+html body .app-shell :is(.so-currency-picker, .del-currency-picker, .po-currency-picker) {
+  flex: 0 0 auto;
+  min-width: 82px;
+}
+
+html body .app-shell :is(.so-currency-picker__button, .del-currency-picker__button, .po-currency-picker__button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  color: var(--sap-text);
+}
+
+html body .app-shell .sap-currency-picker__chevron {
+  flex: 0 0 auto;
+  color: var(--sap-text-muted);
+}
+
+html body .app-shell :is(.po-toolbar__field-input--schema, .so-toolbar__field-input--schema, .del-toolbar__field-input--schema) {
+  width: 170px;
+  min-width: 170px;
+}
+
+/* ---- Golden arrow (open linked record) as a Fiori navigation button --- */
+html body .app-shell .sap-link-arrow-btn,
+.sap-link-arrow-btn {
+  display: inline-flex;
+  flex: 0 0 var(--sap-control-height);
+  align-items: center;
+  justify-content: center;
+  width: var(--sap-control-height);
+  min-width: var(--sap-control-height);
+  height: var(--sap-control-height);
+  min-height: var(--sap-control-height);
+  padding: 0;
+  border: 1px solid var(--sap-button-border);
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-surface);
+  color: var(--sap-link);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+html body .app-shell .sap-link-arrow-btn:hover:not(:disabled) {
+  border-color: var(--sap-link);
+  background: #ebf3fe;
+}
+
+html body .app-shell .sap-link-arrow-btn:disabled {
+  color: var(--sap-text-muted);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* ---- Message strips: SAP Horizon (rounded, full outline, no side bar) - */
+html body .app-shell :is(.po-alert, .so-alert, .del-alert, .im-alert, .uom-alert,
+  .tc-alert, .pt-alert, .st-alert, .br-alert, .coa-alert, .qc-alert, .wac-alert) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 7px 12px;
+  border: 1px solid;
+  border-radius: var(--sap-radius-md);
+  font-size: var(--sap-control-font-size);
+  font-weight: var(--sap-font-weight-regular);
+  line-height: 1.4;
+}
+
+html body .app-shell :is(.po-alert, .so-alert, .del-alert, .im-alert, .uom-alert,
+  .tc-alert, .pt-alert, .st-alert, .br-alert, .coa-alert, .qc-alert, .wac-alert)::before {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+html body .app-shell :is(.po-alert--success, .so-alert--success, .del-alert--success, .im-alert--success, .uom-alert--success,
+  .tc-alert--success, .pt-alert--success, .st-alert--success, .br-alert--success, .coa-alert--success, .qc-alert--success, .wac-alert--success) {
+  border-color: #c4e8d0;
+  background: #f5fbf7;
+  color: var(--sap-text);
+}
+
+html body .app-shell :is(.po-alert--success, .so-alert--success, .del-alert--success, .im-alert--success, .uom-alert--success,
+  .tc-alert--success, .pt-alert--success, .st-alert--success, .br-alert--success, .coa-alert--success, .qc-alert--success, .wac-alert--success)::before {
+  content: "¹3";
+  background: #36a41d;
+}
+
+html body .app-shell :is(.po-alert--error, .so-alert--error, .del-alert--error, .im-alert--error, .uom-alert--error,
+  .tc-alert--error, .pt-alert--error, .st-alert--error, .br-alert--error, .coa-alert--error, .qc-alert--error, .wac-alert--error) {
+  border-color: #f5c6c6;
+  background: #fff5f5;
+  color: var(--sap-text);
+}
+
+html body .app-shell :is(.po-alert--error, .so-alert--error, .del-alert--error, .im-alert--error, .uom-alert--error,
+  .tc-alert--error, .pt-alert--error, .st-alert--error, .br-alert--error, .coa-alert--error, .qc-alert--error, .wac-alert--error)::before {
+  content: "!";
+  background: var(--sap-danger);
+}
+
+html body .app-shell :is(.po-alert--warning, .so-alert--warning, .del-alert--warning) {
+  border-color: #f8d9b5;
+  background: #fff9f2;
+  color: var(--sap-text);
+}
+
+html body .app-shell :is(.po-alert--warning, .so-alert--warning, .del-alert--warning)::before {
+  content: "!";
+  background: #e76500;
+}
+
+/* BP Currency row: source select + document currency (+ rate) sized for the
+   13px Fiori text instead of the old 82-96px desktop columns. */
+html body .app-shell .sap-input-group--currency {
+  display: grid;
+  grid-template-columns: minmax(128px, 150px);
+  gap: 6px;
+  justify-content: start;
+  width: auto;
+}
+
+html body .app-shell .sap-input-group--currency:has(> :nth-child(2)) {
+  grid-template-columns: minmax(128px, 150px) minmax(72px, 90px);
+}
+
+html body .app-shell .sap-input-group--currency:has(> :nth-child(3)) {
+  grid-template-columns: minmax(128px, 150px) minmax(72px, 90px) minmax(80px, 100px);
+}
+
+html body .app-shell .sap-input-group--currency .sap-currency-readonly {
+  text-align: left;
+}
+
+/* One size for the right-hand Header UDF / Form Settings panel on every
+   document page. Each family had its own column (sales 220-260px, PO 250-320px
+   !important, Purchase Request 260-290px, Delivery 280-320px, banking 240px,
+   service documents six breakpoints from 220px to 320px), so the panel and the
+   header next to it changed size from page to page. `!important` + this
+   specificity is needed: PO's rule is !important and module CSS loads later.
+   Stacking below 993px (1200px for the PO family) stays with each page. */
+@media (min-width: 993px) {
+  .app-shell .sap-document-page :is(.so-layout, .del-layout, .sap-document-layout, .sap-banking-layout).is-sidebar-open {
+    grid-template-columns: minmax(0, 1fr) var(--sap-side-panel-width) !important;
+    gap: 10px !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  .app-shell .sap-document-page .po-layout.is-sidebar-open {
+    grid-template-columns: minmax(0, 1fr) var(--sap-side-panel-width) !important;
+    gap: 10px !important;
+  }
+}
+
+@media (min-width: 993px) {
+  .app-shell .sap-document-page :is(.po-layout__sidebar, .so-layout__sidebar, .del-layout__sidebar, .sap-banking-layout__sidebar, .sap-header-udf-panel) {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Same inner spacing everywhere: sales stacked 14px header/body padding inside
+     the card's own padding, so its fields were inset ~30px and looked cramped. */
+  .app-shell .sap-document-page :is(.po-layout__sidebar, .so-layout__sidebar, .del-layout__sidebar, .sap-banking-layout__sidebar) .po-udf-sidebar-card {
+    padding: 12px !important;
+  }
+
+  .app-shell .sap-document-page :is(.po-layout__sidebar, .so-layout__sidebar, .del-layout__sidebar, .sap-banking-layout__sidebar) .po-udf-sidebar-header {
+    padding: 0 0 8px !important;
+    background: transparent !important;
+  }
+
+  .app-shell .sap-document-page :is(.po-layout__sidebar, .so-layout__sidebar, .del-layout__sidebar, .sap-banking-layout__sidebar) .po-udf-sidebar-body {
+    padding: 0 !important;
+  }
+
+  .app-shell .sap-document-page :is(.po-layout__sidebar, .so-layout__sidebar, .del-layout__sidebar, .sap-banking-layout__sidebar) .po-udf-sidebar-close {
+    width: var(--sap-button-height) !important;
+    height: var(--sap-button-height) !important;
+    flex: 0 0 var(--sap-button-height) !important;
+  }
+
+  /* Label left of the field, like SAP's UDF side panel. */
+  .app-shell .sap-document-page :is(.po-layout__sidebar, .so-layout__sidebar, .del-layout__sidebar, .sap-banking-layout__sidebar) .po-udf-sidebar-card .po-udf-sidebar-field {
+    display: grid !important;
+    grid-template-columns: minmax(96px, 120px) minmax(0, 1fr) !important;
+    align-items: center;
+    column-gap: 6px;
+    row-gap: 0 !important;
   }
 }

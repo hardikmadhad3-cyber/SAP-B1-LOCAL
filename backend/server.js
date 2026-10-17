@@ -67,9 +67,6 @@ const purchaseQuotationRoutes = require('./routes/purchaseQuotation');
 const purchaseRequestRoutes = require('./routes/purchaseRequest');
 const salesOrderRoutes      = require('./routes/salesOrder');
 const salesDocumentSchemaRoutes = require('./modules/salesDocumentSchema/salesDocumentSchemaRoutes');
-const dcSalesOrderRoutes    = require('./routes/dcSalesOrder');
-const ncSalesOrderRoutes    = require('./routes/ncSalesOrder');
-const sodaSalesOrderRoutes  = require('./routes/sodaSalesOrder');
 const salesQuotationRoutes  = require('./routes/salesQuotation');
 const blanketAgreementRoutes = require('./routes/blanketAgreement');
 const printRoutes           = require('./routes/printRoutes');
@@ -84,9 +81,6 @@ const issueForProductionRoutes   = require('./routes/issueForProduction');
 const receiptFromProductionRoutes = require('./routes/receiptFromProduction');
 const grpoRoutes                 = require('./routes/grpo');
 const deliveryRoutes             = require('./routes/delivery');
-const dcDeliveryRoutes           = require('./routes/dcDelivery');
-const ncDeliveryRoutes           = require('./routes/ncDelivery');
-const sodaDeliveryRoutes         = require('./routes/sodaDelivery');
 const apInvoiceRoutes            = require('./routes/apInvoice');
 const arInvoiceRoutes            = require('./routes/arInvoice');
 const serviceArInvoiceRoutes      = require('./routes/serviceArInvoice');
@@ -236,6 +230,19 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (error, origin) => {
   console.error('[UNCAUGHT_EXCEPTION]', origin || 'unknown');
   console.error(error?.stack || error?.message || error);
+  // The process state is unknown after this: exit so the service runner
+  // (deployment/run-backend.ps1) starts a clean one. Open database
+  // transactions roll back when their connections close.
+  process.exitCode = 1;
+  setTimeout(() => process.exit(1), 500).unref();
+});
+
+// Basic browser security headers for the single-port app.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  next();
 });
 
 app.use((req, res, next) => {
@@ -259,6 +266,8 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({
+  // Large documents (many lines with UDFs) exceed the 100 KB default.
+  limit: '5mb',
   verify(req, _res, buffer) {
     const requestPath = String(req.originalUrl || '').split('?')[0];
     if (requestPath === '/api/whatsapp/webhook') {
@@ -336,9 +345,6 @@ app.use('/api/purchase-quotation', purchaseQuotationRoutes);
 app.use('/api/purchase-request',   purchaseRequestRoutes);
 app.use('/api/sales-order',        salesOrderRoutes);
 app.use('/api/sales-document',     salesDocumentSchemaRoutes);
-app.use('/api/dc-sales-order',     dcSalesOrderRoutes);
-app.use('/api/nc-sales-order',     ncSalesOrderRoutes);
-app.use('/api/soda-sales-order',   sodaSalesOrderRoutes);
 app.use('/api/sales-quotation',    salesQuotationRoutes);
 app.use('/api/blanket-agreements', blanketAgreementRoutes);
 app.use('/api',                    printRoutes);
@@ -354,9 +360,6 @@ app.use('/api/issue-for-production',    issueForProductionRoutes);
 app.use('/api/receipt-from-production', receiptFromProductionRoutes);
 app.use('/api/grpo',               grpoRoutes);
 app.use('/api/delivery',           deliveryRoutes);
-app.use('/api/dc-delivery',        dcDeliveryRoutes);
-app.use('/api/nc-delivery',        ncDeliveryRoutes);
-app.use('/api/soda-delivery',      sodaDeliveryRoutes);
 app.use('/api/ap-invoice',         apInvoiceRoutes);
 app.use('/api/ar-invoice',         arInvoiceRoutes);
 app.use('/api/services/ar-invoice', serviceArInvoiceRoutes);
@@ -369,6 +372,10 @@ app.use('/api/outgoing-payments',  outgoingPaymentsRoutes);
 app.use('/api/ap-credit-memo',     apCreditMemoRoutes);
 app.use('/api/ar-credit-memo',     arCreditMemoRoutes);
 app.use('/api/hsn-codes',          hsnCodeRoutes);
+app.use('/api/local-setup',        require('./routes/localSetupRoutes'));
+app.use('/api/documents',          require('./routes/documentActionsRoutes'));
+app.use('/api/local-finance',      require('./routes/localFinanceRoutes'));
+app.use('/api/udfs',               require('./routes/udfRoutes'));
 app.use('/api/goods-receipt',      goodsReceiptRoutes);
 app.use('/api/goods-issue',        goodsIssueRoutes);
 app.use('/api/inventory-transfer-request', inventoryTransferRequestRoutes);

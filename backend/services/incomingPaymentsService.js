@@ -762,7 +762,7 @@ const getOpenInvoices = async (cardCode, branch = "") => {
 
       SELECT
         T0.TransId AS DocEntry,
-        CAST(ISNULL(T0.BaseRef, T1.Number) AS NVARCHAR(30)) AS DocNum,
+        ISNULL(T0.BaseRef, CAST(T1.Number AS NVARCHAR(30))) AS DocNum,
         T0.Line_ID AS LineId,
         CASE WHEN T0.TransType IN (-2, -3) THEN -2 ELSE 30 END AS InvoiceTypeCode,
         T0.RefDate AS DocDate,

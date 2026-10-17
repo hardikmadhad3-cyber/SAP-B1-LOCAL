@@ -67,6 +67,7 @@ export const GOODS_RECEIPT_MATRIX_COLUMNS = [
   { key: 'quantity', label: 'Quantity' },
   { key: 'unitPrice', label: 'Unit Price' },
   { key: 'total', label: 'Total' },
+  { key: 'warehouse', label: 'Whse' },
   { key: 'binLocationAllocation', label: 'Bin Location Allocation' },
   { key: 'accountCode', label: 'Account Code' },
   { key: 'itemCost', label: 'Item Cost' },

@@ -13,11 +13,8 @@ export default function LookupModal({ title, onClose, onSelect, fetchOptions, co
     setLoading(true);
     try {
       const data = await fetchOptions(query);
-      console.log("Lookup results:", data);
       setResults(Array.isArray(data) ? data : data.value || []);
     } catch (err) {
-      console.error("Lookup error:", err);
-      console.error("Error details:", err.response?.data || err.message);
       setResults([]);
     } finally {
       setLoading(false);
@@ -86,7 +83,7 @@ export default function LookupModal({ title, onClose, onSelect, fetchOptions, co
                     onClick={() => handleRowClick(row)}
                   >
                     {columns.map((col) => (
-                      <td key={col.key}>{row[col.key] || ""}</td>
+                      <td key={col.key}>{row[col.key] ?? ""}</td>
                     ))}
                   </tr>
                 ))}

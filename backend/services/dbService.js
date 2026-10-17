@@ -6,6 +6,8 @@
 const sql = require('mssql');
 const env = require('../config/env');
 const hanaDb = require('../db/hanaDb');
+const pgDb = require('../db/pgDb');
+const { ensureCompanyMigrated } = require('../db/companyMigrations');
 const { getRequestContext } = require('./requestContextService');
 const { getActiveCompanyConfig, splitSqlServerName } = require('./companyConfigService');
 const { withDatabaseSlot } = require('./safetyControls');
@@ -112,6 +114,11 @@ const getPool = async (connectionConfig) => {
 const query = async (queryStr, params = {}, options = {}) => {
   const connectionConfig = await resolveSqlConnectionConfig(options);
   return withDatabaseSlot(queryStr, async () => {
+    if (connectionConfig.dialect === 'postgres') {
+      await ensureCompanyMigrated(connectionConfig.database);
+      return pgDb.query(queryStr, params, { ...options, connectionConfig });
+    }
+
     if (connectionConfig.dialect === 'hana') {
       return hanaDb.query(queryStr, params, {
         ...options,
@@ -139,8 +146,12 @@ const getDialect = async (options = {}) => {
   return connectionConfig.dialect || 'sqlserver';
 };
 
+// Optional SAP tables (IBT1, OITL, DLN26...) are absent in some companies; that is expected, not worth a log line.
+const isMissingTableError = (error) => /relation "[^"]+" does not exist|invalid object name|invalid table name/i.test(String(error?.message || ''));
+
 module.exports = {
   getDialect,
+  isMissingTableError,
   query,
   sql,
   getPool,

@@ -7,7 +7,6 @@ import './styles/customerGoodsReceipt.css';
 import ItemSelectionModal from '../../components/common/ItemSelectionModal';
 import BusinessPartnerModal from '../sales-order/components/BusinessPartnerModal';
 import BatchAllocationModal from '../../components/BatchAllocationModal';
-import PrintLayoutToolbar from '../../components/print-layout/PrintLayoutToolbar';
 import AccountLookupModal from '../../components/common/AccountLookupModal';
 import { createActiveCompanyScopedRouteState } from '../../utils/companyStorageScope';
 import { fetchGoodsReceiptBatchesByItem, fetchGoodsReceiptNextBatchNumber } from '../../api/goodsReceiptApi';
@@ -644,17 +643,6 @@ export default function CustomerGoodsReceiptDocument() {
         <button type="button" className="po-btn" onClick={backToList}>Cancel</button>
 <button type="button" className="po-btn" data-sap-find-action onClick={backToList}>Find</button>
         <button type="button" className="po-btn" onClick={openNew}>New</button>
-        {goodsReceiptDocEntry ? (
-          <PrintLayoutToolbar
-            documentType="inventoryGoodsReceipt"
-            documentLabel="Inventory Goods Receipt"
-            docEntry={goodsReceiptDocEntry}
-            docNumber={goodsReceiptDocNum}
-            classPrefix="po"
-            onSuccess={(message) => setPageState((current) => ({ ...current, error: '', success: message }))}
-            onError={(message) => setPageState((current) => ({ ...current, error: message, success: '' }))}
-          />
-        ) : null}
       </div>
 
       {pageState.loading && <div className="po-alert po-alert--success">Loading...</div>}

@@ -1,4 +1,4 @@
-import { buildCopyToState } from './copyToState';
+import { buildCopyToState, reloadRouteDocument } from './copyToState';
 
 describe('buildCopyToState', () => {
   test('rebases a GRPO line to the GRPO instead of its upstream purchase order', () => {
@@ -43,5 +43,20 @@ describe('buildCopyToState', () => {
     });
 
     expect(state.copyFrom.freightCharges).toEqual(freightCharges);
+  });
+});
+
+describe('reloadRouteDocument', () => {
+  test('re-opens the same document with the status message and keeps the SAP window', () => {
+    const navigate = jest.fn();
+    reloadRouteDocument(navigate, { pathname: '/ar-invoice', state: { sapWindow: { id: 'w1' }, copyFrom: {} } }, 'arInvoiceDocEntry', 12, 'cancel');
+    const [path, options] = navigate.mock.calls[0];
+    expect(path).toBe('/ar-invoice');
+    expect(options.replace).toBe(true);
+    expect(options.state).toMatchObject({ arInvoiceDocEntry: 12, sapWindow: { id: 'w1' }, documentStatusMessage: 'Document cancelled.' });
+    expect(options.state.copyFrom).toBeUndefined();
+
+    reloadRouteDocument(navigate, { pathname: '/sales-order', state: null }, 'salesOrderDocEntry', 3, 'close');
+    expect(navigate.mock.calls[1][1].state.documentStatusMessage).toBe('Document closed.');
   });
 });

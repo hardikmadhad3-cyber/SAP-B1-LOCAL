@@ -1,6 +1,7 @@
 const dbService = require('./dbService');
 const reportService = require('./reportService');
 const { getActiveCompanyConfig } = require('./companyConfigService');
+const { reportTableExists } = require('./reportMetadataService');
 const {
   getSapDefaultReportCode,
   selectSapDefaultReportRow,
@@ -814,6 +815,35 @@ const getDocumentReportMetadata = async ({
   const resolvedDocEntry = toRequiredPositiveIntegerString(document.DocEntry || normalizedDocEntry, 'Resolved DocEntry');
   const resolvedDocNum = String(document.DocNum || docNum || '').trim();
   const resolvedCardCode = String(document.CardCode || cardCode || '').trim();
+  const documentMetadata = {
+    docEntry: resolvedDocEntry,
+    docNum: resolvedDocNum,
+    series: String(document.Series || series || '').trim(),
+    cardCode: resolvedCardCode,
+    cardName: String(document.CardName || '').trim(),
+  };
+  // Companies without SAP's Crystal layout tables (e.g. local PostgreSQL companies)
+  // have no SAP layouts to resolve; the document itself still loads.
+  if (!(await reportTableExists('RDOC', { databaseName: normalizedSchema }))) {
+    return {
+      documentType: config.key,
+      documentLabel: config.label,
+      objectType: config.objectType,
+      typeCode: config.typeCode,
+      schema: normalizedSchema,
+      companyDatabase: normalizedSchema,
+      tableName: config.tableName,
+      document: documentMetadata,
+      layoutCandidates: [],
+      requiresLayoutSelection: false,
+      warnings: ['No SAP B1 Crystal layouts in this company (RDOC is not available).'],
+      diagnostics: { layoutSource: 'RDOC unavailable', activeCrystalLayoutCount: 0 },
+      layout: null,
+      systemParameters: [],
+      promptParameters: [],
+      parameters: [],
+    };
+  }
   const { layouts, defaultFlagColumns, typeCode } = await getSapLayoutRows(config, normalizedSchema);
   const resolvedConfig = { ...config, typeCode };
   const assignedDefault = await getSapAssignedDefaultLayout({
@@ -844,13 +874,7 @@ const getDocumentReportMetadata = async ({
     schema: normalizedSchema,
     companyDatabase: normalizedSchema,
     tableName: config.tableName,
-    document: {
-      docEntry: resolvedDocEntry,
-      docNum: resolvedDocNum,
-      series: String(document.Series || series || '').trim(),
-      cardCode: resolvedCardCode,
-      cardName: String(document.CardName || '').trim(),
-    },
+    document: documentMetadata,
     layoutCandidates: layoutCandidateMetadata,
     requiresLayoutSelection: Boolean(requiresLayoutSelection),
     warnings,
@@ -1092,7 +1116,11 @@ const downloadAllLayouts = async ({
   );
 };
 
+// Document types the WhatsApp configuration page lists: { key, label }.
+const listDocumentTypes = () => Object.entries(DOCUMENT_PRINT_CONFIG).map(([key, config]) => ({ key, label: config.label || key }));
+
 module.exports = {
+  listDocumentTypes,
   getDocumentPrintConfig,
   getLayouts,
   getLayoutParameters,

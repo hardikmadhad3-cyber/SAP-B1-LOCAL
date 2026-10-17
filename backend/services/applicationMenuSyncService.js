@@ -5,20 +5,14 @@ const createHttpError = (statusCode, message) => {
 };
 
 const authDbService = require('./authDbService');
-const { syncStandardSalesRoleRights } = require('./standardSalesRoleRightsService');
+const { syncStandardSalesRoleRights, removeRetiredSalesMenus } = require('./standardSalesRoleRightsService');
 
 const APP_MENU_DEFINITIONS = [
   { key: 'dashboard', menuName: 'Dashboard', menuPath: '/dashboard', icon: 'dashboard', sortOrder: -1 },
   { key: 'sales', menuName: 'Sales', aliases: ['Sales - A/R', 'Sales A/R'], icon: 'sales', sortOrder: 1 },
   { key: 'sales-quotation', parentKey: 'sales', menuName: 'Sales Quotation', menuPath: '/sales-quotation', icon: 'document', sortOrder: 1, enforceSortOrder: true },
   { key: 'sales-order', parentKey: 'sales', menuName: 'Sales Order', menuPath: '/sales-order', icon: 'document', sortOrder: 2, enforceSortOrder: true },
-  { key: 'dc-sales-order', parentKey: 'sales', menuName: 'DC Sales Order', menuPath: '/dc-sales-order', icon: 'document', sortOrder: 3, enforceSortOrder: true },
-  { key: 'nc-sales-order', parentKey: 'sales', menuName: 'NC Sales Order', menuPath: '/nc-sales-order', icon: 'document', sortOrder: 4, enforceSortOrder: true },
-  { key: 'soda-sales-order', parentKey: 'sales', menuName: 'SODA Sales Order', menuPath: '/soda-sales-order', icon: 'document', sortOrder: 5, enforceSortOrder: true },
   { key: 'delivery', parentKey: 'sales', menuName: 'Delivery', menuPath: '/delivery', icon: 'delivery', sortOrder: 6, enforceSortOrder: true },
-  { key: 'dc-delivery', parentKey: 'sales', menuName: 'DC Delivery', menuPath: '/dc-delivery', icon: 'delivery', sortOrder: 7, enforceSortOrder: true },
-  { key: 'nc-delivery', parentKey: 'sales', menuName: 'NC Delivery', menuPath: '/nc-delivery', icon: 'delivery', sortOrder: 8, enforceSortOrder: true },
-  { key: 'soda-delivery', parentKey: 'sales', menuName: 'SODA Delivery', menuPath: '/soda-delivery', icon: 'delivery', sortOrder: 9, enforceSortOrder: true },
   { key: 'ar-invoice', parentKey: 'sales', menuName: 'A/R Invoice', menuPath: '/ar-invoice', icon: 'invoice', sortOrder: 10, enforceSortOrder: true },
   { key: 'ar-credit-memo', parentKey: 'sales', menuName: 'A/R Credit Memo', menuPath: '/ar-credit-memo', icon: 'invoice', sortOrder: 11, enforceSortOrder: true },
 
@@ -42,11 +36,20 @@ const APP_MENU_DEFINITIONS = [
   { key: 'warehouse', parentKey: 'master', menuName: 'Warehouse', menuPath: '/warehouse', icon: 'warehouse', sortOrder: 3 },
   { key: 'price-list', parentKey: 'master', menuName: 'Price List', menuPath: '/price-list', icon: 'price', sortOrder: 4 },
   { key: 'tax-code', parentKey: 'master', menuName: 'Tax Code', menuPath: '/tax-code', icon: 'tax', sortOrder: 5 },
+  { key: 'hsn-sac-codes', parentKey: 'master', menuName: 'HSN / SAC Codes', menuPath: '/hsn-sac-codes', icon: 'tax', sortOrder: 5.5 },
   { key: 'uom-group', parentKey: 'master', menuName: 'UoM Group', menuPath: '/uom-group', icon: 'uom', sortOrder: 6 },
   { key: 'payment-terms', parentKey: 'master', menuName: 'Payment Terms', menuPath: '/payment-terms', icon: 'terms', sortOrder: 7 },
   { key: 'shipping-type', parentKey: 'master', menuName: 'Shipping Type', menuPath: '/shipping-type', icon: 'shipping', sortOrder: 8 },
   { key: 'branch', parentKey: 'master', menuName: 'Branch', menuPath: '/branch', icon: 'branch', sortOrder: 9 },
   { key: 'chart-of-accounts', parentKey: 'master', menuName: 'Chart Of Accounts', menuPath: '/chart-of-accounts', icon: 'accounts', sortOrder: 10 },
+  ...[
+    ['item-groups', 'Item Groups'], ['bp-groups', 'BP Groups'], ['sales-employees', 'Sales Employees'],
+    ['numbering-series', 'Numbering Series'], ['posting-periods', 'Posting Periods'], ['currencies', 'Currencies'],
+    ['exchange-rates', 'Exchange Rates'], ['states', 'States'], ['locations', 'Locations'],
+    ['gl-determination', 'G/L Account Determination'], ['account-template', 'Chart of Accounts Template'],
+    ['cash-discounts', 'Cash Discounts'], ['payment-methods', 'Payment Methods'],
+  ].map(([key, menuName], index) => ({ key: `setup-${key}`, parentKey: 'master', menuName, menuPath: `/setup/${key}`, icon: 'settings', sortOrder: 11 + index })),
+  { key: 'opening-balances', parentKey: 'master', menuName: 'Opening Balances', menuPath: '/opening-balances', icon: 'accounts', sortOrder: 25 },
 
   { key: 'job-work', menuName: 'Job Work', icon: 'production', sortOrder: 4.5 },
   { key: 'job-work-sales', parentKey: 'job-work', menuName: 'Sales J/W', icon: 'sales', sortOrder: 1 },
@@ -123,6 +126,7 @@ const APP_MENU_DEFINITIONS = [
     icon: 'document',
     sortOrder: 3,
   },
+  { key: 'internal-reconciliation', parentKey: 'banking', menuName: 'Internal Reconciliation', menuPath: '/internal-reconciliation', icon: 'document', sortOrder: 4 },
 
   { key: 'reports', menuName: 'Reports', icon: 'reports', sortOrder: 8 },
   { key: 'report-layout-manager', parentKey: 'reports', menuName: 'Report Layout Manager', menuPath: '/reportlayoutmanager', icon: 'report', sortOrder: 0, enforceSortOrder: true, enforceMenuName: true },
@@ -171,9 +175,6 @@ const APP_MENU_DEFINITIONS = [
   { key: 'journal-transaction-fc-amount-range-report', parentKey: 'reports-financial-accounting', menuName: 'Locate Journal Transaction by FC Amount Range', menuPath: '/reports/financial/accounting/journal-transaction-fc-amount-range', icon: 'report', sortOrder: 7 },
   { key: 'transactions-received-from-voucher-report', parentKey: 'reports-financial-accounting', menuName: 'Transactions Received from Voucher Report', menuPath: '/reports/financial/accounting/transactions-received-from-voucher', icon: 'report', sortOrder: 8 },
   { key: 'document-journal-report', parentKey: 'reports-financial-accounting', menuName: 'Document Journal', menuPath: '/reports/financial/accounting/document-journal', icon: 'report', sortOrder: 9 },
-  { key: 'form-er-3-report', parentKey: 'reports-financial-accounting', menuName: 'Form ER-3', menuPath: '/reports/financial/accounting/form-er-3', icon: 'report', sortOrder: 10 },
-  { key: 'form-er-5-report', parentKey: 'reports-financial-accounting', menuName: 'Form ER-5', menuPath: '/reports/financial/accounting/form-er-5', icon: 'report', sortOrder: 11 },
-  { key: 'form-er-6-report', parentKey: 'reports-financial-accounting', menuName: 'Form ER-6', menuPath: '/reports/financial/accounting/form-er-6', icon: 'report', sortOrder: 12 },
   { key: 'reports-financial-statements', parentKey: 'reports-financial', menuName: 'Financial', icon: 'report', sortOrder: 2 },
   { key: 'balance-sheet-report', parentKey: 'reports-financial-statements', menuName: 'Balance Sheet', menuPath: '/reports/financial/financial/balance-sheet', icon: 'report', sortOrder: 1 },
   { key: 'trial-balance-report', parentKey: 'reports-financial-statements', menuName: 'Trial Balance', menuPath: '/reports/financial/financial/trial-balance', icon: 'report', sortOrder: 2 },
@@ -183,6 +184,8 @@ const APP_MENU_DEFINITIONS = [
   { key: 'cash-flow-reference-report', parentKey: 'reports-financial-statements', menuName: 'Cash Flow Reference Report', menuPath: '/reports/financial/financial/cash-flow-reference-report', icon: 'report', sortOrder: 6 },
   { key: 'business-assessment-report', parentKey: 'reports-financial-statements', menuName: 'Business Assessment Report', menuPath: '/reports/financial/financial/business-assessment-report', icon: 'report', sortOrder: 7 },
 
+  { key: 'tools', menuName: 'Tools', icon: 'settings', sortOrder: 11 },
+  { key: 'udf-management', parentKey: 'tools', menuName: 'User-Defined Fields - Management', menuPath: '/udf-management', icon: 'settings', sortOrder: 1 },
   { key: 'query-manager', menuName: 'Query Manager', menuPath: '/query-manager', icon: 'reports', sortOrder: 12 },
 ];
 
@@ -393,7 +396,7 @@ const deleteDeprecatedReportLayoutManagerMenu = async (db, canonicalMenuId = nul
         AND LOWER(LTRIM(RTRIM(COALESCE(MenuPath, '')))) NOT LIKE '/reportlayoutmanager/menu/%'
       )
     )
-      AND (@canonicalMenuId IS NULL OR MenuId <> @canonicalMenuId)
+      AND (CAST(@canonicalMenuId AS INTEGER) IS NULL OR MenuId <> @canonicalMenuId)
   `, {
     canonicalMenuId: Number.isInteger(Number(canonicalMenuId)) ? Number(canonicalMenuId) : null,
   });
@@ -432,7 +435,9 @@ const deleteDeprecatedReportLayoutManagerMenu = async (db, canonicalMenuId = nul
 const deleteDeprecatedTransactionFieldMenu = async (db) => {
   const rows = await db.queryRows(`
     SELECT MenuId FROM dbo.Menus
-    WHERE LOWER(LTRIM(RTRIM(COALESCE(MenuPath, '')))) IN ('/transaction-field-configuration', '/new-sales-order')
+    -- Form ER-3/5/6 were pre-GST excise returns that never had a report behind them.
+    WHERE LOWER(LTRIM(RTRIM(COALESCE(MenuPath, '')))) IN ('/transaction-field-configuration', '/new-sales-order',
+      '/reports/financial/accounting/form-er-3', '/reports/financial/accounting/form-er-5', '/reports/financial/accounting/form-er-6')
        OR LOWER(LTRIM(RTRIM(COALESCE(MenuName, '')))) IN ('transaction field configuration', 'new sales order')
   `);
   let count = 0;
@@ -444,6 +449,29 @@ const deleteDeprecatedTransactionFieldMenu = async (db) => {
     count += result.rowsAffected?.[0] || 0;
   }
   return count;
+};
+
+// These setup screens belong to Gate Pass and may still have the old top-level
+// Master parent in databases created before the Gate Pass menu was introduced.
+const moveGatePassMasterMenus = async (db, menuByKey) => {
+  const parentId = menuByKey.get('gate-pass-master')?.MenuId;
+  if (!parentId) return 0;
+
+  // Match by path as well as the canonical rows. Older syncs could leave a
+  // duplicate with the same path under the top-level Master menu.
+  const result = await db.query(`
+    UPDATE dbo.Menus
+    SET ParentId = @parentId
+    WHERE LOWER(LTRIM(RTRIM(COALESCE(MenuPath, '')))) IN ('/gate-pass/visitor-type', '/gate-pass/visit-type')
+      AND MenuId <> @parentId
+      AND (ParentId IS NULL OR ParentId <> @parentId)
+  `, { parentId });
+
+  for (const key of ['gate-pass-visitor-type', 'gate-pass-visit-type']) {
+    const menu = menuByKey.get(key);
+    if (menu) menu.ParentId = parentId;
+  }
+  return result.rowsAffected?.[0] || 0;
 };
 
 const syncApplicationSidebarMenus = async (db) => {
@@ -484,6 +512,7 @@ const syncApplicationSidebarMenus = async (db) => {
     syncCount += 1;
   }
 
+  syncCount += await moveGatePassMasterMenus(db, menuByKey);
   syncCount += await deleteDeprecatedTransactionFieldMenu(db);
   const featureRights = [
     ['purchase', 'job-work'],
@@ -495,8 +524,8 @@ const syncApplicationSidebarMenus = async (db) => {
     ['delivery', 'customer-issue-note'],
     ['purchase', 'gate-pass'],
     ['master', 'gate-pass-master'],
-    ['warehouse', 'gate-pass-visitor-type'],
-    ['warehouse', 'gate-pass-visit-type'],
+    ['gate-pass-master', 'gate-pass-visitor-type'],
+    ['gate-pass-master', 'gate-pass-visit-type'],
     ['production', 'gate-pass-transactions'],
     ['grpo', 'gate-pass-visitor-log'],
     ['grpo', 'gate-pass-gate-in'],
@@ -570,9 +599,6 @@ const syncApplicationSidebarMenus = async (db) => {
     'journal-transaction-fc-amount-range-report',
     'transactions-received-from-voucher-report',
     'document-journal-report',
-    'form-er-3-report',
-    'form-er-5-report',
-    'form-er-6-report',
   ];
 
   for (const reportKey of financialAccountingReportKeys) {
@@ -632,6 +658,7 @@ const syncApplicationSidebarMenus = async (db) => {
   );
 
   if (await hasRoleRightsTable(db)) syncCount += await syncStandardSalesRoleRights(db);
+  syncCount += await removeRetiredSalesMenus(db);
 
   return syncCount;
 };

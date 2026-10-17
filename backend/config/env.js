@@ -5,9 +5,17 @@ const dotenv = require('dotenv');
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
+// The .env.example placeholder (or any short value) is public knowledge: anyone
+// could sign their own login tokens with it. Such values are ignored and a random
+// secret kept in data/.jwt-secret is used instead.
+const isUsableSecret = (value) => value.length >= 32 && !/replace-with|change-?me|^secret$/i.test(value);
+
 const readOrCreateJwtSecret = () => {
   const configuredSecret = String(process.env.JWT_SECRET || '').trim();
-  if (configuredSecret) return configuredSecret;
+  if (configuredSecret && isUsableSecret(configuredSecret)) return configuredSecret;
+  if (configuredSecret) {
+    console.warn('[Security] JWT_SECRET in backend/.env is a placeholder or too short; using the generated secret in backend/data/.jwt-secret.');
+  }
 
   const secretPath = path.resolve(__dirname, '../data/.jwt-secret');
 
@@ -41,7 +49,15 @@ const parseBoolean = (value, fallback = false) => {
   return String(value).toLowerCase() === 'true';
 };
 
+// The setup administrator (.env login without a database user) is an emergency
+// login with full rights; it is only offered with a strong password.
+const isStrongPassword = (value) => value.length >= 12 && /[a-z]/i.test(value) && /\d/.test(value)
+  && !/replace-with|password|admin|manager|1234/i.test(value);
+
 module.exports = {
+  isUsableSecret,
+  isStrongPassword,
+  setupAdminLoginEnabled: isStrongPassword(String(process.env.SETUP_ADMIN_PASSWORD || '')),
   port: Number(process.env.PORT || 5001),
   jwtSecret: readOrCreateJwtSecret(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '12h',
@@ -52,7 +68,7 @@ module.exports = {
   verboseSapLogs: parseBoolean(process.env.VERBOSE_SAP_LOGS, false),
   newSalesOrderAllowSapWrites: parseBoolean(process.env.NEW_SALES_ORDER_ALLOW_SAP_WRITES, false),
   newSalesOrderUseDummySave: parseBoolean(process.env.NEW_SALES_ORDER_USE_DUMMY_SAVE, false),
-  authDbProvider: process.env.AUTH_DB_PROVIDER || 'sqlite',
+  authDbProvider: process.env.AUTH_DB_PROVIDER || 'postgres',
   authSqlitePath: process.env.AUTH_SQLITE_PATH || './data/henny_auth.sqlite',
   sapBaseUrl: process.env.SAP_BASE_URL || '',
   sapUsername: process.env.SAP_USERNAME || '',
@@ -70,6 +86,8 @@ module.exports = {
   reportServiceDbInstance: process.env.SAP_REPORT_SERVICE_DB_INSTANCE || '',
   incomingPaymentCashAccount: process.env.INCOMING_PAYMENT_CASH_ACCOUNT || '',
   outgoingPaymentCashAccount: process.env.OUTGOING_PAYMENT_CASH_ACCOUNT || '',
+  // Local PostgreSQL (system of record)
+  databaseUrl: process.env.DATABASE_URL || '',
   // Direct SQL Server
   dbDialect:   process.env.DB_DIALECT   || 'sqlserver',
   dbServer:    process.env.DB_SERVER    || '',

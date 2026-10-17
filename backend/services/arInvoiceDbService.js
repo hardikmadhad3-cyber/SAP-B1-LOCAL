@@ -36,7 +36,7 @@ const safe = async (promise) => {
     if (e?.status === 503 || /\bis busy\b/i.test(String(e?.message || ''))) {
       throw e;
     }
-    console.warn('[AR Invoice DB] Query failed silently:', e.message);
+    if (!db.isMissingTableError(e)) console.warn('[AR Invoice DB] Query failed silently:', e.message);
     return [];
   }
 };

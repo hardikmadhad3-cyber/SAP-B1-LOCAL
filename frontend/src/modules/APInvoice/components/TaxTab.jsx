@@ -1,148 +1,75 @@
-import SapInput from '../../../components/common/SapInput';
 import React from 'react';
+import SapInput from '../../../components/common/SapInput';
+import DocumentTaxTab from '../../../components/document/DocumentTaxTab';
+import { DocCheckbox, DocField } from '../../../components/document/DocumentTabLayout';
 
-const SELECT_PLACEHOLDER = '— Select —';
+// A/P Invoice Tax tab (also A/P Credit Memo and the service A/P documents).
+// Shared SAP B1 layout; A/P keeps the values it already stores (`formNo`,
+// full-text Duty Status, `Export` category) and adds the A/P reference rows.
+const AP_TRANSACTION_CATEGORIES = [
+  { value: 'B2B', label: 'B2B' },
+  { value: 'B2C', label: 'B2C' },
+  { value: 'Export', label: 'Export' },
+  { value: 'SEZ', label: 'SEZ' },
+];
 
-function TaxField({ label, name, value, onChange, isEditable, type = 'text', error }) {
-  return (
-    <div className="sap-b1-tax-field">
-      <label className="sap-b1-tax-label" htmlFor={`sap-tax-${name}`}>{label}</label>
-      <SapInput
-        id={`sap-tax-${name}`}
-        type={type}
-        className={`sap-b1-tax-control${error ? ' sap-b1-tax-control--error' : ''}`}
-        name={name}
-        value={value || ''}
-        onChange={onChange}
-        disabled={!isEditable}
-      />
-    </div>
-  );
-}
+const AP_DUTY_OPTIONS = [
+  { value: 'With Payment of Duty', label: 'With Payment of Duty' },
+  { value: 'Without Payment of Duty', label: 'Without Payment of Duty' },
+  { value: 'Exempted', label: 'Exempted' },
+];
 
-function TaxSelect({ label, name, value, onChange, isEditable, children }) {
-  return (
-    <div className="sap-b1-tax-field">
-      <label className="sap-b1-tax-label" htmlFor={`sap-tax-${name}`}>{label}</label>
-      <select
-        id={`sap-tax-${name}`}
-        className="sap-b1-tax-control"
-        name={name}
-        value={value || ''}
-        onChange={onChange}
-        disabled={!isEditable}
-      >
-        {children}
-      </select>
-    </div>
-  );
-}
+const REASONS_FOR_NOTE = ['Sales Return', 'Post Sale Discount', 'Deficiency in Services', 'Correction in Invoice'];
 
 export default function TaxTab({
-  onOpenTaxInfoModal,
-  header = {},
-  onHeaderChange,
   showTaxInvoiceReference = false,
   taxInvoiceReferenceRequired = false,
   errors = {},
-  isEditable = true,
+  ...props
 }) {
-  const showCreditMemoFields = showTaxInvoiceReference;
-  const canEditFields = isEditable && typeof onHeaderChange === 'function';
+  const { header = {}, onHeaderChange, isEditable = true } = props;
+  const isCreditMemo = showTaxInvoiceReference;
+  const disabled = !isEditable || typeof onHeaderChange !== 'function';
+  const required = taxInvoiceReferenceRequired ? ' *' : '';
+  const input = (name, type = 'text') => (id) => (
+    <SapInput
+      id={id}
+      type={type}
+      name={name}
+      className={errors[name] ? 'del-field__input--error' : undefined}
+      value={header[name] || ''}
+      onChange={onHeaderChange}
+      disabled={disabled}
+      title={errors[name] || undefined}
+    />
+  );
 
   return (
-    <div className="sap-b1-tax-layout">
-      <div className="sap-b1-tax-left">
-        <div className="sap-b1-tax-field sap-b1-tax-information-row">
-          <span className="sap-b1-tax-label">Tax Information</span>
-          <button
-            type="button"
-            className="sap-b1-tax-ellipsis"
-            onClick={onOpenTaxInfoModal}
-            disabled={!isEditable}
-            aria-label="Open Tax Information"
-          >
-            ...
-          </button>
-        </div>
+    <DocumentTaxTab
+      {...props}
+      variant="purchase"
+      names={{ formNo: 'formNo' }}
+      dutyOptions={AP_DUTY_OPTIONS}
+      transactionOptions={AP_TRANSACTION_CATEGORIES}
+      hideDutyStatus={isCreditMemo}
+    >
+      <DocField label="Reference Number">{input('referenceNumber')}</DocField>
+      <DocField label="Ref. Date">{input('referenceDate', 'date')}</DocField>
+      <DocCheckbox label="Revision" name="revision" checked={Boolean(header.revision)} onChange={onHeaderChange} disabled={disabled} />
 
-        <TaxSelect label="Transaction Category" name="transactionCategory" value={header.transactionCategory} onChange={onHeaderChange} isEditable={canEditFields}>
-          <option value="">{SELECT_PLACEHOLDER}</option>
-          <option value="B2B">B2B</option>
-          <option value="B2C">B2C</option>
-          <option value="Export">Export</option>
-          <option value="SEZ">SEZ</option>
-        </TaxSelect>
-
-        <TaxField label="Form No." name="formNo" value={header.formNo} onChange={onHeaderChange} isEditable={canEditFields} />
-
-        {!showCreditMemoFields && (
-          <TaxSelect label="Duty Status" name="dutyStatus" value={header.dutyStatus || 'With Payment of Duty'} onChange={onHeaderChange} isEditable={canEditFields}>
-            <option value="With Payment of Duty">With Payment of Duty</option>
-            <option value="Without Payment of Duty">Without Payment of Duty</option>
-            <option value="Exempted">Exempted</option>
-          </TaxSelect>
-        )}
-
-        <div className="sap-b1-tax-spacer" />
-        <TaxField label="Reference Number" name="referenceNumber" value={header.referenceNumber} onChange={onHeaderChange} isEditable={canEditFields} />
-        <TaxField label="Ref. Date" name="referenceDate" value={header.referenceDate} onChange={onHeaderChange} isEditable={canEditFields} type="date" />
-
-        <label className="sap-b1-tax-check-row">
-          <input type="checkbox" name="revision" checked={!!header.revision} onChange={onHeaderChange} disabled={!canEditFields} />
-          <span>Revision</span>
-        </label>
-
-        {showCreditMemoFields && (
-          <>
-            <TaxField
-              label={`Original Ref. No.${taxInvoiceReferenceRequired ? ' *' : ''}`}
-              name="taxInvoiceNo"
-              value={header.taxInvoiceNo}
-              onChange={onHeaderChange}
-              isEditable={canEditFields}
-              error={errors.taxInvoiceNo}
-            />
-            <TaxField
-              label={`Original Ref. Date${taxInvoiceReferenceRequired ? ' *' : ''}`}
-              name="taxInvoiceDate"
-              value={header.taxInvoiceDate}
-              onChange={onHeaderChange}
-              isEditable={canEditFields}
-              type="date"
-              error={errors.taxInvoiceDate}
-            />
-          </>
-        )}
-
-        <div className="sap-b1-tax-bottom">
-          <TaxSelect label="Reason for Issuing Note" name="reasonForIssuingNote" value={header.reasonForIssuingNote || 'Sales Return'} onChange={onHeaderChange} isEditable={canEditFields}>
-            <option value="Sales Return">Sales Return</option>
-            <option value="Post Sale Discount">Post Sale Discount</option>
-            <option value="Deficiency in Services">Deficiency in Services</option>
-            <option value="Correction in Invoice">Correction in Invoice</option>
-          </TaxSelect>
-
-          <label className="sap-b1-tax-check-row">
-            <input type="checkbox" name="supplyCovered" checked={!!header.supplyCovered} onChange={onHeaderChange} disabled={!canEditFields} />
-            <span>Supply Covered under Sec 7 of IGST Act</span>
-          </label>
-
-          <TaxSelect label="Differential % of Tax Rate" name="differentialTaxRate" value={header.differentialTaxRate || '100'} onChange={onHeaderChange} isEditable={canEditFields}>
-            <option value="100">100</option>
-            <option value="75">75</option>
-            <option value="50">50</option>
-            <option value="25">25</option>
-          </TaxSelect>
-        </div>
-      </div>
-
-      <div className="sap-b1-tax-right">
-        <label className="sap-b1-tax-check-row">
-          <input type="checkbox" name="importTax" checked={!!header.importTax} onChange={onHeaderChange} disabled={!canEditFields} />
-          <span>Import</span>
-        </label>
-      </div>
-    </div>
+      {isCreditMemo ? (
+        <>
+          <DocField label={`Original Ref. No.${required}`}>{input('taxInvoiceNo')}</DocField>
+          <DocField label={`Original Ref. Date${required}`}>{input('taxInvoiceDate', 'date')}</DocField>
+          <DocField label="Reason for Issuing Note">
+            {(id) => (
+              <select id={id} name="reasonForIssuingNote" value={header.reasonForIssuingNote || REASONS_FOR_NOTE[0]} onChange={onHeaderChange} disabled={disabled}>
+                {REASONS_FOR_NOTE.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+              </select>
+            )}
+          </DocField>
+        </>
+      ) : null}
+    </DocumentTaxTab>
   );
 }

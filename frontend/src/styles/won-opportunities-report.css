@@ -367,7 +367,7 @@
 
 .won-opportunities-page .bp-lookup-modal__backdrop,
 .won-opportunities-page .sales-employee-lookup-modal__backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 16000;
   background: transparent;

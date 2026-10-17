@@ -1,0 +1,14 @@
+/* Local setup pages: layout only. Look and feel come from the im-* family
+   (item-master styles) normalized by styles/sap-ui.css — see docs/UI_THEME.md. */
+.local-setup .ls-card { margin: 10px 12px 0; padding: 10px 14px; background: var(--sap-surface); border: 1px solid var(--sap-border); border-radius: var(--sap-radius-sm); }
+.local-setup .ls-card--last { margin-bottom: 12px; }
+.local-setup .ls-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.local-setup .ls-actions { display: flex; gap: 6px; margin-top: 10px; }
+.local-setup .ls-tiers { margin-top: 12px; }
+.local-setup .ls-note { margin: 6px 0; font-size: 12px; color: var(--sap-text-muted); }
+.local-setup .ls-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.local-setup .ls-list-head .im-section-title { flex: 1; }
+.local-setup .ls-search-label { flex-basis: auto; }
+.local-setup .ls-row--selected,
+.local-setup .ls-row--selected:hover { background: var(--sap-primary-soft) !important; }
+.local-setup .im-grid-wrap { margin-top: 6px; }

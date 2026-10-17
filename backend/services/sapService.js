@@ -402,6 +402,7 @@ const login = async (companyDbOrConfig) => {
 };
 
 const ensureSession = async (companyDb) => {
+  if (!companyDb && (await dbService.resolveSqlConnectionConfig()).dialect === 'postgres') return;
   const config = await resolveServiceLayerConfig({ companyDb });
   const sessionState = getSessionState(config);
 
@@ -467,6 +468,15 @@ const rawRequest = (method, fullUrl, headers, body, rejectUnauthorized, requestO
 
 const request = async (config, retryOnAuth = true, retryOnTransientRead = true) => {
   await require('./documentSeriesWriteValidation').validateMarketingSeriesWrite(config);
+  // Local ERP companies have no SAP: the same request is served from PostgreSQL.
+  const sqlConfig = await dbService.resolveSqlConnectionConfig();
+  if (sqlConfig.dialect === 'postgres') {
+    const method = String(config.method || 'get').trim().toUpperCase();
+    return require('./localServiceLayer').request({
+      ...config,
+      data: WRITE_METHODS.has(method) && !config.preserveEmptyStrings ? normalizeSapWritePayload(config.data) : config.data,
+    }, sqlConfig.database);
+  }
   const serviceLayerConfig = await resolveServiceLayerConfig(config);
   const companyDb = serviceLayerConfig.companyDb;
   await ensureSession(companyDb);

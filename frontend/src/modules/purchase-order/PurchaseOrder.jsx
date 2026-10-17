@@ -20,7 +20,6 @@ import BusinessPartnerModal from './components/BusinessPartnerModal';
 import HSNCodeModal from '../../components/common/HSNCodeModal';
 import CopyFromModal from '../../components/document/CopyFromModal';
 import FreightChargesModal from '../../components/freight/FreightChargesModal';
-import PurchasePrintLayoutActions from '../../components/print-layout/PurchasePrintLayoutActions';
 import SapGoldenArrowButton from '../../components/document/SapGoldenArrowButton';
 import DocumentCurrencySelect from '../../components/document/DocumentCurrencySelect';
 import SalesEmployeeSetupModal from '../../components/sales-employee/SalesEmployeeSetupModal';
@@ -70,7 +69,7 @@ import {
 } from '../../api/purchaseOrderApi';
 import { fetchHSNCodes, fetchHSNCodeFromItem } from '../../api/hsnCodeApi';
 import { summarizeFreightRows } from '../../components/freight/freightUtils';
-import { consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
+import { reloadRouteDocument, consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
 import { applyDocumentTablePaste } from '../../utils/documentTableClipboard';
 import { openLinkedBusinessPartner } from '../../utils/sapLinkedNavigation';
 import { normaliseDocumentHeader, normaliseDocumentLine, unwrapCopyFromDocument } from '../../api/copyFromApi';
@@ -84,6 +83,8 @@ import {
   readSavedFormSettings,
 } from '../../config/purchaseOrderForm';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
 // â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getErrMsg = (e, fb) => {
   const d = e?.response?.data?.detail;
@@ -483,6 +484,7 @@ function PurchaseOrder() {
   const documentBodyRef = useRef(null);
   useClosedDocumentViewMode(documentBodyRef, !isDocumentEditable, [activeTab]);
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const primaryActionLabel = pageState.posting
     ? 'Saving...'
@@ -714,7 +716,7 @@ function PurchaseOrder() {
         if (po.header?.vendor) {
           loadVendorDetails(po.header.vendor);
         }
-        setPageState(p => ({ ...p, success: po.doc_num ? `Purchase order ${po.doc_num} loaded.` : 'Purchase order loaded.' }));
+        setPageState(p => ({ ...p, success: location.state?.documentStatusMessage || (po.doc_num ? `Purchase order ${po.doc_num} loaded.` : 'Purchase order loaded.') }));
       } catch (e) {
         if (!ignore) setPageState(p => ({ ...p, error: getErrMsg(e, 'Failed to load purchase order.') }));
       } finally {
@@ -2069,14 +2071,6 @@ function PurchaseOrder() {
             </button>
           </div>
         </div>
-        <PurchasePrintLayoutActions
-          documentKey="purchaseOrder"
-          docEntry={currentDocEntry}
-          docNumber={header.docNo}
-          disabled={pageState.posting || pageState.loading}
-          onSuccess={(message) => setPageState(p => ({ ...p, error: '', success: message }))}
-          onError={(message) => setPageState(p => ({ ...p, error: message, success: '' }))}
-        />
         <div className="po-dropdown">
           <button
             type="button"
@@ -2125,20 +2119,22 @@ function PurchaseOrder() {
         )}
         <button type="button" className="po-btn sap-document-toolbar__find" onClick={() => navigate('/purchase-order/find')}>Find</button>
         <button type="button" className="po-btn sap-document-toolbar__new" onClick={resetForm}>New</button>
+        <DocumentStatusActions
+          type="purchase-order"
+          docEntry={currentDocEntry}
+          actions={['close', 'cancel']}
+          className="po-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'purchaseOrderDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
       </div>
 
       {/* alerts */}
       {pageState.loading && <div className="po-alert po-alert--success" style={{ marginTop: 0 }}>Loading...</div>}
       {pageState.error && <div className="po-alert po-alert--error">{pageState.error}</div>}
       {pageState.success && <div className="po-alert po-alert--success">{pageState.success}</div>}
-      {refData.warnings?.length > 0 && (
-        <div className="po-alert po-alert--warning">
-          <strong>SAP warnings:</strong>
-          {refData.warnings.map((w, i) => <div key={i}>{w}</div>)}
-          <div style={{ marginTop: 4, color: '#555' }}>Dropdowns are showing fallback values. Connect to SAP to load live data.</div>
-          <div style={{ marginTop: 4, color: '#d00', fontWeight: 600 }}>âš ï¸ Tax codes shown are examples only. Use actual SAP tax codes to avoid submission errors.</div>
-        </div>
-      )}
+
 
       <fieldset ref={documentBodyRef} aria-disabled={!isDocumentEditable} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <div className={`po-layout${isRightSidebarOpen ? ' is-sidebar-open' : ''}`}>
@@ -2491,7 +2487,7 @@ function PurchaseOrder() {
 
             {/* â•â• TOTALS FOOTER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
             <div className="po-header-card">
-              <div className="po-field-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="po-field-grid">
                 <div>
                   <div className="po-field">
                     <label className="po-field__label">Purchaser</label>

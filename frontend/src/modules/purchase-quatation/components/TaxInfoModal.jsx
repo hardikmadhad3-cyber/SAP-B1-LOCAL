@@ -18,7 +18,6 @@ export default function TaxInfoModal({ isOpen, onClose, onSave, taxInfoForm, onF
                   </label>
                   <input
                     className="form-control form-control-sm"
-                    style={{ background: '#ffffcc' }}
                     name="panNo"
                     value={taxInfoForm.panNo}
                     onChange={onFormChange}

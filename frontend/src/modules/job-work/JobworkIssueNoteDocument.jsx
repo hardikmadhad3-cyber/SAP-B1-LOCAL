@@ -7,7 +7,6 @@ import './styles/jobworkIssueNote.css';
 import ItemSelectionModal from '../../components/common/ItemSelectionModal';
 import BusinessPartnerModal from '../sales-order/components/BusinessPartnerModal';
 import BatchAllocationModal from '../../components/BatchAllocationModal';
-import PrintLayoutToolbar from '../../components/print-layout/PrintLayoutToolbar';
 import { fetchGoodsIssueBatchesByItem } from '../../api/goodsIssueApi';
 import { sumBatchQty } from '../../utils/batchQuantity';
 import { createActiveCompanyScopedRouteState } from '../../utils/companyStorageScope';
@@ -598,17 +597,6 @@ export default function JobworkIssueNoteDocument() {
         <button type="button" className="po-btn" onClick={backToList}>Cancel</button>
 <button type="button" className="po-btn" data-sap-find-action onClick={backToList}>Find</button>
         <button type="button" className="po-btn" onClick={openNew}>New</button>
-        {inventoryTransferDocEntry ? (
-          <PrintLayoutToolbar
-            documentType="inventoryTransfer"
-            documentLabel="Inventory Transfer"
-            docEntry={inventoryTransferDocEntry}
-            docNumber={inventoryTransferDocNum}
-            classPrefix="po"
-            onSuccess={(message) => setPageState((current) => ({ ...current, error: '', success: message }))}
-            onError={(message) => setPageState((current) => ({ ...current, error: message, success: '' }))}
-          />
-        ) : null}
       </div>
 
       {pageState.loading && <div className="po-alert po-alert--success">Loading...</div>}

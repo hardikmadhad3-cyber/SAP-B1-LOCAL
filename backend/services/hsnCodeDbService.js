@@ -89,6 +89,19 @@ const getHSNCode = async (code) => {
   };
 };
 
+const firstWorkingQuery = async (sqlTexts, params) => {
+  let lastError;
+  for (const sqlText of sqlTexts) {
+    try {
+      return (await db.query(sqlText, params)).recordset || [];
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  console.error('[HSN Code DB Service] Query error:', lastError);
+  return [];
+};
+
 const mapSACRows = (rows = []) => rows.map((item) => ({
   absEntry: item.AbsEntry || null,
   code: item.ServiceCode || item.ServCode || item.ChapterID || '',
@@ -127,19 +140,13 @@ const getSACCodes = async (query = '', top = 5000, skip = 0) => {
     `,
   ];
 
-  for (const sqlText of osacQueries) {
-    const rows = await safe(db.query(sqlText, params));
-    if (rows.length) return mapSACRows(rows);
-  }
+  // Column names differ between SAP versions: try the next spelling only when
+  // the previous one fails, not when it simply finds nothing.
+  const rows = await firstWorkingQuery(osacQueries, params);
+  if (rows.length) return mapSACRows(rows);
 
-  const hsnRows = await getHSNCodes(trimmed, params.top, params.skip);
-  return hsnRows.map((item) => ({
-    absEntry: item.absEntry,
-    code: item.code,
-    serviceCode: item.code,
-    serviceName: item.description,
-    description: item.description,
-  }));
+  // No SAC codes: say so. HSN codes are goods codes, not a substitute for SAC.
+  return [];
 };
 
 const resolveHSNCodeToAbsEntry = async (value) => {
@@ -213,14 +220,13 @@ const resolveSACCodeToAbsEntry = async (value) => {
     absEntry: /^\d+$/.test(raw) ? Number(raw) : null,
   };
 
-  for (const queryConfig of osacQueries) {
-    const result = await safe(db.query(queryConfig.sql, params));
-    if (result.length > 0 && result[0].AbsEntry != null) {
-      return Number(result[0].AbsEntry);
-    }
+  const result = await firstWorkingQuery(osacQueries.map((queryConfig) => queryConfig.sql), params);
+  if (result.length > 0 && result[0].AbsEntry != null) {
+    return Number(result[0].AbsEntry);
   }
 
-  return resolveHSNCodeToAbsEntry(raw);
+  // An OCHP (HSN) key is not an OSAC key; an unknown SAC stays unresolved.
+  return null;
 };
 
 /**

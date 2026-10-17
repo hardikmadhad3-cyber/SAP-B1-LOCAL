@@ -218,7 +218,9 @@ function DocumentCurrencySelect({
               aria-expanded={currencyDropdownOpen}
             >
               <span>{selectedCurrencyOption.code}</span>
-              <span aria-hidden="true">v</span>
+              <svg className="sap-currency-picker__chevron" aria-hidden="true" viewBox="0 0 12 12" width="10" height="10">
+                <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
             {currencyDropdownOpen ? (
               <div className={`${classPrefix}-currency-picker__menu`} role="listbox">
@@ -254,7 +256,18 @@ function DocumentCurrencySelect({
               </option>
             ))}
           </select>
-        ) : null}
+        ) : (
+          // SAP B1 always shows the document currency next to the source;
+          // fixed-currency partners and Local/System mode show it read-only.
+          <input
+            className={`${classPrefix}-field__input sap-currency-readonly`}
+            value={normalizedSelectedDocumentCurrency}
+            readOnly
+            tabIndex={-1}
+            aria-label="Document Currency (fixed)"
+            title="Document currency"
+          />
+        )}
         {hasExchangeRateField ? (
           <input
             name="exchangeRate"

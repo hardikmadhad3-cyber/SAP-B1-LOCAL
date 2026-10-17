@@ -351,3 +351,135 @@
   .dashboard-sales-process { justify-content: flex-start; }
   .dashboard-process-step { min-width: calc(50% - 8px); }
 }
+
+/* Fiori Horizon overview page: flat header, soft cards, SAP chart palette.
+   Same selectors as above, so these win by order. */
+.live-dashboard {
+  --dashboard-blue: var(--sap-primary);
+  --dashboard-blue-dark: var(--sap-primary-dark);
+  --dashboard-cyan: #168eff;
+  --dashboard-ink: var(--sap-text);
+  --dashboard-muted: var(--sap-text-muted);
+  gap: 12px;
+  font-family: var(--sap-font-family);
+}
+
+.live-dashboard .dashboard-banner {
+  padding: 14px 18px;
+  border: 1px solid var(--sap-border-soft);
+  border-radius: var(--sap-radius-md);
+  background: var(--sap-surface);
+  box-shadow: var(--sap-shadow-card);
+}
+
+.live-dashboard .dashboard-banner__eyebrow {
+  color: var(--sap-text-muted);
+  letter-spacing: 0.08em;
+}
+
+.live-dashboard .dashboard-banner h2 {
+  color: var(--sap-text);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.live-dashboard .dashboard-banner p {
+  color: var(--sap-text-muted);
+  font-size: 12px;
+}
+
+.dashboard-refresh {
+  padding: 5px 12px;
+  border: 1px solid var(--sap-button-border);
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-button-bg);
+  color: var(--sap-button-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-refresh:hover:not(:disabled) {
+  background: var(--sap-button-bg-hover);
+}
+
+.dashboard-live-status {
+  color: var(--sap-text-muted);
+}
+
+.dashboard-live-status > span {
+  background: var(--sap-success);
+}
+
+.live-dashboard .dashboard-widget,
+.live-dashboard .dashboard-widget:hover {
+  padding: 12px 14px;
+  border: 1px solid var(--sap-border-soft);
+  border-radius: var(--sap-radius-md);
+  background: var(--sap-surface);
+  box-shadow: var(--sap-shadow-card);
+}
+
+.live-dashboard .dashboard-widget:hover {
+  border-color: var(--sap-border);
+}
+
+.live-dashboard .dashboard-widget__header h3 {
+  color: var(--sap-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dashboard-kpi {
+  min-height: 120px;
+}
+
+.dashboard-kpi--button {
+  border-radius: var(--sap-radius-sm);
+}
+
+.dashboard-kpi--button:hover .dashboard-kpi__amount {
+  color: var(--sap-primary-dark);
+}
+
+.dashboard-kpi--button:focus-visible {
+  outline: 2px solid var(--sap-focus);
+  outline-offset: 2px;
+}
+
+.dashboard-kpi__amount {
+  color: var(--sap-primary);
+  font-size: clamp(28px, 3.2vw, 40px);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-kpi__currency,
+.dashboard-kpi__footer {
+  color: var(--sap-text-muted);
+}
+
+.dashboard-kpi__trend--positive { color: var(--sap-success); }
+.dashboard-kpi__trend--negative { color: var(--sap-danger); }
+.dashboard-kpi__trend--neutral { color: var(--sap-text-muted); }
+
+/* SAP Horizon categorical chart colours. */
+.dashboard-chart__value { fill: var(--sap-text); }
+.dashboard-chart__track { fill: #eff1f2; }
+.dashboard-chart__bar,
+.dashboard-chart__revenue { fill: #168eff; }
+.dashboard-chart__bar--negative { fill: #df1278; }
+.dashboard-chart__grid { stroke: var(--sap-border-soft); }
+.dashboard-chart__zero { stroke: var(--sap-border-strong); }
+.dashboard-chart__profit-line { stroke: #c87b00; }
+.dashboard-chart__profit-dot { stroke: #c87b00; }
+.dashboard-chart__legend .is-revenue { background: #168eff; }
+.dashboard-chart__legend .is-profit { background: #c87b00; }
+
+.dashboard-recent-item:hover { background: var(--sap-row-hover); }
+.dashboard-recent-item__title { color: var(--sap-link); font-size: 12px; }
+.dashboard-recent-item small { color: var(--sap-text-muted); }
+
+.dashboard-message {
+  border-left-width: 4px !important;
+  border-radius: var(--sap-radius-sm);
+}

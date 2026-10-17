@@ -1158,7 +1158,7 @@ const listLayouts = async ({ reportCode, menuEntryId, userId, roleId }) => {
     LEFT JOIN dbo.ReportLayoutMenuEntries m
       ON m.MenuEntryID = l.MenuEntryID
     WHERE l.ReportCode = @reportCode
-      AND (@menuEntryId IS NULL OR l.MenuEntryID = @menuEntryId)
+      AND (CAST(@menuEntryId AS INTEGER) IS NULL OR l.MenuEntryID = @menuEntryId)
       AND (l.AssignedUserId IS NULL OR l.AssignedUserId = @userId)
       AND (l.AssignedRoleId IS NULL OR l.AssignedRoleId = @roleId)
     ORDER BY

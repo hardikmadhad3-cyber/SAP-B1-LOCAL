@@ -24,7 +24,6 @@ import WithholdingTaxTableModal from './components/WithholdingTaxTableModal';
 import CopyFromModal from '../../components/document/CopyFromModal';
 import BatchAllocationModal from '../grpo/components/BatchAllocationModal';
 import FreightChargesModal from '../../components/freight/FreightChargesModal';
-import PurchasePrintLayoutActions from '../../components/print-layout/PurchasePrintLayoutActions';
 import JournalEntryPreviewButton from '../../components/journal-entry/JournalEntryPreviewButton';
 import SalesEmployeeSetupModal from '../../components/sales-employee/SalesEmployeeSetupModal';
 import { useRelationshipMapRegistration } from '../../components/relationship-map/RelationshipMapHost';
@@ -55,7 +54,7 @@ import DocumentRoundingInput from '../../components/sales-document/DocumentRound
 import { resolveWithholdingTaxBaseAmount } from '../../utils/withholdingTax';
 import useSalesEmployeeSetup from '../../hooks/useSalesEmployeeSetup';
 import { useAuth } from '../../auth/AuthContext';
-import { consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
+import { reloadRouteDocument, consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
 import useDocumentDraftTask from '../../hooks/useDocumentDraftTask';
 import useValidationHighlights from '../../utils/useValidationHighlights';
 import useClosedDocumentViewMode from '../../hooks/useClosedDocumentViewMode';
@@ -92,6 +91,8 @@ import {
   hydratePurchaseOrderLineUdfFields,
 } from '../purchase-order/purchaseOrderLineUdfMapping';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
 // â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getErrMsg = (e, fb) => {
   const d = e?.response?.data?.detail;
@@ -585,6 +586,7 @@ function APInvoice() {
   });
   const isDocumentEditable = !currentDocEntry || String(header.status || '').toLowerCase() === 'open';
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const hydrateAPInvoiceBatchLine = useCallback((line = {}) => {
     const itemCode = String(line.itemNo || line.ItemCode || '').trim();
     const item = refData.items.find((candidate) => String(candidate.ItemCode || '').trim() === itemCode);
@@ -908,7 +910,7 @@ function APInvoice() {
             savedWithholdingRows,
           });
         }
-        setPageState(p => ({ ...p, success: po.doc_num ? `A/P Invoice ${po.doc_num} loaded.` : 'A/P Invoice loaded.' }));
+        setPageState(p => ({ ...p, success: location.state?.documentStatusMessage || (po.doc_num ? `A/P Invoice ${po.doc_num} loaded.` : 'A/P Invoice loaded.') }));
       } catch (e) {
         if (!ignore) setPageState(p => ({ ...p, error: getErrMsg(e, 'Failed to load A/P Invoice.') }));
       } finally {
@@ -2614,6 +2616,15 @@ function APInvoice() {
         <button type="button" className="po-btn sap-document-toolbar__cancel" onClick={resetForm}>Cancel</button>
         <button type="button" className="po-btn sap-document-toolbar__find" onClick={() => navigate('/ap-invoice/find')}>Find</button>
         <button type="button" className="po-btn sap-document-toolbar__new" onClick={resetForm}>New</button>
+        <DocumentStatusActions
+          type="ap-invoice"
+          docEntry={currentDocEntry}
+          actions={['cancel']}
+          className="po-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'APInvoiceDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
         <button type="button" className="po-btn sap-document-toolbar__udf" onClick={toggleHeaderUdfs}>
           {sidebarOpen ? 'Hide UDFs' : 'Show UDFs'}
         </button>
@@ -2683,14 +2694,6 @@ function APInvoice() {
             Duplicate
           </button>
         )}
-        <PurchasePrintLayoutActions
-          documentKey="apInvoice"
-          docEntry={currentDocEntry}
-          docNumber={header.docNo}
-          disabled={pageState.posting || pageState.loading}
-          onSuccess={(message) => setPageState(p => ({ ...p, error: '', success: message }))}
-          onError={(message) => setPageState(p => ({ ...p, error: message, success: '' }))}
-        />
         <JournalEntryPreviewButton
           documentType="apInvoice"
           documentLabel="A/P Invoice"
@@ -2708,12 +2711,7 @@ function APInvoice() {
       {pageState.loading && <div className="po-alert po-alert--warning">Loading...</div>}
       {pageState.error   && <div className="po-alert po-alert--error">{pageState.error}</div>}
       {pageState.success && <div className="po-alert po-alert--success">{pageState.success}</div>}
-      {refData.warnings?.length > 0 && (
-        <div className="po-alert po-alert--warning">
-          <strong>SAP warnings:</strong>
-          {refData.warnings.map((w, i) => <div key={i}>{w}</div>)}
-        </div>
-      )}
+
 
       <fieldset ref={documentBodyRef} aria-disabled={!isDocumentEditable} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <div className={`po-layout${isRightSidebarOpen ? ' is-sidebar-open' : ''}`}>
@@ -2721,7 +2719,7 @@ function APInvoice() {
 
             {/* â•â• HEADER CARD â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
             <div className="po-header-card">
-              <div className="po-field-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="po-field-grid">
 
                 {/* LEFT â€” Vendor info */}
                 <div style={{ borderRight: '2px solid #e0e6ed', paddingRight: 16 }}>

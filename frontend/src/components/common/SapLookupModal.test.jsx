@@ -209,3 +209,33 @@ test('starts a lookup with text entered in its source field before Tab', async (
     window.__sapB1PendingLookupQuery = '';
   }
 });
+
+test('arrow keys move the highlight and Enter chooses it from the search box', () => {
+  const onSelect = jest.fn();
+  render(
+    <SapLookupModal
+      open
+      title="Keyboard List"
+      columns={columns}
+      rows={[{ code: 'A1', name: 'Alpha' }, { code: 'B2', name: 'Beta' }]}
+      onClose={jest.fn()}
+      onSelect={onSelect}
+    />,
+  );
+  const search = screen.getByLabelText('Find');
+
+  fireEvent.keyDown(search, { key: 'ArrowDown' });
+  fireEvent.keyDown(search, { key: 'ArrowDown' });
+  expect(screen.getByText('Beta').closest('tr')).toHaveClass('is-selected');
+  fireEvent.keyDown(search, { key: 'Enter' });
+  expect(onSelect).toHaveBeenCalledWith({ code: 'B2', name: 'Beta' });
+});
+
+test('Enter with nothing highlighted chooses the first row', () => {
+  const onSelect = jest.fn();
+  render(
+    <SapLookupModal open title="First Row" columns={columns} rows={[{ code: 'A1', name: 'Alpha' }]} onClose={jest.fn()} onSelect={onSelect} />,
+  );
+  fireEvent.keyDown(screen.getByLabelText('Find'), { key: 'Enter' });
+  expect(onSelect).toHaveBeenCalledWith({ code: 'A1', name: 'Alpha' });
+});

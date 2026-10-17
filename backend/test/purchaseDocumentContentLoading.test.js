@@ -224,3 +224,27 @@ test('A/P Credit Memo copy-from emits exact HANA SAC casing and joins its salesp
   await service.getGRPOForCopy(17);
   assert.equal(checkedLines, true);
 });
+
+for (const languageExists of [false, true]) {
+  test('Purchase Order reads optional language metadata: ' + languageExists, async () => {
+    const service = loadService('purchaseOrderDbService', async (sql, params = {}) => {
+      if (params.tableName) return { recordset: languageExists ? [{ columnName: 'LangCode' }] : [] };
+      if (sql.includes('FROM OPOR T0')) {
+        assert.equal(sql.includes('T0.[LangCode] AS [Language]'), languageExists);
+        return { recordset: [{ DocEntry: 17, DocNum: 17, Language: languageExists ? 3 : null }] };
+      }
+      if (sql.includes('FROM POR1 T0')) return { recordset: [{ LineNum: 0, ItemCode: 'ITEM', Quantity: 1 }] };
+      return { recordset: [] };
+    }, { company: 'LANGUAGE_' + languageExists });
+    const result = await service.getPurchaseOrder(17);
+    assert.equal(result.purchase_order.doc_entry, 17);
+  });
+}
+test('Purchase Order preserves a header query failure instead of reporting not found', async () => {
+  const failure = new Error('Database unavailable');
+  const service = loadService('purchaseOrderDbService', async (sql) => {
+    if (sql.includes('FROM OPOR T0')) throw failure;
+    return { recordset: [] };
+  });
+  await assert.rejects(service.getPurchaseOrder(17), (error) => error === failure);
+});

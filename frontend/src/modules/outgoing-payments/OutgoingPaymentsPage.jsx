@@ -11,6 +11,8 @@ import {
 } from "../../api/outgoingPaymentsApi";
 import { useRelationshipMapRegistration } from "../../components/relationship-map/RelationshipMapHost";
 import JournalEntryPreviewButton from "../../components/journal-entry/JournalEntryPreviewButton";
+import DocumentStatusActions from "../../components/document/DocumentStatusActions";
+import { getDocumentStatusMessage } from "../../utils/copyToState";
 import FormSettingsPanel from "../../components/purchase-order/FormSettingsPanel";
 import PaymentMeansModal, {
   createDefaultPaymentMeans,
@@ -1332,6 +1334,18 @@ export default function OutgoingPaymentsPage() {
         />
         <button type="button" className="po-btn" onClick={resetForm} disabled={posting}>Cancel</button>
 <button type="button" className="po-btn" data-sap-find-action onClick={openFind}>Find</button>
+        <DocumentStatusActions
+          type="outgoing-payments"
+          docEntry={currentDocEntry}
+          actions={['cancel']}
+          className="po-btn"
+          disabled={posting || loading}
+          onDone={async (action) => {
+            await handleOutgoingPaymentSelect({ docEntry: currentDocEntry });
+            setSuccessMessage(getDocumentStatusMessage(action));
+          }}
+          onError={setLoadError}
+        />
         <button type="button" className="po-btn sap-document-toolbar__settings" onClick={toggleFormSettings}>Form Settings</button>
         <button type="button" className="po-btn" onClick={deselectAll} disabled={posting || isFoundDocument}>Deselect All</button>
         <button type="button" className="po-btn" onClick={selectAll} disabled={posting || isFoundDocument}>Select All</button>

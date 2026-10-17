@@ -5,6 +5,10 @@
 
 The frontend development server forwards `/api` requests to the port in `backend/.env` (5001 if the file has no `PORT`). A frontend `.env` is not required for local login. Restart the frontend server after changing the backend port.
 
+For LAN access, open `http://<server-LAN-IP>:3000` from the other computer. Pages compile at startup by default, so navigation does not wait for page compilation. If an existing frontend environment file sets `DEV_LAZY_COMPILATION=true`, change it to `false` and restart `npm start`. The `true` setting is only for localhost development: its separate compiler connection uses localhost and fails from another computer.
+
+For normal LAN use, run `npm run build` from `frontend`, start the backend, and open `http://<server-LAN-IP>:<backend-PORT>`. The backend serves the production build with compressed, cached assets and no development compiler.
+
 For a separately hosted API, set `REACT_APP_API_BASE_URL` in `frontend/.env.local` to its full URL ending in `/api`. That overrides the local proxy. `REACT_APP_API_PORT` also bypasses the proxy and should only be set when the backend port is fixed.
 
 # Getting Started with Create React App

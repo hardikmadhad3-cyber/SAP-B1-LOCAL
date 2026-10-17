@@ -14,6 +14,8 @@ const safe = async (promise) => {
     const result = await promise;
     return result.recordset || [];
   } catch (_error) {
+    // Logged, not hidden: a failing query would otherwise look like "no data".
+    console.warn('[DB] query failed, returning no rows:', _error?.message || _error);
     return [];
   }
 };
@@ -50,6 +52,8 @@ const SUBTYPE_MAP = {
   R: 'number',
   P: 'number',
   Q: 'number',
+  S: 'number',
+  '%': 'number',
   A: 'textarea',
 };
 
@@ -115,10 +119,13 @@ const getUdfDefinitions = async (tableId) => {
     getColumnSet('CUFD'),
     getPhysicalUdfColumns(normalizedTableId),
   ]);
-  const selectSubType = cufdColumns.has('SubType') ? 'T0.SubType' : "'' AS SubType";
+  // SAP names the structure column EditType and the linked table RTable.
+  const selectSubType = cufdColumns.has('SubType') ? 'T0.SubType'
+    : cufdColumns.has('EditType') ? 'T0.EditType AS SubType' : "'' AS SubType";
   const selectMandatoryAlt = cufdColumns.has('Mandatory') ? 'T0.Mandatory AS MandatoryAlt' : "'' AS MandatoryAlt";
   const selectEditable = cufdColumns.has('Editable') ? 'T0.Editable' : "'' AS Editable";
-  const selectLinkedTable = cufdColumns.has('LinkedTable') ? 'T0.LinkedTable' : "'' AS LinkedTable";
+  const selectLinkedTable = cufdColumns.has('LinkedTable') ? 'T0.LinkedTable'
+    : cufdColumns.has('RTable') ? 'T0.RTable AS LinkedTable' : "'' AS LinkedTable";
 
   const rows = await safe(db.query(`
     SELECT
@@ -216,15 +223,31 @@ const getUdfDefinitions = async (tableId) => {
     });
   });
 
+  // Local formula/validation rules; LocalUdfRule exists only in local companies, so elsewhere this is empty.
+  const rules = await safe(db.query('SELECT AliasID, Formula, Validation, Message FROM LocalUdfRule WHERE TableID = @tableId', { tableId: normalizedTableId }));
+  const ruleByKey = new Map(rules.map((rule) => [normalizeUdfKey(rule.AliasID).toUpperCase(), rule]));
+  const withRule = (field) => {
+    const rule = ruleByKey.get(field.key.toUpperCase());
+    if (!rule) return field;
+    return {
+      ...field,
+      formula: rule.Formula || undefined,
+      validation: rule.Validation || undefined,
+      validationMessage: rule.Message || undefined,
+      // A calculated field is filled on save, not typed.
+      readOnly: field.readOnly || Boolean(rule.Formula),
+    };
+  };
+
   return Array.from(byKey.values()).map((field) => {
     const sourceRow = liveRows.find(
       (row) => normalizeUdfKey(row.AliasID).toUpperCase() === field.key.toUpperCase(),
     ) || {};
-    if (!sourceRow.AliasID) return field;
+    if (!sourceRow.AliasID) return withRule(field);
 
     const type = mapType(sourceRow, field.options);
 
-    return {
+    return withRule({
       ...field,
       type,
       defaultValue: getDefaultValue(type, field.options, sourceRow.Dflt),
@@ -236,7 +259,7 @@ const getUdfDefinitions = async (tableId) => {
       lookupSource: String(sourceRow.LinkedTable || '').trim()
         ? `udf:${sourceRow.TableID || normalizedTableId}:${field.key}`
         : field.lookupSource,
-    };
+    });
   });
 };
 

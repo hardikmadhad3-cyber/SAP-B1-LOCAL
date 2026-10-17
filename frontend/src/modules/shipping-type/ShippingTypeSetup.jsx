@@ -108,12 +108,11 @@ export default function ShippingTypeSetup() {
 
       // Process modified records
       for (const st of shippingTypes.filter((s) => s.isModified && !s.isNew)) {
+        // An emptied Web Site is sent as null so it is cleared.
         const payload = {
           Name: st.Name.trim(),
+          Website: st.Website?.trim() || null,
         };
-        if (st.Website?.trim()) {
-          payload.Website = st.Website.trim();
-        }
         await updateShippingType(st.Code, payload);
       }
 

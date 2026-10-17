@@ -60,11 +60,13 @@ const toRoundingMethod = (value) => {
   return map[Number(value)] || "borm_NoRounding";
 };
 
+// SDK OCTG.BslineDate: P posting, S system, T document date, C closing.
 const toBaselineDate = (value) => {
   const map = {
     P: "bld_PostingDate",
-    D: "bld_DocDate",
-    T: "bld_TaxDate",
+    S: "bld_SystemDate",
+    T: "bld_DueDate",
+    C: "bld_ClosingDate",
   };
   return map[String(value || "").toUpperCase()] || "bld_PostingDate";
 };
@@ -112,6 +114,7 @@ const queryOne = async (sql, params = {}, options = {}) => {
 };
 
 const mapBranch = (row) => ({
+  ...(row.SlExtra || {}),
   BPLID: row.BPLId,
   BPLName: row.BPLName || "",
   BPLNameForeign: row.BPLFrName || "",
@@ -132,6 +135,13 @@ const mapBranch = (row) => ({
   Country: row.Country || "",
   DflWhs: row.DflWhs || "",
   TaxIdNum: row.TaxIdNum || "",
+  // The names the Branch page sends, so a loaded branch fills the same fields.
+  DefaultWarehouseCode: row.DflWhs || "",
+  FederalTaxID: row.TaxIdNum || "",
+  AdditionalID: row.AddtnlId || "",
+  TaxOfficeName: row.TaxOffice || "",
+  GSTIN: row.GSTRegnNo || "",
+  GSTType: row.GSTType || "",
 });
 
 const mapWarehouse = (row) => ({
@@ -169,7 +179,7 @@ const mapWarehouse = (row) => ({
   AddressName3: row.Address3 || "",
   StockAccount: row.BalInvntAc || "",
   DecreasingAccount: row.DecreasAc || "",
-  IncreaseGLAccount: row.IncreasAc || "",
+  IncreasingAcc: row.IncreasAc || "",
   CostOfGoodsSold: row.SaleCostAc || "",
   TransfersAcc: row.TransferAc || "",
   PriceDifferencesAccount: row.PriceDifAc || "",
@@ -180,7 +190,7 @@ const mapWarehouse = (row) => ({
   PurchaseOffsetAccount: row.PurchOfsAc || "",
   ExpenseAccount: row.ExpensesAc || "",
   ExpensesClearingAccount: row.ExpClrAct || "",
-  GoodsClearingAcc: row.PurBalAct || "",
+  GoodsClearingAcc: row.BalanceAcc || "",
   RevenuesAccount: row.RevenuesAc || "",
   ReturningAccount: row.ReturnAc || "",
   ExemptRevenuesAccount: row.ExmptIncom || "",
@@ -211,7 +221,7 @@ const mapWarehouse = (row) => ({
   VATInRevenueAccount: row.VatRevAct || "",
   WHIncomingCenvatAccount: row.WhICenAct || "",
   WHOutgoingCenvatAccount: row.WhOCenAct || "",
-  IncreasingAcc: row.IncresGlAc || "",
+  IncreaseGLAccount: row.IncresGlAc || "",
   DecreaseGLAccount: row.DecresGlAc || "",
   AutoAllocOnIssue: row.AutoIssMtd === 1 ? "whsBinSingleChoiceOnly" : "whsBinSingleChoiceOnly",
   AutoAllocOnReceipt: row.AutoRecvMd === 1 ? "aaormOnEveryTransaction" : "aaormDefaultBin",
@@ -223,19 +233,30 @@ const mapWarehouse = (row) => ({
   ReceiveUpToMethod: row.RecvUpTo === "1" ? "rutmMaximumWeight" : "rutmMaximumQty",
 });
 
+// SDK OCTG.PayDuMonth (Start From): E month end, H half month, Y month start, N selected day.
+const toStartFrom = (value) => ({
+  E: "ptsf_MonthEnd",
+  H: "ptsf_HalfMonth",
+  Y: "ptsf_MonthStart",
+}[String(value || "").toUpperCase()] || "ptsf_DayOfMonth");
+
 const mapPaymentTerms = (row, installments = []) => ({
   GroupNumber: row.GroupNum,
-  PaymentTermsGroupCode: String(row.GroupNum),
+  // PymntCode/LoadLimit are local columns; SAP-connected companies fall back to GroupNum.
+  PaymentTermsGroupCode: row.PymntCode || String(row.GroupNum),
   PaymentTermsGroupName: row.PymntGroup || "",
   BaselineDate: toBaselineDate(row.BslineDate),
-  StartFrom: "ptsf_DayOfMonth",
+  StartFrom: toStartFrom(row.PayDuMonth),
+  CashDiscountPercent: row.VolumDscnt ?? 0,
+  DiscountCode: row.DiscCode || "",
+  PaymentMethod: row.PymCode || "",
   NumberOfAdditionalMonths: row.ExtraMonth ?? 0,
   NumberOfAdditionalDays: row.ExtraDays ?? 0,
   ToleranceDays: row.TolDays ?? 0,
   NumberOfInstallments: installments.length || row.InstNum || 1,
   OpenIncomingPaymentsByDueDate: toYesNo(row.OpenRcpt),
   CreditLimit: row.CredLimit ?? 0,
-  LoadLimitCredit: "tNO",
+  LoadLimitCredit: toYesNo(row.LoadLimit),
   PriceListNo: row.ListNum ?? "",
   PaymentTermsInstallments: installments,
 });
@@ -284,6 +305,7 @@ const mapPriceList = (row, baseName) => ({
 });
 
 const mapAccount = (row, fatherName = "", taxName = "") => ({
+  ...(row.SlExtra || {}),
   Code: row.AcctCode || "",
   Name: row.AcctName || "",
   ForeignName: row.FrgnName || "",
@@ -295,7 +317,7 @@ const mapAccount = (row, fatherName = "", taxName = "") => ({
   ActiveAccount: row.FrozenFor === "Y" ? "tNO" : "tYES",
   Locked: toYesNo(row.FrozenFor),
   IsTitleAccount: row.Postable === "N" ? "tYES" : "tNO",
-  Confidential: "tNO",
+  Confidential: row.SlExtra?.Confidential || "tNO",
   Protected: toYesNo(row.Protected),
   Balance: row.CurrTotal ?? 0,
   BalanceFC: row.FcTotal ?? 0,
@@ -306,7 +328,9 @@ const mapAccount = (row, fatherName = "", taxName = "") => ({
   TaxGroupName: taxName || "",
   TaxLiable: row.DfltTax ? "tYES" : "tNO",
   CashAccount: toYesNo(row.CashBox),
-  RevaluationCoordinated: toYesNo(row.RevalAcct),
+  // SDK OACT: LocManTran = control account, RevalMatch = revaluation coordinated.
+  ControlAccount: toYesNo(row.LocManTran),
+  RevaluationCoordinated: toYesNo(row.RevalMatch),
   RevaluationAccount: row.RevalAcct || "",
   AllowMultipleCurrencies: row.ActCurr === "##" ? "tYES" : "tNO",
   BudgetAccount: toYesNo(row.Budget),
@@ -484,7 +508,7 @@ const lookupBranchWarehouses = async (query = "", branchId = "") => {
     WHERE (@query = ''
       OR WhsCode LIKE @like
       OR ISNULL(WhsName, '') LIKE @like)
-      AND (@branchId IS NULL OR BPLid = @branchId)
+      AND (CAST(@branchId AS INTEGER) IS NULL OR BPLid = @branchId)
     ORDER BY WhsCode
   `, { query: String(query || "").trim(), like: `%${String(query || "").trim()}%`, branchId: branchIdNum });
 
@@ -631,7 +655,7 @@ const getPaymentTerms = async (groupNumber) => {
     NumberOfAdditionalMonths: line.InstMonth ?? 0,
     NumberOfAdditionalDays: line.InstDays ?? 0,
     BaselineDate: toBaselineDate(row.BslineDate),
-    StartFrom: "ptsf_DayOfMonth",
+    StartFrom: toStartFrom(row.PayDuMonth),
   }));
 
   return mapPaymentTerms(row, mappedLines);
@@ -641,7 +665,7 @@ const searchPaymentTerms = async (query = "", top = 50, skip = 0) => {
   const { top: limit, skip: offset } = pagingParams(top, skip);
   const trimmed = String(query || "").trim();
   const rows = await queryRows(`
-    SELECT GroupNum, PymntGroup, ExtraMonth, ExtraDays, CredLimit, DiscCode, OpenRcpt, BslineDate, InstNum
+    SELECT *
     FROM OCTG
     WHERE @query = ''
       OR PymntGroup LIKE @like
@@ -653,17 +677,17 @@ const searchPaymentTerms = async (query = "", top = 50, skip = 0) => {
   return rows.map((row) => ({
     GroupNumber: row.GroupNum,
     PaymentTermsGroupName: row.PymntGroup || "",
-    PaymentTermsGroupCode: String(row.GroupNum),
-    CashDiscountPercent: 0,
+    PaymentTermsGroupCode: row.PymntCode || String(row.GroupNum),
+    CashDiscountPercent: row.VolumDscnt ?? 0,
     NumberOfAdditionalMonths: row.ExtraMonth ?? 0,
     NumberOfAdditionalDays: row.ExtraDays ?? 0,
     CreditLimit: row.CredLimit ?? 0,
     DiscountCode: row.DiscCode || "",
-    LoadLimitCredit: "tNO",
+    LoadLimitCredit: toYesNo(row.LoadLimit),
     OpenIncomingPaymentsByDueDate: toYesNo(row.OpenRcpt),
     BaselineDate: toBaselineDate(row.BslineDate),
-    StartFrom: "ptsf_DayOfMonth",
-    PaymentMethod: "",
+    StartFrom: toStartFrom(row.PayDuMonth),
+    PaymentMethod: row.PymCode || "",
   }));
 };
 
@@ -722,7 +746,7 @@ const searchUoMGroups = async (query = "", top = 50, skip = 0) => {
 const lookupUoMs = async (query = "") => {
   const trimmed = String(query || "").trim();
   const rows = await queryRows(`
-    SELECT TOP 200 UomEntry, UomCode, UomName
+    SELECT UomEntry, UomCode, UomName
     FROM OUOM
     WHERE @query = ''
       OR UomCode LIKE @like
@@ -734,6 +758,7 @@ const lookupUoMs = async (query = "") => {
     code: String(row.UomEntry),
     name: `${row.UomCode} - ${row.UomName}`,
     uomCode: row.UomCode,
+    uomName: row.UomName || "",
   }));
 };
 
@@ -862,6 +887,28 @@ const searchTaxCodes = async (query = "", category = "", top = 50, skip = 0) => 
   return searchDocumentTaxCodes(query, category, top, skip);
 };
 
+// Tax setup lists (Tax Code - Setup page): include inactive codes, unlike the
+// document lookups above which only offer usable ones.
+const listTaxCodesForSetup = async (query = "") => queryRows(`
+  SELECT TOP 200 T0.Code, T0.Name, ISNULL(T0.Rate, 0) AS Rate, ISNULL(T0.Lock, 'N') AS Lock
+  FROM OSTC T0
+  WHERE @query = '' OR T0.Code LIKE @like OR ISNULL(T0.Name, '') LIKE @like
+  ORDER BY T0.Code
+`, { query: String(query || "").trim(), like: `%${String(query || "").trim()}%` });
+
+const listTaxComponents = async (query = "") => queryRows(`
+  SELECT TOP 200 T0.Code, T0.Name, T0.Type, T1.Name AS TypeName, ISNULL(T0.Rate, 0) AS Rate,
+    T0.SalesTax, T0.PurchTax
+  FROM OSTA T0
+  LEFT JOIN OSTT T1 ON T1.AbsId = T0.Type
+  WHERE @query = '' OR T0.Code LIKE @like OR ISNULL(T0.Name, '') LIKE @like
+  ORDER BY T0.Code
+`, { query: String(query || "").trim(), like: `%${String(query || "").trim()}%` });
+
+const listTaxTypes = async () => queryRows(`
+  SELECT AbsId, Name FROM OSTT WHERE ISNULL(Locked, 'N') <> 'Y' ORDER BY AbsId DESC
+`);
+
 const getShippingType = async (code) => {
   const row = await queryOne(`
     SELECT TrnspCode, TrnspName, WebSite, '' AS ShippingCompany
@@ -986,7 +1033,7 @@ const searchAccounts = async (query = "", accountType = "", top = 50, skip = 0) 
     WHERE (@query = ''
       OR AcctCode LIKE @like
       OR AcctName LIKE @like)
-      AND (@groupMask IS NULL OR GroupMask = @groupMask)
+      AND (CAST(@groupMask AS INTEGER) IS NULL OR GroupMask = @groupMask)
     ORDER BY AcctCode
     OFFSET @skip ROWS FETCH NEXT @top ROWS ONLY
   `, { query: trimmed, like: `%${trimmed}%`, groupMask, top: limit, skip: offset });
@@ -1011,6 +1058,7 @@ const lookupParentAccounts = async (query = "") => {
     SELECT TOP 100 AcctCode, AcctName
     FROM OACT
     WHERE FrozenFor <> 'Y'
+      AND Postable = 'N'
       AND (@query = ''
         OR AcctCode LIKE @like
         OR AcctName LIKE @like)
@@ -1645,6 +1693,9 @@ module.exports = {
   lookupUoMs,
   getTaxCode,
   searchTaxCodes,
+  listTaxCodesForSetup,
+  listTaxComponents,
+  listTaxTypes,
   searchDocumentTaxCodes,
   getShippingType,
   searchShippingTypes,

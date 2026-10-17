@@ -1,176 +1,92 @@
-import React, { useState, useEffect } from "react";
-import { getUoMGroup, updateUoMGroup } from "../../../api/uomGroupApi";
+import React, { useState, useEffect } from 'react';
+import { getUoMGroup, updateUoMGroup } from '../../../api/uomGroupApi';
+import SapModalShell from '../../../components/common/SapModalShell';
 
-const EMPTY_LINE = {
-  AlternateUoM: "",
-  BaseQuantity: 1,
-  AlternateQuantity: 1,
-};
+const EMPTY_LINE = { AlternateUoM: '', BaseQuantity: 1, AlternateQuantity: 1 };
 
 export default function GroupDefinitionModal({ group, uomOptions, onClose, onSave }) {
   const [lines, setLines] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [alert, setAlert] = useState(null);
 
   useEffect(() => {
-    loadGroupDefinition();
-  }, [group.AbsEntry]);
+    let cancelled = false;
+    getUoMGroup(group.AbsEntry).then((data) => {
+      if (cancelled) return;
+      const base = data.BaseUoM ?? group.BaseUoM;
+      const rows = data.UoMGroupDefinitionCollection || [];
+      setLines([
+        { AlternateUoM: base, AlternateQuantity: 1, BaseQuantity: 1 },
+        ...rows.filter((row) => Number(row.AlternateUoM) !== Number(base)),
+      ]);
+      setLoaded(true);
+    }).catch((error) => {
+      if (!cancelled) setAlert(error.response?.data?.message || error.message);
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [group.AbsEntry, group.BaseUoM]);
 
-  const loadGroupDefinition = async () => {
-    try {
-      const data = await getUoMGroup(group.AbsEntry);
-      const existingLines = data.UoMGroupDefinitionCollection || [];
-      setLines(existingLines.length > 0 ? existingLines : [{ ...EMPTY_LINE }]);
-    } catch (err) {
-      console.error("Failed to load definition:", err);
-      setLines([{ ...EMPTY_LINE }]);
-    }
-  };
-
-  const showAlert = (type, msg) => {
-    setAlert({ type, msg });
-    setTimeout(() => setAlert(null), 5000);
-  };
-
-  const handleCellChange = (rowIndex, field, value) => {
-    const newLines = [...lines];
-    newLines[rowIndex] = { ...newLines[rowIndex], [field]: value };
-    setLines(newLines);
-  };
-
-  const handleAddRow = () => {
-    setLines([...lines, { ...EMPTY_LINE }]);
-  };
-
-  const handleDeleteRow = (rowIndex) => {
-    setLines(lines.filter((_, idx) => idx !== rowIndex));
+  const displayLines = [...lines];
+  while (displayLines.length < 3) displayLines.push({ ...EMPTY_LINE });
+  const handleCellChange = (index, field, value) => {
+    const next = [...displayLines];
+    next[index] = { ...next[index], [field]: value };
+    setLines(next);
   };
 
   const handleSave = async () => {
+    const filled = lines.filter((line) => String(line.AlternateUoM ?? '') !== '');
+    if (filled.some((line) => !Number.isFinite(Number(line.BaseQuantity)) || !Number.isFinite(Number(line.AlternateQuantity)) || Number(line.BaseQuantity) <= 0 || Number(line.AlternateQuantity) <= 0)) {
+      setAlert('Quantities must be greater than zero.');
+      return;
+    }
+    if (new Set(filled.map((line) => Number(line.AlternateUoM))).size !== filled.length) {
+      setAlert('A unit of measure can appear only once in a group.');
+      return;
+    }
     setLoading(true);
     try {
-      const filledLines = lines.filter((l) => l.AlternateUoM);
-      
       await updateUoMGroup(group.AbsEntry, {
-        UoMGroupDefinitionCollection: filledLines.map((l) => ({
-          AlternateUoM: parseInt(l.AlternateUoM),
-          BaseQuantity: parseFloat(l.BaseQuantity) || 1,
-          AlternateQuantity: parseFloat(l.AlternateQuantity) || 1,
-        })),
+        UoMGroupDefinitionCollection: filled.map((line) => ({ AlternateUoM: Number(line.AlternateUoM), BaseQuantity: Number(line.BaseQuantity), AlternateQuantity: Number(line.AlternateQuantity) })),
       });
-
-      showAlert("success", "Group Definition saved successfully.");
-      setTimeout(() => {
-        onSave();
-        onClose();
-      }, 1000);
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || "Failed to save definition.";
-      showAlert("error", msg);
-    } finally {
-      setLoading(false);
-    }
+      await onSave();
+      onClose();
+    } catch (error) {
+      setAlert(error.response?.data?.message || error.message || 'Failed to save definition.');
+    } finally { setLoading(false); }
   };
 
-  // Ensure minimum 3 rows
-  const displayLines = [...lines];
-  while (displayLines.length < 3) {
-    displayLines.push({ ...EMPTY_LINE });
-  }
-
   return (
-    <div className="uom-modal-overlay" onClick={onClose}>
-      <div className="uom-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="uom-modal__header">
-          <span>Units of Measure - Setup [Group: {group.Code}]</span>
-          <button className="uom-modal__close" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-
-        {alert && <div className={`uom-alert uom-alert--${alert.type}`}>{alert.msg}</div>}
-
-        <div className="uom-modal__body">
-          <div className="uom-def-grid-wrap">
-            <table className="uom-def-grid">
-              <thead>
-                <tr>
-                  <th style={{ width: "40px" }}>#</th>
-                  <th style={{ width: "200px" }}>Alternate UoM*</th>
-                  <th style={{ width: "120px" }}>Base Quantity</th>
-                  <th style={{ width: "120px" }}>Alternate Quantity</th>
-                  <th style={{ width: "60px" }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayLines.map((line, idx) => (
-                  <tr key={idx}>
-                    <td className="uom-grid__cell--center">{idx + 1}</td>
-                    <td>
-                      <select
-                        className="uom-def-grid__select"
-                        value={line.AlternateUoM || ""}
-                        onChange={(e) => handleCellChange(idx, "AlternateUoM", e.target.value)}
-                      >
-                        <option value="">-- Select --</option>
-                        {uomOptions.map((uom) => (
-                          <option key={uom.code} value={uom.code}>
-                            {uom.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        className="uom-def-grid__input"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={line.BaseQuantity || ""}
-                        onChange={(e) => handleCellChange(idx, "BaseQuantity", e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="uom-def-grid__input"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={line.AlternateQuantity || ""}
-                        onChange={(e) => handleCellChange(idx, "AlternateQuantity", e.target.value)}
-                      />
-                    </td>
-                    <td className="uom-grid__cell--center">
-                      <button
-                        className="uom-def-grid__delete-btn"
-                        onClick={() => handleDeleteRow(idx)}
-                        title="Delete Row"
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="uom-grid-actions">
-            <button className="uom-btn uom-btn--small" onClick={handleAddRow}>
-              + Add Row
-            </button>
-          </div>
-        </div>
-
-        <div className="uom-modal__footer">
-          <button className="uom-btn uom-btn--primary" onClick={handleSave} disabled={loading}>
-            {loading ? "..." : "OK"}
-          </button>
-          <button className="uom-btn" onClick={onClose}>
-            Cancel
-          </button>
-        </div>
+    <SapModalShell open title={'Group Definition - ' + group.Code + ' - Setup'} onClose={onClose} disabled={loading} footer={(
+      <>
+        <button className="sap-modal-shell__button sap-modal-shell__button--primary" onClick={handleSave} disabled={loading || !loaded}>Update</button>
+        <button className="sap-modal-shell__button" onClick={onClose} disabled={loading}>Cancel</button>
+      </>
+    )}>
+      {alert && <div role="alert" className="im-alert im-alert--error">{alert}</div>}
+      {loading && <div role="status">Loading...</div>}
+      <p>Alternate Quantity x alternate UoM = Base Quantity x base UoM. The base row is fixed at 1 = 1.</p>
+      <div className="im-grid-wrap">
+        <table className="im-grid" aria-label="Group conversion rules">
+          <thead><tr><th>#</th><th>Alternate UoM*</th><th>Alternate Quantity</th><th>Base Quantity</th><th>Actions</th></tr></thead>
+          <tbody>{displayLines.map((line, index) => {
+            const isBase = index === 0;
+            return (
+              <tr key={index}>
+                <td>{index + 1}</td>
+                <td><select className="im-grid__input" aria-label={'Alternate UoM ' + (index + 1)} value={line.AlternateUoM ?? ''} disabled={loading || !loaded || isBase} onChange={(event) => handleCellChange(index, 'AlternateUoM', event.target.value)}>
+                  <option value="">-- Select --</option>
+                  {uomOptions.map((unit) => <option key={unit.code} value={unit.code}>{unit.name}</option>)}
+                </select></td>
+                {['AlternateQuantity', 'BaseQuantity'].map((field) => <td key={field}><input className="im-grid__input" aria-label={field + ' ' + (index + 1)} type="number" step="any" value={line[field] ?? ''} disabled={loading || !loaded || isBase} onChange={(event) => handleCellChange(index, field, event.target.value)} /></td>)}
+                <td><button className="im-btn" aria-label={'Delete row ' + (index + 1)} disabled={loading || !loaded || isBase} onClick={() => setLines(displayLines.filter((_, row) => row !== index))}>Delete</button></td>
+              </tr>
+            );
+          })}</tbody>
+        </table>
       </div>
-    </div>
+      <button className="im-btn" onClick={() => setLines([...displayLines, { ...EMPTY_LINE }])} disabled={loading || !loaded}>+ Add Row</button>
+    </SapModalShell>
   );
 }

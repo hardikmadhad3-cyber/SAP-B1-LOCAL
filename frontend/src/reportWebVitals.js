@@ -1,22 +1,10 @@
 import { getCLS, getFID, getFCP, getLCP, getTTFB } from 'web-vitals';
-import { API_BASE_URL } from './config/appConfig';
 
+// The server has no analytics endpoint (every page load used to post one and get
+// an error back), so page-speed metrics are only logged during development.
 function sendToAnalytics(metric) {
-  // Log to console in development
   if (process.env.NODE_ENV === 'development') {
     console.log(metric);
-  }
-  
-  // Send to analytics endpoint in production
-  if (process.env.NODE_ENV === 'production') {
-    fetch(`${API_BASE_URL}/analytics/web-vitals`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(metric),
-    }).catch(err => {
-      // Silently fail - don't break the app if analytics fails
-      console.error('Failed to send web vitals:', err);
-    });
   }
 }
 

@@ -100,18 +100,20 @@ const updateDocument = async (transactionKey, docEntry, payload) => {
   const transaction = getTransaction(transactionKey);
   const sapPayload = buildDocumentPayload(transaction, payload);
 
-  await sapService.request({
-    method: 'PATCH',
-    url: `/${transaction.udo.objectType}(${Number(docEntry)})`,
-    data: sapPayload,
-  });
-
+  // Rows removed in the UI are deleted before the PATCH: afterwards the rows it
+  // just added (no LineId in the payload) would be deleted too.
   const primaryLineTable = transaction.listFields.primaryLineTable;
   const submittedLines = (payload.lines || {})[primaryLineTable] || [];
   const keepLineIds = submittedLines
     .map((line) => line.LineId)
     .filter((lineId) => lineId !== undefined && lineId !== null && lineId !== '');
   await gatePassDb.deleteRemovedLines(primaryLineTable, docEntry, keepLineIds);
+
+  await sapService.request({
+    method: 'PATCH',
+    url: `/${transaction.udo.objectType}(${Number(docEntry)})`,
+    data: sapPayload,
+  });
 
   return {
     success: true,
@@ -125,12 +127,14 @@ const updateDocument = async (transactionKey, docEntry, payload) => {
 const getNextMasterCode = async (master) => {
   const table = `"@${master.table.name}"`;
   const dialect = await db.getDialect();
-  const numericCode = dialect === 'hana'
-    ? `CASE WHEN "Code" LIKE_REGEXPR '^[0-9]+$' THEN CAST("Code" AS INTEGER) ELSE 0 END`
-    : 'TRY_CAST("Code" AS INT)';
+  // PostgreSQL has no TRY_CAST; its regex is bound as a parameter so the SQL rewrite leaves it alone.
+  const numericCode = {
+    hana: `CASE WHEN "Code" LIKE_REGEXPR '^[0-9]+$' THEN CAST("Code" AS INTEGER) ELSE 0 END`,
+    postgres: 'CASE WHEN "Code" ~ @digits THEN CAST("Code" AS INTEGER) ELSE 0 END',
+  }[dialect] || 'TRY_CAST("Code" AS INT)';
   const rows = await db.query(`
     SELECT ISNULL(MAX(${numericCode}), 0) + 1 AS next_code FROM ${table}
-  `).then((res) => res.recordset || []).catch(() => []);
+  `, { digits: '^[0-9]+$' }).then((res) => res.recordset || []).catch(() => []);
   const nextCode = Number(rows[0]?.next_code || 1);
   return String(nextCode).padStart(3, '0');
 };

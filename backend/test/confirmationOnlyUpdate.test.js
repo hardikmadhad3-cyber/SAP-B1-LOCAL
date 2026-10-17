@@ -47,25 +47,3 @@ test('Service Layer does not add automatic audit UDFs to a narrow confirmation P
   const data = { Confirmed: 'tYES' };
   assert.equal(await stamp({ method: 'PATCH', url: '/DeliveryNotes(30)', data }, 'TEST'), data);
 });
-
-test('DC/NC/SODA wrappers do not provision schema or UDFs during narrow confirmation saves', async () => {
-  for (const name of ['dcDeliveryService', 'ncDeliveryService', 'sodaDeliveryService',
-    'dcSalesOrderService', 'ncSalesOrderService', 'sodaSalesOrderService']) {
-    const source = fs.readFileSync(require.resolve('../services/' + name), 'utf8');
-    const method = name.includes('Delivery') ? 'updateDelivery' : 'updateSalesOrder';
-    const start = source.indexOf('const ' + method + ' = async');
-    const end = source.indexOf('module.exports', start);
-    const code = source.slice(start, end);
-    const calls = [];
-    const base = { [method]: async (...args) => { calls.push(args); return { success: true }; } };
-    const context = { deliveryService: base, salesOrderService: base };
-    for (const fn of code.match(/ensure\w+(?=\()/g) || []) {
-      context[fn] = () => { throw new Error('Provisioning must not run: ' + fn); };
-    }
-    const update = vm.runInNewContext(code + '\n' + method, context);
-    const payload = { confirmation_only: true, header: { confirmed: true } };
-    await update(30, payload);
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0][1], payload);
-  }
-});

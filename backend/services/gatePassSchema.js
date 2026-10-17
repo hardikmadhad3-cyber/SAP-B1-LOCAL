@@ -200,7 +200,7 @@ const TRANSACTIONS = {
       { name: 'DOCTYPE', description: 'Document Type', type: 'Alpha', size: 20, validValues: 'GateInDocType' },
       { name: 'RETURNTYPE', description: 'Returnable', type: 'Alpha', size: 10, validValues: 'YesNo' },
       { name: 'PTIME', description: 'Punch Time', type: 'Alpha', size: 10 },
-      { name: 'CHECK', description: 'Without Base Ref.', type: 'Alpha', size: 1, validValues: 'YesNo' },
+      { name: 'CHECK', description: 'Without Base Ref.', type: 'Alpha', size: 3, validValues: 'YesNo' },
       { name: 'REF', description: 'Reference Type', type: 'Alpha', size: 20, validValues: 'ReferenceType' },
     ],
     childFields: {

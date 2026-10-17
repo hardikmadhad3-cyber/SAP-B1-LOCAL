@@ -83,6 +83,17 @@
   margin-bottom: 6px;
 }
 
+.purchase-request-classic .pr-doc-type-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 0 auto;
+}
+
+.purchase-request-classic .pr-doc-type-field .so-field__select {
+  width: 120px;
+}
+
 .purchase-request-classic .pr-contents-panel .so-grid-wrap__scroller--contents {
   flex: 0 1 auto;
   max-height: 240px;

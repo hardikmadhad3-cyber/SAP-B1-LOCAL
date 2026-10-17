@@ -40,28 +40,12 @@
     "sha256": "cbe5a8fd857c6e08e46f77d3ec6755dc420cfdd8c2fbae2f84136340c3a47d37"
   },
   {
-    "file": "backend/controllers/dcDeliveryController.js",
-    "sha256": "3934645e2a50855874e69c7e2814aae810169968491480f78f11b987ad251125"
-  },
-  {
-    "file": "backend/controllers/dcSalesOrderController.js",
-    "sha256": "f2c3e2f23ed391c37ef927d4be4b21ad829b3751418b9e19f8a5d20c39b6caf9"
-  },
-  {
     "file": "backend/controllers/deliveryController.js",
     "sha256": "7ec46e0926b610ab089380374e1a91883b5019faaf9d69d4c92ca81573cf962e"
   },
   {
     "file": "backend/controllers/grpoController.js",
     "sha256": "3a16e40f8290074180da58a30cabb2df5e1d3c0a7ec5ca8b2bdfbbeb29e921e8"
-  },
-  {
-    "file": "backend/controllers/ncDeliveryController.js",
-    "sha256": "8ec58dcf6295211318723a3ceb8710e3fc754ab002d67cafbc9a42bbcd3e9a46"
-  },
-  {
-    "file": "backend/controllers/ncSalesOrderController.js",
-    "sha256": "8d330bc299c533c32c14f3a55e8f3a437e888cb4778789f2407082c057bf3af6"
   },
   {
     "file": "backend/controllers/purchaseOrderController.js",
@@ -98,13 +82,5 @@
   {
     "file": "backend/controllers/serviceArInvoiceController.js",
     "sha256": "a604cf32837c655a02f2273a051d3a64986a0b54f4b09575fcff04c3eec26827"
-  },
-  {
-    "file": "backend/controllers/sodaDeliveryController.js",
-    "sha256": "4612742cb5b7ae1c95eb09b2ac99075526e56ff86101ded143664ef324113ea4"
-  },
-  {
-    "file": "backend/controllers/sodaSalesOrderController.js",
-    "sha256": "93969c5ef955d18703a4fa5b9c3c5a4f77b97e2b2e57c45efccef73442492092"
   }
 ]

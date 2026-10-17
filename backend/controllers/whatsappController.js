@@ -43,10 +43,10 @@ const getCustomerPhoneFromBpMaster = async (cardCode) => {
   }
 };
 
-const listConversations = (req, res) => {
+const listConversations = async (req, res) => {
   const status = String(req.query?.status || '').trim();
 
-  const rows = whatsappDb.queryRows(
+  const rows = await whatsappDb.queryRows(
     `SELECT
       c.id,
       c.status,
@@ -69,13 +69,13 @@ const listConversations = (req, res) => {
   res.json(rows);
 };
 
-const getMessages = (req, res) => {
+const getMessages = async (req, res) => {
   const conversationId = Number(req.params.id);
   if (!Number.isInteger(conversationId) || conversationId <= 0) {
     return res.status(400).json({ message: 'Invalid conversation id.' });
   }
 
-  const rows = whatsappDb.queryRows(
+  const rows = await whatsappDb.queryRows(
     `SELECT * FROM whatsapp_messages WHERE conversation_id = @conversation_id ORDER BY id ASC`,
     { conversation_id: conversationId },
   );
@@ -95,7 +95,7 @@ const sendReply = async (req, res) => {
       return res.status(400).json({ message: 'Reply text is required.' });
     }
 
-    const conversation = whatsappDb.queryOne(
+    const conversation = await whatsappDb.queryOne(
       `SELECT c.*, cu.phone_number FROM whatsapp_conversations c
        INNER JOIN whatsapp_customers cu ON cu.id = c.customer_id
        WHERE c.id = @id`,
@@ -107,7 +107,7 @@ const sendReply = async (req, res) => {
 
     await whatsappGraph.sendText(conversation.phone_number, body);
 
-    insertMessage({
+    await insertMessage({
       conversationId,
       direction: 'outbound',
       messageType: 'text',
@@ -123,7 +123,7 @@ const sendReply = async (req, res) => {
   }
 };
 
-const updateConversationStatus = (req, res) => {
+const updateConversationStatus = async (req, res) => {
   const conversationId = Number(req.params.id);
   const status = String(req.body?.status || '').trim();
   if (!Number.isInteger(conversationId) || conversationId <= 0) {
@@ -133,7 +133,7 @@ const updateConversationStatus = (req, res) => {
     return res.status(400).json({ message: 'status must be one of open, pending, closed.' });
   }
 
-  const result = whatsappDb.execute(
+  const result = await whatsappDb.execute(
     `UPDATE whatsapp_conversations SET status = @status WHERE id = @id`,
     { id: conversationId, status },
   );
@@ -143,14 +143,14 @@ const updateConversationStatus = (req, res) => {
   return res.json({ success: true });
 };
 
-const updateCustomerCardCode = (req, res) => {
+const updateCustomerCardCode = async (req, res) => {
   const customerId = Number(req.params.id);
   const cardCode = String(req.body?.card_code || '').trim();
   if (!Number.isInteger(customerId) || customerId <= 0) {
     return res.status(400).json({ message: 'Invalid customer id.' });
   }
 
-  const result = whatsappDb.execute(
+  const result = await whatsappDb.execute(
     `UPDATE whatsapp_customers SET card_code = @card_code, updated_at = CURRENT_TIMESTAMP WHERE id = @id`,
     { id: customerId, card_code: cardCode || null },
   );
@@ -181,12 +181,12 @@ const listDocumentTypes = (_req, res) => {
   res.json(documentPrintLayoutService.listDocumentTypes());
 };
 
-const listMessageTemplates = (_req, res) => {
-  const rows = whatsappDb.queryRows(`SELECT * FROM whatsapp_message_templates ORDER BY document_type ASC`);
+const listMessageTemplates = async (_req, res) => {
+  const rows = await whatsappDb.queryRows(`SELECT * FROM whatsapp_message_templates ORDER BY document_type ASC`);
   res.json(rows);
 };
 
-const upsertMessageTemplate = (req, res) => {
+const upsertMessageTemplate = async (req, res) => {
   const documentType = String(req.params.documentType || '').trim();
   const templateBody = String(req.body?.template_body || '').trim();
   if (!documentType) {
@@ -196,7 +196,7 @@ const upsertMessageTemplate = (req, res) => {
     return res.status(400).json({ message: 'template_body is required.' });
   }
 
-  whatsappDb.execute(
+  await whatsappDb.execute(
     `INSERT INTO whatsapp_message_templates (document_type, template_body, is_active)
      VALUES (@document_type, @template_body, 1)
      ON CONFLICT(document_type) DO UPDATE SET
@@ -206,12 +206,12 @@ const upsertMessageTemplate = (req, res) => {
     { document_type: documentType, template_body: templateBody },
   );
 
-  return res.json(getMessageTemplate(documentType));
+  return res.json(await getMessageTemplate(documentType));
 };
 
-const deleteMessageTemplate = (req, res) => {
+const deleteMessageTemplate = async (req, res) => {
   const documentType = String(req.params.documentType || '').trim();
-  const result = whatsappDb.execute(
+  const result = await whatsappDb.execute(
     `DELETE FROM whatsapp_message_templates WHERE document_type = @document_type`,
     { document_type: documentType },
   );
@@ -284,7 +284,7 @@ const sendDocumentPdf = async (req, res) => {
     const buffer = Buffer.from(printResult.base64Pdf, 'base64');
     const filename = buildDocumentFileName(documentType, docNum, docEntry);
 
-    const template = getMessageTemplate(metadata.documentType);
+    const template = await getMessageTemplate(metadata.documentType);
     const caption = template
       ? renderTemplate(template.template_body, {
         documentLabel: metadata.documentLabel,
@@ -297,15 +297,15 @@ const sendDocumentPdf = async (req, res) => {
 
     await whatsappGraph.sendPdf(to, buffer, filename, caption);
 
-    const customerId = upsertCustomer(to, '');
-    const conversationId = getOrCreateOpenConversation(customerId);
+    const customerId = await upsertCustomer(to, '');
+    const conversationId = await getOrCreateOpenConversation(customerId);
     if (cardCode) {
-      whatsappDb.execute(
+      await whatsappDb.execute(
         `UPDATE whatsapp_customers SET card_code = @card_code, updated_at = CURRENT_TIMESTAMP WHERE id = @id AND (card_code IS NULL OR card_code = '')`,
         { id: customerId, card_code: cardCode },
       );
     }
-    insertMessage({
+    await insertMessage({
       conversationId,
       direction: 'outbound',
       messageType: 'document',
@@ -321,8 +321,8 @@ const sendDocumentPdf = async (req, res) => {
   }
 };
 
-const getStats = (_req, res) => {
-  const totals = whatsappDb.queryOne(
+const getStats = async (_req, res) => {
+  const totals = await whatsappDb.queryOne(
     `SELECT
       COUNT(*) AS total_conversations,
       SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) AS open_conversations,
@@ -331,7 +331,7 @@ const getStats = (_req, res) => {
     FROM whatsapp_conversations`,
   );
 
-  const messageStats = whatsappDb.queryOne(
+  const messageStats = await whatsappDb.queryOne(
     `SELECT
       COUNT(*) AS total_messages,
       SUM(CASE WHEN is_bot = 1 THEN 1 ELSE 0 END) AS bot_messages

@@ -34,10 +34,10 @@ const ENTITY_CONFIGS = [
       ReportServiceDbInstance: 'Report Service DB Instance',
     },
     columnHelpText: {
-      DbDialect: 'Choose SQL Server for existing companies or HANA for SAP HANA company databases.',
+      DbDialect: 'Choose PostgreSQL for local company schemas, SQL Server or SAP HANA for existing SAP companies.',
       DbServer: 'SQL Server host or SAP HANA host.',
       DbPort: 'Optional. HANA commonly uses 30015; SQL Server can usually leave this blank when using an instance name.',
-      DbName: 'SQL Server database name or HANA schema/company database name.',
+      DbName: 'PostgreSQL company schema, SQL Server database name or HANA schema/company database name.',
       FormQueryDbUser: 'Required for published SQL Content layouts. Enter a HANA or SQL Server database account with SELECT-only access to this company database. A SAP Business One / Service Layer login is not a database login.',
       FormQueryDbPassword: 'Enter the password matching the SQL Content database username, not a SAP Business One password or another database account password. The normal application database credential is never used for published layout queries.',
       ReportServiceDbInstance: 'Optional. Required by some SAP HANA Report Service logins, for example HDB@host:30113.',
@@ -46,6 +46,7 @@ const ENTITY_CONFIGS = [
       DbDialect: [
         { value: 'sqlserver', label: 'SQL Server' },
         { value: 'hana', label: 'SAP HANA' },
+        { value: 'postgres', label: 'PostgreSQL (local)' },
       ],
     },
     formSections: [
@@ -497,6 +498,10 @@ const normalizeValueByColumn = async (column, value, mode) => {
     }
 
     if (column.name === 'PasswordHash' && !BCRYPT_HASH_PATTERN.test(normalized)) {
+      // Real company data: no short or letters-only passwords.
+      if (normalized.length < 8 || !/[a-z]/i.test(normalized) || !/\d/.test(normalized)) {
+        throw createHttpError(400, 'Passwords need at least 8 characters, with letters and digits.');
+      }
       return bcrypt.hash(normalized, 10);
     }
 

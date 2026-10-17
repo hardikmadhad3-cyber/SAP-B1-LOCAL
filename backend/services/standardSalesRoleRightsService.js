@@ -53,4 +53,24 @@ async function syncStandardSalesRoleRights(db) {
   return changes;
 }
 
-module.exports = { syncStandardSalesRoleRights, isProtectedRole };
+// Keep only legacy paths here so existing installations can retire their stored menus.
+async function removeRetiredSalesMenus(db) {
+  const menus = await db.queryRows('SELECT MenuId, MenuPath FROM Menus');
+  let changes = 0;
+  for (const group of GROUPS) {
+    const target = menus.find(menu => menu.MenuPath === group.target);
+    const retired = menus.filter(menu => group.variants.includes(String(menu.MenuPath || '').toLowerCase().replace(/\/+$/, '')));
+    if (retired.length && !target) throw new Error(`Cannot retire menus: ${group.target} menu is missing.`);
+    for (const menu of retired) {
+      const params = { menuId: menu.MenuId, targetId: target.MenuId };
+      await db.query('UPDATE Menus SET ParentId=@targetId WHERE ParentId=@menuId', params);
+      await db.query('UPDATE MenuReports SET MenuId=@targetId WHERE MenuId=@menuId', params);
+      await db.query('DELETE FROM RoleRights WHERE MenuId=@menuId', { menuId: menu.MenuId });
+      const result = await db.query('DELETE FROM Menus WHERE MenuId=@menuId', { menuId: menu.MenuId });
+      changes += result.rowsAffected?.[0] || 0;
+    }
+  }
+  return changes;
+}
+
+module.exports = { syncStandardSalesRoleRights, removeRetiredSalesMenus, isProtectedRole };

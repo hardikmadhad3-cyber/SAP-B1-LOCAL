@@ -93,9 +93,39 @@ const getHSNCodeFromItem = async (req, res) => {
   }
 };
 
+// ---- HSN / SAC maintenance (SAP India Chapter ID and SAC Code setup) ----
+
+const sapService = require("../services/sapService");
+const { clearCache } = require("../middleware/cacheMiddleware");
+
+// Saves go through the Service Layer path (local engine for PostgreSQL companies).
+// ponytail: clears every response cache; HSN/SAC saves are rare. Scope it if that ever shows.
+const saveCode = (entity, method) => async (req, res) => {
+  const id = req.params.absEntry;
+  if (method === "PATCH" && !/^\d+$/.test(String(id))) {
+    return res.status(400).json({ message: "A valid internal key is required." });
+  }
+  try {
+    const url = method === "POST" ? `/${entity}` : `/${entity}(${Number(id)})`;
+    const result = await sapService.request({ method, url, data: req.body });
+    clearCache();
+    const saved = method === "POST"
+      ? result.data
+      : (await sapService.request({ method: "GET", url })).data;
+    res.status(method === "POST" ? 201 : 200).json(saved);
+  } catch (err) {
+    const msg = err.response?.data?.error?.message?.value || err.message;
+    res.status(err.response?.status || 500).json({ message: msg });
+  }
+};
+
 module.exports = {
   getHSNCodes,
   getSACCodes,
   getHSNCode,
   getHSNCodeFromItem,
+  createHSNCode: saveCode("ChapterIDs", "POST"),
+  updateHSNCode: saveCode("ChapterIDs", "PATCH"),
+  createSACCode: saveCode("SACCodes", "POST"),
+  updateSACCode: saveCode("SACCodes", "PATCH"),
 };

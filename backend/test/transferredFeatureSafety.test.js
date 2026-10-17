@@ -60,18 +60,26 @@ test('transferred local schemas initialize cleanly', () => {
   }
 });
 
-test('QC and WhatsApp storage paths are isolated by company', async () => {
-  const paths = [];
-  for (const companyId of [2, 3]) {
-    paths.push(await runWithRequestContext(
-      { auth: { userId: 1, companyId } },
-      () => ({ qc: qcDb.resolveSqlitePath(), whatsapp: whatsappDb.resolveSqlitePath() }),
-    ));
+test('QC and WhatsApp select a separate PostgreSQL schema for each company', async () => {
+  const appDb = require('../services/appDbService');
+  const original = appDb.forSchema;
+  const schemas = [];
+  appDb.forSchema = (schema) => {
+    schemas.push(schema);
+    return { queryRows: async () => [] };
+  };
+  try {
+    for (const companyId of [2, 3]) {
+      await runWithRequestContext({ auth: { userId: 1, companyId } }, async () => {
+        await qcDb.queryRows('SELECT * FROM qc_parameters');
+        await require('../services/whatsappDbService').queryRows('SELECT * FROM whatsapp_customers');
+      });
+    }
+    assert.deepEqual(schemas, ['app_company_2', 'app_company_2', 'app_company_3', 'app_company_3']);
+    assert.throws(() => qcDb.queryRows('SELECT 1'), /company session/);
+  } finally {
+    appDb.forSchema = original;
   }
-  assert.notEqual(paths[0].qc, paths[1].qc);
-  assert.notEqual(paths[0].whatsapp, paths[1].whatsapp);
-  assert.match(paths[0].qc, /company-2/);
-  assert.match(paths[1].whatsapp, /company-3/);
 });
 
 const sapUdfMetadata = require('../services/sapUdfMetadataService');

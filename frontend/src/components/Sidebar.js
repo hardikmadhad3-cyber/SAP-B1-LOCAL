@@ -53,34 +53,19 @@ const BUSINESS_PARTNER_REPORT_WRAPPER_NAMES = new Set([
   'business partner reports',
   'business partners reports',
 ]);
-const MASTER_MENU_NAME = 'master';
-const MASTER_VISIBLE_CHILDREN = new Set(['item master', 'business partner']);
-const MASTER_VISIBLE_PATHS = new Set(['/item-master', '/business-partner']);
 const SALES_MENU_NAMES = new Set(['sales', 'sales a r']);
 const SALES_CHILD_PRIORITY = new Map([
   ['sales quotation', 1],
   ['sales order', 2],
   ['transaction field configuration', 2.5],
-  ['dc sales order', 3],
-  ['nc sales order', 4],
-  ['soda sales order', 5],
   ['delivery', 6],
-  ['dc delivery', 7],
-  ['nc delivery', 8],
-  ['soda delivery', 9],
   ['a r invoice', 10],
   ['a r credit memo', 11],
 ]);
 const SALES_CHILD_PATH_PRIORITY = new Map([
   ['/sales-quotation', 1],
   ['/sales-order', 2],
-  ['/dc-sales-order', 3],
-  ['/nc-sales-order', 4],
-  ['/soda-sales-order', 5],
   ['/delivery', 6],
-  ['/dc-delivery', 7],
-  ['/nc-delivery', 8],
-  ['/soda-delivery', 9],
   ['/ar-invoice', 10],
   ['/ar-credit-memo', 11],
 ]);
@@ -350,22 +335,14 @@ const buildSidebarMenus = (menus = []) => {
   const { dashboardMenu, remainingMenus } = extractDashboardMenu(menus);
   const mergedMenus = mergeReportSidebarRoots(remainingMenus);
 
-  const shouldShowMasterChild = (item, menuPath) =>
-    MASTER_VISIBLE_CHILDREN.has(normalizeMenuPriorityName(item?.menuName)) ||
-    MASTER_VISIBLE_PATHS.has(menuPath);
-
-  const removeHiddenSidebarItems = (items = [], insideMaster = false) =>
+  // Which pages a user sees is decided by Role Rights; the sidebar only drops
+  // General Settings (opened from the admin area) and empty folders.
+  const removeHiddenSidebarItems = (items = []) =>
     items.reduce((nextItems, item) => {
       const menuPath = item?.menuPath ? normalizePath(item.menuPath) : '';
-      const isMasterMenu = normalizeMenuPriorityName(item?.menuName) === MASTER_MENU_NAME;
-      const isInsideMaster = insideMaster || isMasterMenu;
-      const filteredChildren = removeHiddenSidebarItems(item.children || [], isInsideMaster);
+      const filteredChildren = removeHiddenSidebarItems(item.children || []);
 
       if (menuPath === '/general-settings') {
-        return nextItems;
-      }
-
-      if (insideMaster && !shouldShowMasterChild(item, menuPath) && !filteredChildren.length) {
         return nextItems;
       }
 

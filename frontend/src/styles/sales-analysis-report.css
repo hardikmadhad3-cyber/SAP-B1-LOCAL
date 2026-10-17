@@ -556,7 +556,7 @@
 }
 
 .sales-analysis-detail-modal__backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   display: flex;
   align-items: flex-start;
@@ -808,7 +808,7 @@ body > .sales-analysis-detail-modal__backdrop {
 }
 
 .bp-lookup-modal__backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
@@ -1055,7 +1055,7 @@ body > .bp-lookup-modal__backdrop {
 }
 
 .item-lookup-modal__backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
@@ -1286,7 +1286,7 @@ body > .item-lookup-modal__backdrop {
 }
 
 .sales-employee-lookup-modal__backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
@@ -1507,7 +1507,7 @@ body > .sales-employee-lookup-modal__backdrop {
 }
 
 .sap-properties-modal__backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   display: flex;
   align-items: center;

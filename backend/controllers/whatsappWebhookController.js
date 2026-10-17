@@ -28,45 +28,30 @@ const verifyWebhook = (req, res) => {
   return res.status(403).end();
 };
 
-const upsertCustomer = (phoneNumber, displayName) => {
-  const existing = whatsappDb.queryOne(
-    `SELECT * FROM whatsapp_customers WHERE phone_number = @phone_number`,
-    { phone_number: phoneNumber },
-  );
-
-  if (existing) {
-    if (displayName && displayName !== existing.display_name) {
-      whatsappDb.execute(
-        `UPDATE whatsapp_customers SET display_name = @display_name, updated_at = CURRENT_TIMESTAMP WHERE id = @id`,
-        { id: existing.id, display_name: displayName },
-      );
-    }
-    return existing.id;
-  }
-
-  const result = whatsappDb.execute(
-    `INSERT INTO whatsapp_customers (phone_number, display_name) VALUES (@phone_number, @display_name)`,
+const upsertCustomer = async (phoneNumber, displayName) => {
+  const result = await whatsappDb.execute(
+    `INSERT INTO whatsapp_customers (phone_number, display_name) VALUES (@phone_number, @display_name)
+     ON CONFLICT (phone_number) DO UPDATE SET
+       display_name = COALESCE(excluded.display_name, whatsapp_customers.display_name),
+       updated_at = CURRENT_TIMESTAMP
+     RETURNING id`,
     { phone_number: phoneNumber, display_name: displayName || null },
   );
   return result.lastInsertRowid;
 };
 
-const getOrCreateOpenConversation = (customerId) => {
-  const existing = whatsappDb.queryOne(
-    `SELECT * FROM whatsapp_conversations WHERE customer_id = @customer_id AND status != 'closed' ORDER BY id DESC LIMIT 1`,
-    { customer_id: customerId },
-  );
-  if (existing) return existing.id;
-
-  const result = whatsappDb.execute(
-    `INSERT INTO whatsapp_conversations (customer_id, status) VALUES (@customer_id, 'open')`,
+const getOrCreateOpenConversation = async (customerId) => {
+  const result = await whatsappDb.execute(
+    `INSERT INTO whatsapp_conversations (customer_id, status) VALUES (@customer_id, 'open')
+     ON CONFLICT (customer_id) WHERE status <> 'closed' DO UPDATE SET customer_id = excluded.customer_id
+     RETURNING id`,
     { customer_id: customerId },
   );
   return result.lastInsertRowid;
 };
 
-const insertMessage = ({ conversationId, direction, messageType, body, wamid, sentByUserId = null, isBot = false }) => {
-  whatsappDb.execute(
+const insertMessage = async ({ conversationId, direction, messageType, body, wamid, sentByUserId = null, isBot = false }) => {
+  await whatsappDb.execute(
     `INSERT INTO whatsapp_messages (conversation_id, direction, message_type, body, wamid, sent_by_user_id, is_bot)
      VALUES (@conversation_id, @direction, @message_type, @body, @wamid, @sent_by_user_id, @is_bot)`,
     {
@@ -80,7 +65,7 @@ const insertMessage = ({ conversationId, direction, messageType, body, wamid, se
     },
   );
 
-  whatsappDb.execute(
+  await whatsappDb.execute(
     `UPDATE whatsapp_conversations SET last_message_at = CURRENT_TIMESTAMP WHERE id = @id`,
     { id: conversationId },
   );
@@ -99,7 +84,7 @@ const extractIncomingMessageBody = (message) => {
   return { messageType: message.type || 'unknown', body: JSON.stringify(message) };
 };
 
-const receiveWebhook = (req, res) => {
+const receiveWebhook = async (req, res) => {
   if (!hasValidWebhookSignature(req)) {
     return res.status(403).end();
   }
@@ -130,11 +115,11 @@ const receiveWebhook = (req, res) => {
     for (const message of messages) {
       const phoneNumber = message.from;
       const displayName = contactsByWaId[phoneNumber] || '';
-      const customerId = upsertCustomer(phoneNumber, displayName);
-      const conversationId = getOrCreateOpenConversation(customerId);
+      const customerId = await upsertCustomer(phoneNumber, displayName);
+      const conversationId = await getOrCreateOpenConversation(customerId);
       const { messageType, body } = extractIncomingMessageBody(message);
 
-      insertMessage({
+      await insertMessage({
         conversationId,
         direction: 'inbound',
         messageType,

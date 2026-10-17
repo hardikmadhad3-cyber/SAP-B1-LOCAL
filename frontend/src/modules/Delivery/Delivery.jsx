@@ -30,7 +30,6 @@ import ExchangeRatesIndexesModal from '../sales-order/components/ExchangeRatesIn
 import FreightChargesModal from '../../components/freight/FreightChargesModal';
 import DocumentCurrencySelect from '../../components/document/DocumentCurrencySelect';
 import SapGoldenArrowButton from '../../components/document/SapGoldenArrowButton';
-import PrintLayoutToolbar from '../../components/print-layout/PrintLayoutToolbar';
 import JournalEntryPreviewButton from '../../components/journal-entry/JournalEntryPreviewButton';
 import { useRelationshipMapRegistration } from '../../components/relationship-map/RelationshipMapHost';
 import { summarizeFreightRows } from '../../components/freight/freightUtils';
@@ -60,6 +59,7 @@ import { findTaxCode, getTaxComponentCodes } from '../../utils/taxCodeComponents
 import { getDocumentLinePayableTax } from '../../utils/documentLineTax';
 import { isRouteStateForActiveCompany } from '../../utils/companyStorageScope';
 import {
+  reloadRouteDocument,
   consumeCopyToState as consumePersistedCopyToState,
   replaceRouteStatePreservingWindow,
 } from '../../utils/copyToState';
@@ -126,6 +126,8 @@ import {
   readSavedFormSettings,
 } from '../../config/deliveryForm';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
 // â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getErrMsg = (e, fb) => {
   const body = e?.response?.data || {};
@@ -759,6 +761,7 @@ function Delivery() {
   const hasBuyerCode = Boolean(String(header.vendor || '').trim());
   const isUpdateMode = Boolean(currentDocEntry);
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const resolvePreferredSeries = (seriesList, postingDateValue, selectedSeries = '') => pickDocumentSeries(seriesList, selectedSeries);
   const primaryActionLabel = pageState.posting
@@ -1515,7 +1518,7 @@ function Delivery() {
           });
         }
         
-        setPageState(p => ({ ...p, success: so.doc_num ? `Delivery ${so.doc_num} loaded.` : 'Delivery loaded.' }));
+        setPageState(p => ({ ...p, success: location.state?.documentStatusMessage || (so.doc_num ? `Delivery ${so.doc_num} loaded.` : 'Delivery loaded.') }));
       } catch (e) {
         if (!ignore) setPageState(p => ({ ...p, error: getErrMsg(e, 'Failed to load delivery.') }));
       } finally {
@@ -4737,18 +4740,6 @@ function Delivery() {
         <button type="button" className="del-btn sap-document-toolbar__settings" onClick={toggleFormSettings} disabled={!companyFormSettingsReady || formSettingsStatus.queryModeActive} title={formSettingsStatus.queryModeActive ? 'Company SQL Content layout is active' : (companyFormSettingsReady ? 'Choose document-line fields' : 'Loading company Form Settings')}>
           Form Settings
         </button>
-        <PrintLayoutToolbar
-          documentType="delivery"
-          documentLabel="Delivery"
-          docEntry={currentDocEntry}
-          docNumber={header.docNo}
-          series={header.series}
-          cardCode={header.vendor}
-          disabled={pageState.posting}
-          classPrefix="del"
-          onSuccess={(message) => setPageState(p => ({ ...p, error: '', success: message }))}
-          onError={(message) => setPageState(p => ({ ...p, success: '', error: message }))}
-        />
         <JournalEntryPreviewButton
           documentType="delivery"
           documentLabel="Delivery"
@@ -4841,20 +4832,22 @@ function Delivery() {
         )}
         <button type="button" className="del-btn sap-document-toolbar__find" onClick={() => navigate('/delivery/find')}>Find</button>
         <button type="button" className="del-btn sap-document-toolbar__new" onClick={resetForm}>New</button>
+        <DocumentStatusActions
+          type="delivery"
+          docEntry={currentDocEntry}
+          actions={['close', 'cancel']}
+          className="del-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'deliveryDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
       </div>
 
       {/* alerts */}
       {pageState.loading && <div className="del-alert del-alert--success" style={{ marginTop: 0 }}>Loading...</div>}
       {pageState.error && <div className="del-alert del-alert--error">{pageState.error}</div>}
       {pageState.success && <div className="del-alert del-alert--success">{pageState.success}</div>}
-      {refData.warnings?.length > 0 && (
-        <div className="alert alert-warning py-2" style={{ fontSize: 11 }}>
-          <strong>SAP warnings:</strong>
-          {refData.warnings.map((w, i) => <div key={i}>{w}</div>)}
-          <div style={{ marginTop: 4, color: '#555' }}>Dropdowns are showing fallback values. Connect to SAP to load live data.</div>
-          <div style={{ marginTop: 4, color: '#d00', fontWeight: 600 }}>âš ï¸ Tax codes shown are examples only. Use actual SAP tax codes to avoid submission errors.</div>
-        </div>
-      )}
+
 
       <fieldset ref={documentBodyRef} aria-disabled={!isDocumentEditable} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <div className={`sap-document-layout del-layout${isRightSidebarOpen ? ' is-sidebar-open' : ' sap-document-layout--no-udf'}`}>

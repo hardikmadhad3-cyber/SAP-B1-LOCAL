@@ -243,8 +243,8 @@ const validateRequired = (entityKey, payload) => {
 
 const listEntity = (entityKey) => {
   const { table, orderBy } = TABLES[entityKey];
-  return (_req, res) => {
-    const rows = qcDb.queryRows(`SELECT * FROM ${table} ORDER BY ${orderBy}`);
+  return async (_req, res) => {
+    const rows = await qcDb.queryRows(`SELECT * FROM ${table} ORDER BY ${orderBy}`);
     const transform = RESPONSE_TRANSFORMS[entityKey];
     res.json(transform ? rows.map((row) => transform(row)) : rows);
   };
@@ -252,7 +252,7 @@ const listEntity = (entityKey) => {
 
 const createEntity = (entityKey) => {
   const { table, fields } = TABLES[entityKey];
-  return (req, res) => {
+  return async (req, res) => {
     try {
       const payload = sanitizePayload(entityKey, req.body || {});
       const missingField = validateRequired(entityKey, payload);
@@ -264,12 +264,12 @@ const createEntity = (entityKey) => {
       const placeholders = insertFields.map((field) => `@${field}`).join(', ');
       const columns = insertFields.join(', ');
 
-      const result = qcDb.execute(
+      const result = await qcDb.execute(
         `INSERT INTO ${table} (${columns}, updated_at) VALUES (${placeholders}, CURRENT_TIMESTAMP)`,
         payload,
       );
 
-      const row = qcDb.queryOne(`SELECT * FROM ${table} WHERE id = @id`, { id: result.lastInsertRowid });
+      const row = await qcDb.queryOne(`SELECT * FROM ${table} WHERE id = @id`, { id: result.lastInsertRowid });
       const transform = RESPONSE_TRANSFORMS[entityKey];
       return res.status(201).json(transform ? transform(row) : row);
     } catch (error) {
@@ -282,7 +282,7 @@ const createEntity = (entityKey) => {
 
 const updateEntity = (entityKey) => {
   const { table, fields } = TABLES[entityKey];
-  return (req, res) => {
+  return async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) {
@@ -297,7 +297,7 @@ const updateEntity = (entityKey) => {
       }
 
       const setClause = updateFields.map((field) => `${field} = @${field}`).join(', ');
-      const result = qcDb.execute(
+      const result = await qcDb.execute(
         `UPDATE ${table} SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = @id`,
         { ...payload, id },
       );
@@ -306,7 +306,7 @@ const updateEntity = (entityKey) => {
         return res.status(404).json({ message: 'Record not found.' });
       }
 
-      const row = qcDb.queryOne(`SELECT * FROM ${table} WHERE id = @id`, { id });
+      const row = await qcDb.queryOne(`SELECT * FROM ${table} WHERE id = @id`, { id });
       const transform = RESPONSE_TRANSFORMS[entityKey];
       return res.json(transform ? transform(row) : row);
     } catch (error) {
@@ -319,13 +319,13 @@ const updateEntity = (entityKey) => {
 
 const deleteEntity = (entityKey) => {
   const { table } = TABLES[entityKey];
-  return (req, res) => {
+  return async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
       return res.status(400).json({ message: 'Invalid id.' });
     }
 
-    const result = qcDb.execute(`DELETE FROM ${table} WHERE id = @id`, { id });
+    const result = await qcDb.execute(`DELETE FROM ${table} WHERE id = @id`, { id });
     if (!result.changes) {
       return res.status(404).json({ message: 'Record not found.' });
     }
@@ -334,7 +334,7 @@ const deleteEntity = (entityKey) => {
   };
 };
 
-const saveItemParameterMappingHeader = (req, res) => {
+const saveItemParameterMappingHeader = async (req, res) => {
   try {
     const itemCode = String(req.body?.item_code || '').trim();
     if (!itemCode) {
@@ -346,7 +346,7 @@ const saveItemParameterMappingHeader = (req, res) => {
     const itemName = String(req.body?.item_name || '').trim();
     const isActive = toIntBoolean(req.body?.is_active);
 
-    const result = qcDb.execute(
+    const result = await qcDb.execute(
       `UPDATE qc_item_parameter_mappings
        SET
          remarks = @remarks,
@@ -364,7 +364,7 @@ const saveItemParameterMappingHeader = (req, res) => {
       },
     );
 
-    const rows = qcDb.queryRows(
+    const rows = await qcDb.queryRows(
       `SELECT *
        FROM qc_item_parameter_mappings
        WHERE LOWER(TRIM(item_code)) = LOWER(TRIM(@item_code))
@@ -408,8 +408,8 @@ const normalizeDecision = (value) => {
   return 'Pending';
 };
 
-const parsePendingInspectionPayload = ({ direction = 'Inward', sourceType = 'GRPO' } = {}) => {
-  const completedRows = qcDb.queryRows(
+const parsePendingInspectionPayload = async ({ direction = 'Inward', sourceType = 'GRPO' } = {}) => {
+  const completedRows = await qcDb.queryRows(
     `SELECT
       source_doc_entry,
       source_line_num,
@@ -437,7 +437,7 @@ const parsePendingInspectionPayload = ({ direction = 'Inward', sourceType = 'GRP
     completedLineKeys.add(`${docEntry}|${lineNum}|${itemCode}`);
   }
 
-  const mappedRows = qcDb.queryRows(
+  const mappedRows = await qcDb.queryRows(
     `SELECT DISTINCT item_code
      FROM qc_item_parameter_mappings
      WHERE COALESCE(is_active, 1) = 1`,
@@ -633,7 +633,7 @@ const getOpenDeliveryHeadersWithFallback = async ({ customerCode = '', docEntry 
   }
 };
 
-const filterPendingQcRows = (rows, options = {}) => {
+const filterPendingQcRows = async (rows, options = {}) => {
   const {
     onlyMappedItems = true,
     direction = 'Inward',
@@ -641,7 +641,7 @@ const filterPendingQcRows = (rows, options = {}) => {
     partyCodeField = 'vendor_code',
     partyNameField = 'vendor_name',
   } = options;
-  const { completedLineKeys, mappedItemCodes } = parsePendingInspectionPayload({ direction, sourceType });
+  const { completedLineKeys, mappedItemCodes } = await parsePendingInspectionPayload({ direction, sourceType });
 
   let result = rows;
 
@@ -767,7 +767,7 @@ const listInwardPendingItems = async (req, res) => {
     }
 
     const databaseName = await getRequestDatabaseName(req);
-    const pendingRows = filterPendingQcRows(
+    const pendingRows = await filterPendingQcRows(
       await getPendingGrpoRowsFromSap({ docEntry, databaseName }),
       { onlyMappedItems: true },
     );
@@ -777,14 +777,14 @@ const listInwardPendingItems = async (req, res) => {
   }
 };
 
-const listInwardItemParameters = (req, res) => {
+const listInwardItemParameters = async (req, res) => {
   try {
     const itemCode = String(req.query?.itemCode || '').trim();
     if (!itemCode) {
       return res.status(400).json({ message: 'itemCode is required.' });
     }
 
-    const rows = qcDb.queryRows(
+    const rows = await qcDb.queryRows(
       `SELECT
         parameter_code,
         parameter_name,
@@ -834,7 +834,7 @@ const listInwardItemBatches = async (req, res) => {
 
 const listOutwardItemBatches = async (req, res) => listInwardItemBatches(req, res);
 
-const saveInwardQcInspection = (req, res) => {
+const saveInwardQcInspection = async (req, res) => {
   try {
     const payload = req.body || {};
     const docEntry = Number(payload.doc_entry);
@@ -879,7 +879,7 @@ const saveInwardQcInspection = (req, res) => {
       remarks: userRemarks,
     };
 
-    const result = qcDb.execute(
+    const result = await qcDb.execute(
       `INSERT INTO qc_transactions (
         transaction_no,
         direction,
@@ -1045,7 +1045,7 @@ const listOutwardPendingItems = async (req, res) => {
     }
 
     const databaseName = await getRequestDatabaseName(req);
-    const pendingRows = filterPendingQcRows(
+    const pendingRows = await filterPendingQcRows(
       await getPendingDeliveryRowsFromSap({ docEntry, databaseName }),
       {
         onlyMappedItems: true,
@@ -1061,7 +1061,7 @@ const listOutwardPendingItems = async (req, res) => {
   }
 };
 
-const saveOutwardQcInspection = (req, res) => {
+const saveOutwardQcInspection = async (req, res) => {
   try {
     const payload = req.body || {};
     const docEntry = Number(payload.doc_entry);
@@ -1106,7 +1106,7 @@ const saveOutwardQcInspection = (req, res) => {
       remarks: userRemarks,
     };
 
-    const result = qcDb.execute(
+    const result = await qcDb.execute(
       `INSERT INTO qc_transactions (
         transaction_no,
         direction,

@@ -319,9 +319,13 @@ const createManufacturer = async ({ ManufacturerName }) => {
 
 const getCustomsGroups = async (query = '') => {
   const normalizedQuery = String(query || '').trim().toLowerCase();
+  // ponytail: local companies have no customs groups (SAP OARG); add the master when import duty is needed.
   const response = await sapService.request({
     method: 'GET',
     url: '/CustomsGroups?$top=1000',
+  }).catch((error) => {
+    if (error.response?.status === 501) return { data: { value: [] } };
+    throw error;
   });
 
   const rows = Array.isArray(response.data?.value) ? response.data.value : [];

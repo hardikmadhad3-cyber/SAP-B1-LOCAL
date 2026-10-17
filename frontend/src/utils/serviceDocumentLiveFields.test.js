@@ -38,7 +38,7 @@ test('keeps lookup columns wide enough for their value and lookup action', () =>
     label: 'G/L Account',
     width: 100,
     lookup: 'account',
-  })).toBe(125);
+  })).toBe(130);
 });
 
 test('maps service standards, keeps unsupported standards read-only, and exposes only schema UDFs', () => {

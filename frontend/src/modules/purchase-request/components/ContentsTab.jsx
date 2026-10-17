@@ -83,6 +83,8 @@ export default function ContentsTab({
   rowUdfFields = [],
   onRowUdfChange,
   documentType = 'Item',
+  onDocumentTypeChange,
+  documentTypeLocked = false,
   onOpenVendorModal,
   serviceAccounts = [],
 }) {
@@ -405,6 +407,19 @@ export default function ContentsTab({
     <div className="so-tab-panel pr-contents-panel" style={{ overflow: 'visible', minWidth: 0, maxWidth: 'none' }}>
       <div className="pr-document-lines-header">
         <div className="so-section-title">Document Lines</div>
+        <label className="so-field pr-doc-type-field">
+          <span className="so-field__label">Item/Service Type</span>
+          <select
+            className="so-field__select"
+            name="documentType"
+            value={documentType}
+            disabled={documentTypeLocked || !onDocumentTypeChange}
+            onChange={(event) => onDocumentTypeChange?.(event.target.value)}
+          >
+            <option value="Item">Item</option>
+            <option value="Service">Service</option>
+          </select>
+        </label>
         <button type="button" className="so-btn so-btn--primary" onClick={onAddLine}>+ Add Line</button>
       </div>
       <div className="so-grid-wrap so-grid-wrap--contents">

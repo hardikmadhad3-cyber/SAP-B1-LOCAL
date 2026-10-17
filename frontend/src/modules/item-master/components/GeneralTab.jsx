@@ -297,7 +297,7 @@ export default function GeneralTab({ form, onChange, onDefineManufacturer, mode 
 
           <div className="im-field" style={{ marginTop: "15px" }}>
             <label className="im-field__label">Remarks</label>
-            <input className="im-field__input" name="Remarks" value={form.Remarks || ""} onChange={onChange} />
+            <input className="im-field__input" name="User_Text" aria-label="Remarks" value={form.User_Text || ""} onChange={onChange} />
           </div>
 
           <div className="im-field" style={{ marginTop: "40px" }}>

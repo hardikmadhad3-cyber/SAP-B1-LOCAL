@@ -7,7 +7,7 @@ const EMPTY_ROW = {
   isNew: true,
 };
 
-export default function UoMGroupsGrid({ groups, setGroups, uomOptions, onOpenDefinition }) {
+export default function UoMGroupsGrid({ groups, setGroups, uomOptions, onOpenDefinition, disabled = false }) {
   // Ensure minimum 5 rows
   const displayRows = [...groups];
   while (displayRows.length < 5) {
@@ -29,9 +29,9 @@ export default function UoMGroupsGrid({ groups, setGroups, uomOptions, onOpenDef
   };
 
   return (
-    <div className="uom-grid-section">
-      <div className="uom-grid-wrap">
-        <table className="uom-grid">
+    <div className="im-tab-panel">
+      <div className="im-grid-wrap">
+        <table className="im-grid">
           <thead>
             <tr>
               <th style={{ width: "40px" }}>#</th>
@@ -44,30 +44,30 @@ export default function UoMGroupsGrid({ groups, setGroups, uomOptions, onOpenDef
           <tbody>
             {displayRows.map((row, idx) => (
               <tr key={idx}>
-                <td className="uom-grid__cell--center">{idx + 1}</td>
+                <td className="">{idx + 1}</td>
                 <td>
-                  <input
-                    className="uom-grid__input"
-                    value={row.Code || ""}
+                  <input disabled={disabled}
+                    className="im-grid__input"
+                    aria-label={"Group code " + (idx + 1)} value={row.Code || ""}
                     onChange={(e) => handleCellChange(idx, "Code", e.target.value)}
-                    maxLength={8}
-                    placeholder="Max 8 chars"
+                    maxLength={20}
+                    placeholder="Max 20 chars"
                     readOnly={!row.isNew}
                   />
                 </td>
                 <td>
-                  <input
-                    className="uom-grid__input"
-                    value={row.Name || ""}
+                  <input disabled={disabled}
+                    className="im-grid__input"
+                    aria-label={"Group name " + (idx + 1)} value={row.Name || ""}
                     onChange={(e) => handleCellChange(idx, "Name", e.target.value)}
-                    maxLength={50}
+                    maxLength={100}
                     placeholder="Group name"
                   />
                 </td>
                 <td>
-                  <select
-                    className="uom-grid__select"
-                    value={row.BaseUoM || ""}
+                  <select disabled={disabled}
+                    className="im-grid__input"
+                    aria-label={"Base UoM " + (idx + 1)} value={row.BaseUoM ?? ""}
                     onChange={(e) => handleCellChange(idx, "BaseUoM", e.target.value)}
                   >
                     <option value="">-- Select --</option>
@@ -78,10 +78,10 @@ export default function UoMGroupsGrid({ groups, setGroups, uomOptions, onOpenDef
                     ))}
                   </select>
                 </td>
-                <td className="uom-grid__cell--center">
+                <td className="">
                   {row.AbsEntry && (
-                    <button
-                      className="uom-grid__def-btn"
+                    <button disabled={disabled}
+                      className="im-btn"
                       onClick={() => onOpenDefinition(row)}
                       title="Group Definition"
                     >
@@ -95,8 +95,8 @@ export default function UoMGroupsGrid({ groups, setGroups, uomOptions, onOpenDef
         </table>
       </div>
 
-      <div className="uom-grid-actions">
-        <button className="uom-btn uom-btn--small" onClick={handleAddRow}>
+      <div className="im-grid-actions">
+        <button disabled={disabled} className="im-btn" onClick={handleAddRow}>
           + Add Row
         </button>
       </div>

@@ -5,7 +5,11 @@
   "scripts": {
     "start": "node server.js",
     "migrate:auth-sqlite": "cd .. && node backend/scripts/migrateAuthDbToSqlite.js --force",
-    "test": "node --test test/databaseCompatibility.test.js"
+    "test": "node --test test/databaseCompatibility.test.js",
+    "test:app-postgres": "node --test test/appDb.test.js test/pgDb.test.js test/transferredFeatureSafety.test.js",
+    "seed:company": "node scripts/seedNewCompany.js",
+    "test:company-postgres": "node --test test/companyPostgres.test.js test/pgDb.test.js",
+    "test:local-sl": "node --test --test-concurrency=1 test/localServiceLayer.test.js test/localMasters.test.js test/localPosting.test.js test/localDocumentCopyChains.test.js test/localUserFields.test.js test/localInventoryDocuments.test.js test/localPayments.test.js test/localCancellation.test.js test/localFinance.test.js test/localItemUpdates.test.js test/localMasterPageFixes.test.js test/localAccountingReports.test.js test/localUserObjects.test.js"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +24,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mssql": "^12.2.1",
-    "multer": "^2.1.1"
+    "multer": "^2.1.1",
+    "pg": "^8.23.1"
   }
 }

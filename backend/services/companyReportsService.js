@@ -38,6 +38,12 @@ const readActiveReportCodes = async () => {
 
 const listCompanyReports = async (auth) => {
   await requireReportsAccess(auth);
+  // Company reports are SAP Crystal layouts served by the SAP Report Service;
+  // a local (PostgreSQL) company has none, so the list is empty, not an error.
+  const connection = await dbService.resolveSqlConnectionConfig().catch(() => null);
+  if (String(connection?.dialect || '').toLowerCase() === 'postgres') {
+    return { items: [], statusVerified: true, message: 'Company reports are SAP Crystal Reports layouts; local companies use the reports under Reports instead.' };
+  }
   const [authorized, statuses] = await Promise.all([
     reportService.loadAuthorizedCrList(),
     readActiveReportCodes(),

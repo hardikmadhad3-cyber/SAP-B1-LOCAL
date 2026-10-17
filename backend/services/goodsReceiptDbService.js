@@ -336,7 +336,7 @@ const getPurchaseOrders = async () => {
         T0.DocDate,
         T0.DocTotal,
         ${optionalColumn(headerColumns, 'T0', 'BPLId', 'BranchId')},
-        T0.Ref2
+        ${optionalColumn(headerColumns, 'T0', 'Ref2', 'Ref2')}
       FROM OPOR T0
       WHERE T0.DocStatus = 'O'
       ORDER BY T0.DocEntry DESC
@@ -370,7 +370,7 @@ const getPurchaseInvoices = async () => {
         T0.DocDate,
         T0.DocTotal,
         ${optionalColumn(headerColumns, 'T0', 'BPLId', 'BranchId')},
-        T0.Ref2
+        ${optionalColumn(headerColumns, 'T0', 'Ref2', 'Ref2')}
       FROM OPCH T0
       WHERE T0.DocStatus = 'O'
       ORDER BY T0.DocEntry DESC

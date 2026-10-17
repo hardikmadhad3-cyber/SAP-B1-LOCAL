@@ -347,6 +347,7 @@ const getInventoryTransfer = async (docEntry) => {
           T0.NumAtCard,
           T0.Comments,
           T0.JrnlMemo,
+          T0.SlpCode,
           CASE T0.DocStatus
             WHEN 'O' THEN 'Open'
             WHEN 'C' THEN 'Posted'
@@ -368,6 +369,7 @@ const getInventoryTransfer = async (docEntry) => {
     throw new Error(`Inventory Transfer ${docEntry} not found.`);
   }
 
+  const lineColumns = await getTableColumns('WTR1');
   const lineRows = await safe(
     db.query(
       `
@@ -385,7 +387,9 @@ const getInventoryTransfer = async (docEntry) => {
           T0.OcrCode4 AS DistributionRule4,
           T0.OcrCode5 AS DistributionRule5,
           T0.unitMsr AS UoMCode,
-          CAST(ISNULL(T0.StockValue, 0) AS DECIMAL(19, 6)) AS AssessableValue
+          ${getColumnName(lineColumns, 'StockValue')
+            ? `CAST(ISNULL(T0.${quoteSqlIdentifier(getColumnName(lineColumns, 'StockValue'))}, 0) AS DECIMAL(19, 6))`
+            : 'CAST(0 AS DECIMAL(19, 6))'} AS AssessableValue
         FROM WTR1 T0
         INNER JOIN OWTR T1
           ON T1.DocEntry = T0.DocEntry
@@ -457,7 +461,7 @@ const getInventoryTransfer = async (docEntry) => {
       fromWarehouse: header.FromWarehouse || '',
       toWarehouse: header.ToWarehouse || '',
       referencedDocument: header.NumAtCard || '',
-      salesEmployee: '',
+      salesEmployee: header.SlpCode != null && Number(header.SlpCode) >= 0 ? String(header.SlpCode) : '',
       dutyStatus: 'With Payment of Duty',
       journalRemark: header.JrnlMemo || 'Inventory Transfer',
       pickPackRemarks: '',

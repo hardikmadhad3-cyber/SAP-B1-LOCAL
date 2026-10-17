@@ -10,3 +10,6 @@ export const searchUoMGroups = (query = "", top = 50, skip = 0) =>
 
 export const fetchUoMs = (query = "") =>
   apiClient.get(`${BASE}/lookup/uoms`, { params: { query } }).then((r) => r.data);
+
+// Units of measure (SAP: Units of Measure setup, OUOM)
+export const createUoM = (data) => apiClient.post(`${BASE}/uoms/create`, data).then((r) => r.data);

@@ -23,7 +23,6 @@ export default function TaxInfoModal({ isOpen, onClose, onSave, taxInfoForm, onF
               <label className="so-field__label">P.A.N. No.</label>
               <input
                 className="so-field__input"
-                style={{ background: '#ffffcc' }}
                 name="panNo"
                 value={taxInfoForm.panNo}
                 onChange={onFormChange}

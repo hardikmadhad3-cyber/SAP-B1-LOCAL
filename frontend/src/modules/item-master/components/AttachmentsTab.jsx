@@ -5,7 +5,7 @@ import React, { useRef } from "react";
  * `attachments` = [{ id, name, size, type, url, file? }]
  * `onAdd(files)`, `onRemove(id)`
  */
-export default function AttachmentsTab({ attachments = [], onAdd, onRemove }) {
+export default function AttachmentsTab({ attachments = [], onAdd, onRemove, onOpen }) {
   const inputRef = useRef(null);
 
   const handleFiles = (e) => {
@@ -57,12 +57,12 @@ export default function AttachmentsTab({ attachments = [], onAdd, onRemove }) {
             {attachments.map((att) => (
               <tr key={att.id}>
                 <td>
-                  {att.url ? (
-                    <a href={att.url} target="_blank" rel="noreferrer" className="im-link">
+                  {onOpen && !att.file ? (
+                    <button type="button" className="im-link" onClick={() => onOpen(att)}>
                       {att.name}
-                    </a>
+                    </button>
                   ) : (
-                    att.name
+                    <span>{att.name}{att.file ? " (uploads on Add)" : ""}</span>
                   )}
                 </td>
                 <td className="im-grid__cell--muted">{att.type || "—"}</td>

@@ -63,7 +63,22 @@ const lookupUoMs = async (req, res) => {
   }
 };
 
+// Units of measure (OUOM) themselves: SAP's Units of Measure setup.
+const saveUoM = (method) => async (req, res) => {
+  try {
+    const url = method === "POST" ? "/UnitOfMeasurements" : `/UnitOfMeasurements(${Number(req.params.absEntry)})`;
+    const result = await sapService.request({ method, url, data: req.body });
+    const saved = method === "POST" ? result.data : (await sapService.request({ method: "GET", url })).data;
+    res.status(method === "POST" ? 201 : 200).json(saved);
+  } catch (err) {
+    const msg = err.response?.data?.error?.message?.value || err.message;
+    res.status(err.response?.status || 500).json({ message: msg });
+  }
+};
+
 module.exports = {
+  createUoM: saveUoM("POST"),
+  updateUoM: saveUoM("PATCH"),
   createUoMGroup,
   getUoMGroup,
   updateUoMGroup,

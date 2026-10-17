@@ -12,6 +12,7 @@ import RemarksTab        from "./components/RemarksTab";
 import AttachmentsTab    from "./components/AttachmentsTab";
 import AddOnTab          from "./components/AddOnTab";
 import LookupField       from "./components/LookupField";
+import { changedFieldsNotSent } from "./itemPayloadChanges";
 import ItemGroupSetup     from "./components/ItemGroupSetup";
 import ManufacturerSetup  from "./components/ManufacturerSetup";
 import { useAuth } from "../../auth/AuthContext";
@@ -21,6 +22,7 @@ import {
   createItem, getItem, updateItem, checkItemCodeExists,
   fetchItemGroups, fetchVendors, fetchPriceLists, fetchUoMGroups, fetchItemCodePrefixes,
   fetchWarehouses, fetchCustomsGroups, searchItems, generateItemCode,
+  fetchAttachments, uploadAttachment, deleteAttachment, downloadAttachment,
 } from "../../api/itemApi";
 
 const YARN_COTTON_TAB = "Yarn Cotton";
@@ -201,6 +203,8 @@ export default function ItemMaster() {
   const [tab, setTab]         = useState(0);
   const [form, setForm]       = useState(EMPTY_FORM);
   const [initialForm, setInitialForm] = useState(EMPTY_FORM); // For dirty detection
+  // Service Layer properties of the loaded item: what an Update may send back.
+  const [loadedKeys, setLoadedKeys] = useState(() => new Set());
   const [alert, setAlert]     = useState(null);
   const [loading, setLoading] = useState(false);
   const [visibleTabs] = useState(loadVisibleTabs);
@@ -236,6 +240,7 @@ export default function ItemMaster() {
     if (isDirty && !window.confirm("You have unsaved changes. Discard them?")) return;
     setForm(EMPTY_FORM);
     setInitialForm(EMPTY_FORM);
+    setLoadedKeys(new Set());
     setPrices([]); setStock([]); setBarcodes([]);
     setUoms([]); setPrefVendors([]); setAttachments([]);
     setDuplicateSourceItemCode("");
@@ -378,11 +383,13 @@ export default function ItemMaster() {
     const { data, loadedForm } = prepareItemForForm(source);
     setForm(loadedForm);
     setInitialForm(loadedForm); // Set as clean state
+    setLoadedKeys(new Set(Object.keys(source || {})));
     setPrices(data.ItemPrices || []);
     setStock(data.ItemWarehouseInfoCollection || []);
     setBarcodes(data.ItemBarCodeCollection || []);
     setUoms(data.ItemUnitOfMeasurementCollection || []);
     setPrefVendors(data.ItemPreferredVendors || []);
+    setAttachments(await fetchAttachments(itemCode.trim()).catch(() => []));
     setDuplicateSourceItemCode("");
     setMode(MODES.UPDATE);
   }, [prepareItemForForm]);
@@ -722,6 +729,42 @@ export default function ItemMaster() {
     return errors;
   }, [form.ItemCode, form.ItemName, itemCodeError]);
 
+  // Attachments: stored on the server per company and item. A new item keeps the
+  // chosen files until Add, then uploads them; a saved item uploads at once.
+  const uploadFiles = useCallback(async (itemCode, files) => {
+    for (const file of files) {
+      const body = new FormData();
+      body.append("file", file);
+      await uploadAttachment(itemCode, body);
+    }
+  }, []);
+  const savedItemCode = mode === MODES.UPDATE ? String(form.ItemCode || "").trim() : "";
+  const addAttachments = async (files) => {
+    if (!savedItemCode) {
+      setAttachments((p) => [...p, ...files.map((f, i) => ({ id: `new-${Date.now()}-${i}`, name: f.name, size: f.size, type: f.type, file: f }))]);
+      return;
+    }
+    try {
+      await uploadFiles(savedItemCode, files);
+      setAttachments(await fetchAttachments(savedItemCode));
+    } catch (err) { showAlert("error", extractSapError(err)); }
+  };
+  const removeAttachment = async (attachment) => {
+    if (attachment.file || !savedItemCode) { setAttachments((p) => p.filter((a) => a.id !== attachment.id)); return; }
+    try {
+      await deleteAttachment(savedItemCode, attachment.id);
+      setAttachments(await fetchAttachments(savedItemCode));
+    } catch (err) { showAlert("error", extractSapError(err)); }
+  };
+  const openAttachment = async (attachment) => {
+    try {
+      const url = URL.createObjectURL(await downloadAttachment(savedItemCode, attachment.id));
+      const link = Object.assign(document.createElement("a"), { href: url, download: attachment.name });
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) { showAlert("error", extractSapError(err)); }
+  };
+
   // Handle Add logic
   const handleAdd = useCallback(async () => {
     const sourceItemCode = String(duplicateSourceItemCode || form._duplicateFromItemCode || "").trim();
@@ -736,18 +779,25 @@ export default function ItemMaster() {
       const payload = sourceItemCode
         ? buildDuplicatePayload(form, sourceItemCode, user)
         : buildPayload(form, prices, barcodes, uoms, prefVendors, stock, user);
-      await createItem(payload);
-      showAlert("success", `Item "${form.ItemCode}" created successfully.`);
-      const savedForm = { ...form };
-      delete savedForm._duplicateFromItemCode;
-      setForm(savedForm);
-      setInitialForm(savedForm); // Mark as saved
+      const created = await createItem(payload);
+      const savedCode = String(created?.ItemCode || form.ItemCode || "").trim();
+      // Reload what was stored so the next Update compares with the saved item.
+      if (savedCode) {
+        await uploadFiles(savedCode, attachments.filter((a) => a.file).map((a) => a.file));
+        await loadItem(savedCode);
+      } else {
+        const savedForm = { ...form };
+        delete savedForm._duplicateFromItemCode;
+        setForm(savedForm);
+        setInitialForm(savedForm);
+        setMode(MODES.UPDATE);
+      }
+      showAlert("success", `Item "${savedCode || form.ItemCode}" created successfully.`);
       setDuplicateSourceItemCode("");
-      setMode(MODES.UPDATE);
     } catch (err) {
       showAlert("error", extractSapError(err));
     } finally { setLoading(false); }
-  }, [duplicateSourceItemCode, form, prices, barcodes, uoms, prefVendors, stock, user, validateDuplicateItemForm, validateItemForm, showAlert]);
+  }, [duplicateSourceItemCode, form, loadItem, uploadFiles, attachments, prices, barcodes, uoms, prefVendors, stock, user, validateDuplicateItemForm, validateItemForm, showAlert]);
 
   // Handle Update logic
   const handleUpdate = useCallback(async () => {
@@ -759,13 +809,14 @@ export default function ItemMaster() {
     
     setLoading(true);
     try {
-      await updateItem(form.ItemCode.trim(), buildPayload(form, prices, barcodes, uoms, prefVendors, stock, user));
+      await updateItem(form.ItemCode.trim(), buildPayload(form, prices, barcodes, uoms, prefVendors, stock, user, { form: initialForm, keys: loadedKeys }));
+      // Reload so the page shows what was stored (and the next Update compares with it).
+      await loadItem(form.ItemCode.trim());
       showAlert("success", `Item "${form.ItemCode}" updated successfully.`);
-      setInitialForm(form); // Mark as saved
     } catch (err) {
       showAlert("error", extractSapError(err));
     } finally { setLoading(false); }
-  }, [form, prices, barcodes, uoms, prefVendors, stock, user, validateItemForm, showAlert]);
+  }, [form, initialForm, loadedKeys, loadItem, prices, barcodes, uoms, prefVendors, stock, user, validateItemForm, showAlert]);
 
   // handleSave logic
   const handleSave = useCallback(() => {
@@ -1043,11 +1094,9 @@ export default function ItemMaster() {
         {activeTabName === "Attachments"     && (
           <AttachmentsTab
             attachments={attachments}
-            onAdd={(files) => setAttachments((p) => [
-              ...p,
-              ...files.map((f, i) => ({ id: Date.now() + i, name: f.name, size: f.size, type: f.type, file: f })),
-            ])}
-            onRemove={(id) => setAttachments((p) => p.filter((a) => a.id !== id))}
+            onAdd={addAttachments}
+            onRemove={(id) => removeAttachment(attachments.find((a) => a.id === id) || { id })}
+            onOpen={savedItemCode ? openAttachment : undefined}
           />
         )}
       </div>
@@ -1144,7 +1193,7 @@ function buildDuplicatePayload(form, duplicateSourceItemCode, currentUser = null
   return payload;
 }
 
-function buildPayload(form, prices = [], barcodes = [], uoms = [], prefVendors = [], stock = [], currentUser = null) {
+function buildPayload(form, prices = [], barcodes = [], uoms = [], prefVendors = [], stock = [], currentUser = null, baseline = null) {
   const opt = (v) => v !== "" && v != null;
   const num = (v) => v !== "" && v != null && !isNaN(v) ? Number(v) : undefined;
   const currentUserName = String(currentUser?.fullName || currentUser?.username || "").trim();
@@ -1290,9 +1339,18 @@ function buildPayload(form, prices = [], barcodes = [], uoms = [], prefVendors =
   if (num(form.OrderMultiple))     p.OrderMultiple     = num(form.OrderMultiple);
   if (num(form.MinOrderQuantity))  p.MinOrderQuantity  = num(form.MinOrderQuantity);
   if (num(form.ToleranceDays))     p.ToleranceDays     = num(form.ToleranceDays);
+  // SAP keeps the item's Remarks tab in OITM.UserText (SL User_Text).
   if (opt(form.User_Text)) p.User_Text = form.User_Text;
-  // Remarks is UI-only, stored in User_Text
+  if (opt(form.ManageStockByWarehouse)) p.ManageStockByWarehouse = form.ManageStockByWarehouse;
+  if (opt(form.CreateQRCodeFrom)) p.CreateQRCodeFrom = form.CreateQRCodeFrom;
   for (let i = 1; i <= 64; i++) { if (form[`Properties${i}`] === "tYES") p[`Properties${i}`] = "tYES"; }
+  // Header Price List / Unit Price is that list's row of the item prices.
+  if (opt(form.PriceListNum) && num(form.Price) != null) {
+    const list = Number(form.PriceListNum);
+    prices = prices.some((r) => Number(r.PriceList) === list)
+      ? prices.map((r) => (Number(r.PriceList) === list ? { ...r, Price: num(form.Price) } : r))
+      : [...prices, { PriceList: list, Price: num(form.Price) }];
+  }
   if (prices.length > 0) {
     p.ItemPrices = prices.map((r) => ({
       PriceList: r.PriceList, Price: Number(r.Price) || 0, Currency: r.Currency || null,
@@ -1321,5 +1379,8 @@ function buildPayload(form, prices = [], barcodes = [], uoms = [], prefVendors =
     })
     .filter((row) => Object.keys(row).length > 1);
   if (warehouseRows.length > 0) p.ItemWarehouseInfoCollection = warehouseRows;
+  if (baseline) Object.assign(p, changedFieldsNotSent(form, p, baseline));
   return p;
 }
+
+

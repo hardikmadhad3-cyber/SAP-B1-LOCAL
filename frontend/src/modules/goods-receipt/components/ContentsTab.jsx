@@ -8,6 +8,7 @@ const COLUMNS = [
   { key: 'quantity', label: 'Quantity', minWidth: 90, numeric: true },
   { key: 'unitPrice', label: 'Unit Price', minWidth: 105, numeric: true },
   { key: 'total', label: 'Total', minWidth: 110, numeric: true, readOnly: true },
+  { key: 'warehouse', label: 'Whse', minWidth: 110 },
   { key: 'binLocationAllocation', label: 'Bin Location Allocation', minWidth: 175, readOnly: true },
   { key: 'accountCode', label: 'Account Code', minWidth: 135, lookup: 'account' },
   { key: 'itemCost', label: 'Item Cost', minWidth: 110, numeric: true, readOnly: true },
@@ -55,6 +56,7 @@ const STANDARD_KEYS = new Set([
   'quantity',
   'unitPrice',
   'total',
+  'warehouse',
   'binLocationAllocation',
   'accountCode',
   'itemCost',
@@ -88,9 +90,13 @@ function ContentsTab({
   onAddLine,
   onRemoveLine,
   errors,
+  warehouses = [],
 }) {
   const inputRefs = useRef({});
-  const visibleColumns = getOrderedVisibleMatrixColumns(COLUMNS, formSettings);
+  // The non-standard columns are one company's IGN1 UDFs; show them only where
+  // the current company actually has a matching UDF.
+  const companyColumns = COLUMNS.filter((column) => STANDARD_KEYS.has(column.key) || getBoundUdf(column, rowUdfFields));
+  const visibleColumns = getOrderedVisibleMatrixColumns(companyColumns, formSettings);
 
   const focusCell = (rowIndex, columnKey) => {
     const target = inputRefs.current[`${rowIndex}:${columnKey}`];
@@ -158,6 +164,24 @@ function ContentsTab({
           <input ref={(node) => { inputRefs.current[`${rowIndex}:itemCode`] = node; }} className={`po-grid__input po-grid__input--text ${rowErrors.itemCode ? 'gr-goods-receipt__input--error' : ''}`} value={line.itemCode} readOnly={isCopiedRow} onFocus={() => onFocusRow(rowIndex)} onChange={(event) => onItemCodeChange(rowIndex, event.target.value)} onBlur={() => onItemCommit(rowIndex)} onKeyDown={(event) => handleCellKeyDown(event, rowIndex, 'itemCode')} />
           {!isCopiedRow && <button type="button" className="gr-goods-receipt__lookup-btn" onClick={() => onOpenItemModal(rowIndex)} title="Select Item">...</button>}
         </div>
+      );
+    }
+
+    if (column.key === 'warehouse') {
+      return (
+        <select
+          ref={(node) => { inputRefs.current[`${rowIndex}:warehouse`] = node; }}
+          className={`po-grid__input ${rowErrors.warehouse ? 'gr-goods-receipt__input--error' : ''}`}
+          aria-label={`Warehouse row ${rowIndex + 1}`}
+          value={line.warehouse || ''}
+          disabled={disabled || isCopiedRow}
+          onFocus={() => onFocusRow(rowIndex)}
+          onChange={(event) => onFieldChange(rowIndex, 'warehouse', event.target.value)}
+        >
+          <option value=""></option>
+          {warehouses.map((warehouse) => <option key={warehouse.whsCode} value={warehouse.whsCode}>{warehouse.whsCode}</option>)}
+          {line.warehouse && !warehouses.some((warehouse) => warehouse.whsCode === line.warehouse) && <option value={line.warehouse}>{line.warehouse}</option>}
+        </select>
       );
     }
 

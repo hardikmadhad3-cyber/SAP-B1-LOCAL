@@ -30,7 +30,6 @@ import {
   inferDocumentCurrencyMode,
   resolveDisplayCurrency,
 } from '../../utils/documentCurrency';
-import PrintLayoutToolbar from '../../components/print-layout/PrintLayoutToolbar';
 import FreightChargesModal from '../../components/freight/FreightChargesModal';
 import ExchangeRatesIndexesModal from '../sales-order/components/ExchangeRatesIndexesModal';
 import { summarizeFreightRows } from '../../components/freight/freightUtils';
@@ -54,7 +53,7 @@ import { buildVisibleEnteredRowUdfPayload } from '../../utils/rowUdfPayload';
 import { getStateCodeValue, getStateDisplayName } from '../../utils/stateDisplay';
 import { findTaxCode, getTaxComponentCodes } from '../../utils/taxCodeComponents';
 import { copyToDocument } from '../../services/documentCopyService';
-import { replaceRouteStatePreservingWindow } from '../../utils/copyToState';
+import { reloadRouteDocument, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
 import { duplicateDocumentInPlace } from '../../utils/documentDuplicate';
 import useValidationHighlights from '../../utils/useValidationHighlights';
 import useSalesEmployeeSetup from '../../hooks/useSalesEmployeeSetup';
@@ -101,6 +100,8 @@ import {
   readSavedFormSettings,
 } from '../../config/salesQuotationForm';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const getErrorText = (value) => {
   if (typeof value === 'string' && value.trim()) return value.trim();
@@ -504,6 +505,7 @@ function SalesQuotation() {
   const hasBuyerCode = Boolean(String(header.vendor || '').trim());
   const isUpdateMode = Boolean(currentDocEntry);
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const resolveSalesQuotationAddress = useCallback((code, addresses = [], fallbackText = '') => {
     const normalizedCode = String(code || '').trim();
@@ -888,7 +890,7 @@ function SalesQuotation() {
         if (so.header?.customerCode) {
           loadVendorDetails(so.header.customerCode);
         }
-        setPageState(p => ({ ...p, success: so.doc_num ? `Sales Quotation ${so.doc_num} loaded.` : 'Sales Quotation loaded.' }));
+        setPageState(p => ({ ...p, success: location.state?.documentStatusMessage || (so.doc_num ? `Sales Quotation ${so.doc_num} loaded.` : 'Sales Quotation loaded.') }));
       } catch (e) {
         if (!ignore) setPageState(p => ({ ...p, error: getErrMsg(e, 'Failed to load Sales Quotation.') }));
       } finally {
@@ -2548,16 +2550,6 @@ function SalesQuotation() {
         <button type="button" className="so-btn sap-document-toolbar__settings" onClick={toggleFormSettings} disabled={!companyFormSettingsReady || formSettingsStatus.queryModeActive} title={formSettingsStatus.queryModeActive ? 'Company SQL Content layout is active' : (companyFormSettingsReady ? 'Choose document-line fields' : 'Loading company Form Settings')}>
           Form Settings
         </button>
-        <PrintLayoutToolbar
-          documentType="salesQuotation"
-          documentLabel="Sales Quotation"
-          docEntry={currentDocEntry}
-          docNumber={header.docNo}
-          disabled={pageState.posting}
-          classPrefix="so"
-          onSuccess={(message) => setPageState(p => ({ ...p, error: '', success: message }))}
-          onError={(message) => setPageState(p => ({ ...p, success: '', error: message }))}
-        />
         <button type="button" className="so-btn sap-document-toolbar__copy" onClick={() => openCopyFromModal()} disabled={!isDocumentEditable || !!currentDocEntry || formSettingsStatus.queryModeActive}>
           Copy From
         </button>
@@ -2573,20 +2565,22 @@ function SalesQuotation() {
         )}
         <button type="button" className="so-btn sap-document-toolbar__find" onClick={() => navigate('/sales-quotation/find')}>Find</button>
         <button type="button" className="so-btn sap-document-toolbar__new" onClick={resetForm}>New</button>
+        <DocumentStatusActions
+          type="sales-quotation"
+          docEntry={currentDocEntry}
+          actions={['close', 'cancel']}
+          className="so-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'salesQuotationDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
       </div>
 
       {/* alerts */}
       {pageState.loading && <div className="so-alert so-alert--success" style={{ marginTop: 0 }}>Loading...</div>}
       {pageState.error && <div className="so-alert so-alert--error" role="alert" data-auto-dismiss="false">{pageState.error}</div>}
       {pageState.success && <div className="so-alert so-alert--success">{pageState.success}</div>}
-      {refData.warnings?.length > 0 && (
-        <div className="so-alert so-alert--warning">
-          <strong>SAP warnings:</strong>
-          {refData.warnings.map((w, i) => <div key={i}>{w}</div>)}
-          <div style={{ marginTop: 4, color: '#555' }}>Dropdowns are showing fallback values. Connect to SAP to load live data.</div>
-          <div style={{ marginTop: 4, color: '#d00', fontWeight: 600 }}>Ã¢Å¡Â Ã¯Â¸Â Tax codes shown are examples only. Use actual SAP tax codes to avoid submission errors.</div>
-        </div>
-      )}
+
 
       <fieldset ref={documentBodyRef} className="so-fieldset" aria-disabled={!isDocumentEditable} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className={`so-layout${isRightSidebarOpen ? ' is-sidebar-open' : ''}`}>
@@ -2918,7 +2912,7 @@ function SalesQuotation() {
             )}
 
             {activeTab === 'Tax' && (
-              <TaxTab onOpenTaxInfoModal={openTaxInfoModal} />
+              <TaxTab header={header} onHeaderChange={handleHeaderChange} onOpenTaxInfoModal={openTaxInfoModal} />
             )}
 
             {activeTab === 'Electronic Documents' && (
@@ -2934,7 +2928,7 @@ function SalesQuotation() {
 
             {/* Ã¢â€¢ÂÃ¢â€¢Â TOTALS FOOTER Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
             <div className="so-header-card">
-              <div className="so-field-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="so-field-grid">
                 <div>
                   <div className="so-field">
                     <label className="so-field__label">Sales Employee</label>

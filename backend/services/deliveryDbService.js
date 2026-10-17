@@ -36,7 +36,7 @@ const safe = async (promise) => {
     const r = await promise;
     return r.recordset || [];
   } catch (e) {
-    console.warn('[Delivery DB] Query failed silently:', e.message);
+    if (!db.isMissingTableError(e)) console.warn('[Delivery DB] Query failed silently:', e.message);
     return [];
   }
 };

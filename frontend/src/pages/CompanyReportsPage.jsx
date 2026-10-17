@@ -51,16 +51,18 @@ export default function CompanyReportsPage() {
   const [preview, setPreview] = useState({ fileName: '', url: '' });
   const [loading, setLoading] = useState({ catalog: true, detail: false, run: false });
   const [message, setMessage] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     let active = true;
     setCatalog([]);
     setSelected(null);
     setMessage('');
+    setNotice('');
     setPreview({ fileName: '', url: '' });
     setLoading((current) => ({ ...current, catalog: true }));
     fetchCompanyReports()
-      .then((result) => { if (active) setCatalog(result.items || []); })
+      .then((result) => { if (active) { setCatalog(result.items || []); setNotice(result.message || ''); } })
       .catch((error) => { if (active) setMessage(errorText(error, 'Could not load company reports.')); })
       .finally(() => { if (active) setLoading((current) => ({ ...current, catalog: false })); });
     return () => { active = false; };
@@ -140,7 +142,7 @@ export default function CompanyReportsPage() {
           {message ? <div className="rs-message is-error" role="alert">{message}</div> : null}
           {loading.catalog ? <div className="company-reports-page__empty">Loading company reports...</div> : null}
           {!loading.catalog && !filtered.length ? (
-            <div className="company-reports-page__empty">No matching company reports found.</div>
+            <div className="company-reports-page__empty">{notice || 'No matching company reports found.'}</div>
           ) : null}
           <div className="company-reports-page__list" ref={listRef}>
             {filtered.map((report) => (

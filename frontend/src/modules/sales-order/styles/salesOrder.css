@@ -708,27 +708,6 @@
   grid-template-columns: minmax(82px, 96px) minmax(62px, 74px) minmax(72px, 84px);
 }
 
-.so-field--currency-compact {
-  grid-template-columns: 130px minmax(0, 1fr);
-  gap: 6px;
-  align-items: center;
-}
-
-.so-field--currency-compact::before {
-  content: "BP Currency";
-  font-size: 12px;
-  color: #444;
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.so-field--currency-compact > .sap-input-group--currency {
-  grid-column: 2;
-  width: min(100%, 270px);
-}
-
 .sap-input-group--currency .so-field__select,
 .sap-input-group--currency .so-field__input,
 .sap-input-group--currency .del-field__select,

@@ -61,6 +61,7 @@ import { FALLBACK_TAX_CODES } from '../../utils/fallbackTaxCodes';
 import { summarizeFreightRows } from '../../components/freight/freightUtils';
 import {
   BASE_MATRIX_COLUMNS,
+  normalizePurchaseRequestMatrixColumns,
   FORM_SETTINGS_STORAGE_KEY,
   HEADER_UDF_DEFINITIONS,
   ROW_UDF_DEFINITIONS,
@@ -68,6 +69,9 @@ import {
   readSavedFormSettings,
 } from '../../config/purchaseRequestForm';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
+import { reloadRouteDocument } from '../../utils/copyToState';
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const getErrMsg = (e, fb) => {
   const d = e?.response?.data?.detail;
@@ -103,32 +107,6 @@ const fmtAddr = (a) => {
 const DEC = { QtyDec: 2, PriceDec: 2, SumDec: 2, RateDec: 2, PercentDec: 2 };
 const TAB_NAMES = ['Contents', 'Attachments'];
 const GENERAL_SETTINGS = readGeneralSettings();
-const PURCHASE_REQUEST_MATRIX_KEY_ALIASES = {
-  requiredQty: 'quantity',
-  totalLC: 'total',
-  distRule: 'distributionRule',
-  uomName: 'uomCode',
-  glAccount: 'itemNo',
-  price: 'unitPrice',
-  lineDeliveryDate: 'requiredDate',
-};
-
-const normalizePurchaseRequestMatrixColumns = (columns = []) => {
-  const seenKeys = new Set();
-  return (columns || []).reduce((result, column) => {
-    const sourceKey = String(column?.key || '').trim();
-    const key = PURCHASE_REQUEST_MATRIX_KEY_ALIASES[sourceKey] || sourceKey;
-    if (!key || seenKeys.has(key)) return result;
-    seenKeys.add(key);
-    result.push({
-      ...column,
-      key,
-      valueKey: key,
-      rendererKey: key,
-    });
-    return result;
-  }, []);
-};
 
 const createLine = (rowUdfDefinitions = ROW_UDF_DEFINITIONS, requiredDate = today()) => ({
   itemNo: '',
@@ -364,6 +342,7 @@ function PurchaseRequest() {
   const documentBodyRef = useRef(null);
   useClosedDocumentViewMode(documentBodyRef, !isDocumentEditable, [activeTab]);
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const primaryActionLabel = pageState.posting
     ? 'Saving...'
@@ -569,9 +548,9 @@ function PurchaseRequest() {
         }
         setPageState(p => ({
           ...p,
-          success: purchaseRequest.doc_num
+          success: location.state?.documentStatusMessage || (purchaseRequest.doc_num
             ? `Purchase request ${purchaseRequest.doc_num} loaded.`
-            : 'Purchase request loaded.',
+            : 'Purchase request loaded.'),
         }));
       } catch (e) {
         if (!ignore) setPageState(p => ({ ...p, error: getErrMsg(e, 'Failed to load purchase request.') }));
@@ -1662,6 +1641,15 @@ function PurchaseRequest() {
         </button>
         <button type="button" className="po-btn sap-document-toolbar__find" onClick={() => navigate('/purchase-request/find')}>Find</button>
         <button type="button" className="po-btn sap-document-toolbar__new" onClick={resetForm}>New</button>
+        <DocumentStatusActions
+          type="purchase-request"
+          docEntry={currentDocEntry}
+          actions={['close', 'cancel']}
+          className="po-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'purchaseRequestDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
         <CopyToDropdown
           sourceDocType="purchaseRequest"
           disabled={!currentDocEntry}
@@ -1681,14 +1669,7 @@ function PurchaseRequest() {
       {pageState.loading && <div className="po-alert po-alert--success" style={{ marginTop: 0 }}>Loading…</div>}
       {pageState.error && <div className="po-alert po-alert--error">{pageState.error}</div>}
       {pageState.success && <div className="po-alert po-alert--success">{pageState.success}</div>}
-      {refData.warnings?.length > 0 && (
-        <div className="po-alert po-alert--warning">
-          <strong>SAP warnings:</strong>
-          {refData.warnings.map((w, i) => <div key={i}>{w}</div>)}
-          <div style={{ marginTop: 4, color: '#555' }}>Dropdowns are showing fallback values. Connect to SAP to load live data.</div>
-          <div style={{ marginTop: 4, color: '#d00', fontWeight: 600 }}>⚠️ Tax codes shown are examples only. Use actual SAP tax codes to avoid submission errors.</div>
-        </div>
-      )}
+
 
       <fieldset ref={documentBodyRef} aria-disabled={!isDocumentEditable} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <div className={`po-layout${isRightSidebarOpen ? ' is-sidebar-open' : ''}`}>
@@ -2070,6 +2051,8 @@ function PurchaseRequest() {
                   onRowUdfChange={handleRowUdfChange}
                   valErrors={valErrors}
                   documentType={header.documentType}
+                  onDocumentTypeChange={(value) => handleHeaderChange({ target: { name: 'documentType', value } })}
+                  documentTypeLocked={Boolean(currentDocEntry)}
                   onOpenVendorModal={openVendorModal}
                   serviceAccounts={refData.service_accounts}
                 />
@@ -2112,7 +2095,7 @@ function PurchaseRequest() {
             {false && (<>
             {/* ══ TOTALS FOOTER ═════════════════════════════════════════════ */}
             <div className="po-header-card">
-              <div className="po-field-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="po-field-grid">
                 <div>
                   <div className="po-field">
                     <label className="po-field__label">Purchaser</label>

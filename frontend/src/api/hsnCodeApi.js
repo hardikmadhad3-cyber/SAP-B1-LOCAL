@@ -37,3 +37,9 @@ export const fetchHSNCode = async (code) => {
 export const fetchHSNCodeFromItem = async (itemCode) => {
   return apiClient.get(`/hsn-codes/item/${itemCode}`);
 };
+
+// Maintenance (HSN = SAP India Chapter ID / OCHP, SAC = OSAC); ids are internal keys.
+export const createHSNCode = (data) => apiClient.post('/hsn-codes/create', data).then((r) => r.data);
+export const updateHSNCode = (absEntry, data) => apiClient.patch(`/hsn-codes/entry/${absEntry}`, data).then((r) => r.data);
+export const createSACCode = (data) => apiClient.post('/hsn-codes/sac/create', data).then((r) => r.data);
+export const updateSACCode = (absEntry, data) => apiClient.patch(`/hsn-codes/sac/${absEntry}`, data).then((r) => r.data);

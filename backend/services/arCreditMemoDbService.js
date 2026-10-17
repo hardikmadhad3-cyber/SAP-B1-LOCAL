@@ -32,7 +32,7 @@ const safe = async (promise) => {
     const r = await promise;
     return Array.isArray(r) ? r : (r.recordset || []);
   } catch (e) {
-    console.warn('[AR Credit Memo DB] Query failed silently:', e.message);
+    if (!db.isMissingTableError(e)) console.warn('[AR Credit Memo DB] Query failed silently:', e.message);
     return [];
   }
 };

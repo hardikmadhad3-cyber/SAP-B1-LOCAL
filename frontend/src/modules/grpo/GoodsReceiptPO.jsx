@@ -23,7 +23,6 @@ import ItemSelectionModal from '../../components/common/ItemSelectionModal';
 import HSNCodeModal from '../../components/common/HSNCodeModal';
 import BusinessPartnerModal from './components/BusinessPartnerModal';
 import FreightChargesModal from '../../components/freight/FreightChargesModal';
-import PurchasePrintLayoutActions from '../../components/print-layout/PurchasePrintLayoutActions';
 import JournalEntryPreviewButton from '../../components/journal-entry/JournalEntryPreviewButton';
 import SapGoldenArrowButton from '../../components/document/SapGoldenArrowButton';
 import SalesEmployeeSetupModal from '../../components/sales-employee/SalesEmployeeSetupModal';
@@ -80,7 +79,7 @@ import {
   readSavedFormSettings,
 } from '../../config/grpoForm';
 import { summarizeFreightRows } from '../../components/freight/freightUtils';
-import { consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
+import { reloadRouteDocument, consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
 import { openLinkedBusinessPartner, openLinkedReferenceDocument } from '../../utils/sapLinkedNavigation';
 import useValidationHighlights from '../../utils/useValidationHighlights';
 import { getDocumentLayout } from '../../api/sapLayoutApi';
@@ -99,6 +98,8 @@ import {
   synchronizeGRPOLineUdfChange,
 } from './grpoLineUdfMapping';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
 // â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getErrMsg = (e, fb) => {
   const d = e?.response?.data?.detail;
@@ -523,6 +524,7 @@ function GoodsReceiptPO() {
   const documentBodyRef = useRef(null);
   useClosedDocumentViewMode(documentBodyRef, !isDocumentEditable, [activeTab]);
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const hasOpenCopyQuantity = Boolean(currentDocEntry) && lines.some((line = {}) => {
     const rawOpenQty = line.openQty ?? line.OpenQty ?? line.OpenQuantity;
@@ -838,7 +840,7 @@ function GoodsReceiptPO() {
         if (grpo.header?.vendor) {
           loadVendorDetails(grpo.header.vendor);
         }
-        setPageState(p => ({ ...p, success: grpo.doc_num ? `Goods Receipt PO ${grpo.doc_num} loaded.` : 'Goods Receipt PO loaded.' }));
+        setPageState(p => ({ ...p, success: location.state?.documentStatusMessage || (grpo.doc_num ? `Goods Receipt PO ${grpo.doc_num} loaded.` : 'Goods Receipt PO loaded.') }));
       } catch (e) {
         if (!ignore) setPageState(p => ({ ...p, error: getErrMsg(e, 'Failed to load Goods Receipt PO.') }));
       } finally {
@@ -2259,6 +2261,15 @@ function GoodsReceiptPO() {
         <button type="button" className="po-btn sap-document-toolbar__cancel" onClick={resetForm}>Cancel</button>
         <button type="button" className="po-btn sap-document-toolbar__find" onClick={() => navigate('/grpo/find')}>Find</button>
         <button type="button" className="po-btn sap-document-toolbar__new" onClick={resetForm}>New</button>
+        <DocumentStatusActions
+          type="grpo"
+          docEntry={currentDocEntry}
+          actions={['close', 'cancel']}
+          className="po-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'grpoDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
         <button type="button" className="po-btn sap-document-toolbar__udf" onClick={toggleHeaderUdfs}>
           {sidebarOpen ? 'Hide UDFs' : 'Show UDFs'}
         </button>
@@ -2334,14 +2345,6 @@ function GoodsReceiptPO() {
             Duplicate
           </button>
         )}
-        <PurchasePrintLayoutActions
-          documentKey="goodsReceiptPo"
-          docEntry={currentDocEntry}
-          docNumber={header.docNo}
-          disabled={pageState.posting || pageState.loading}
-          onSuccess={(message) => setPageState(p => ({ ...p, error: '', success: message }))}
-          onError={(message) => setPageState(p => ({ ...p, error: message, success: '' }))}
-        />
         <JournalEntryPreviewButton
           documentType="grpo"
           documentLabel="Goods Receipt PO"
@@ -2359,12 +2362,7 @@ function GoodsReceiptPO() {
       {pageState.loading && <div className="po-alert po-alert--warning">Loading...</div>}
       {pageState.error   && <div className="po-alert po-alert--error">{pageState.error}</div>}
       {pageState.success && <div className="po-alert po-alert--success">{pageState.success}</div>}
-      {refData.warnings?.length > 0 && (
-        <div className="po-alert po-alert--warning">
-          <strong>SAP warnings:</strong>
-          {refData.warnings.map((w, i) => <div key={i}>{w}</div>)}
-        </div>
-      )}
+
 
       <fieldset ref={documentBodyRef} aria-disabled={!isDocumentEditable} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <div className={`po-layout${isRightSidebarOpen ? ' is-sidebar-open' : ''}`}>

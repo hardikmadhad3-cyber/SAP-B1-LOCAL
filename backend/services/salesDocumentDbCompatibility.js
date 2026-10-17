@@ -129,10 +129,16 @@ const normalizeTableColumnDetails = (rows = []) => rows.map((row) => ({
   ordinal: numberOrNull(rowValue(row, 'ordinalPosition', 'ORDINAL_POSITION', 'POSITION')) || 0,
 })).filter((column) => column.columnName);
 
+// Every column reader registers its cache so adding a user-defined field
+// (a new U_ column) is visible everywhere without restarting the backend.
+const columnCaches = new Set();
+const clearTableColumnCaches = () => columnCaches.forEach((cache) => cache.clear());
+
 const createTableColumnDetailsReader = ({ database, cache = new Map() } = {}) => {
   if (!database || typeof database.query !== 'function') {
     throw new TypeError('A database query service is required.');
   }
+  columnCaches.add(cache);
 
   return async (tableName) => {
     const normalizedTableName = normalizeSapTableName(tableName);
@@ -193,6 +199,7 @@ const escapeLikeValue = (value) => String(value || '').replace(
 const LIKE_ESCAPE_SQL = `ESCAPE '${LIKE_ESCAPE_CHARACTER}'`;
 
 module.exports = {
+  clearTableColumnCaches,
   createPhysicalColumnSetReader,
   findPhysicalColumnName,
   selectPhysicalOptionalColumn,

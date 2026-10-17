@@ -63,35 +63,12 @@ const normalizeContext = (context = {}) => ({
   sourcePath: context.sourcePath || (typeof window !== 'undefined' ? window.location.pathname : ''),
 });
 
-const getSalesOrderVariant = (sourcePath = '') => {
-  const path = String(sourcePath || '').toLowerCase();
-  if (path.startsWith('/soda-sales-order') || path.startsWith('/soda-delivery')) return 'soda';
-  if (path.startsWith('/dc-sales-order') || path.startsWith('/dc-delivery')) return 'dc';
-  if (path.startsWith('/nc-sales-order') || path.startsWith('/nc-delivery')) return 'nc';
-  return 'standard';
-};
-
-const getSalesOrderTarget = (variant) => {
-  if (variant === 'soda') return { path: '/soda-sales-order', stateKey: 'sodaSalesOrderDocEntry', docType: 'soda-sales-order', title: 'SODA Sales Order' };
-  if (variant === 'dc') return { path: '/dc-sales-order', stateKey: 'dcSalesOrderDocEntry', docType: 'dc-sales-order', title: 'DC Sales Order' };
-  if (variant === 'nc') return { path: '/nc-sales-order', stateKey: 'ncSalesOrderDocEntry', docType: 'nc-sales-order', title: 'NC Sales Order' };
-  return { path: '/sales-order', stateKey: 'salesOrderDocEntry', docType: 'sales-order', title: 'Sales Order' };
-};
-
-const getDeliveryTarget = (variant) => {
-  if (variant === 'soda') return { path: '/soda-delivery', stateKey: 'sodaDeliveryDocEntry', docType: 'soda-delivery', title: 'SODA Delivery' };
-  if (variant === 'dc') return { path: '/dc-delivery', stateKey: 'dcDeliveryDocEntry', docType: 'dc-delivery', title: 'DC Delivery' };
-  if (variant === 'nc') return { path: '/nc-delivery', stateKey: 'ncDeliveryDocEntry', docType: 'nc-delivery', title: 'NC Delivery' };
-  return { path: '/delivery', stateKey: 'deliveryDocEntry', docType: 'delivery', title: 'Delivery' };
-};
-
 const getDocumentNavigationTarget = (node, context) => {
   const objectType = Number(node?.objectType);
-  const variant = getSalesOrderVariant(context?.sourcePath);
   const targets = {
     23: { path: '/sales-quotation', stateKey: 'salesQuotationDocEntry', docType: 'sales-quotation', title: 'Sales Quotation' },
-    17: getSalesOrderTarget(variant),
-    15: getDeliveryTarget(variant),
+    17: { path: '/sales-order', stateKey: 'salesOrderDocEntry', docType: 'sales-order', title: 'Sales Order' },
+    15: { path: '/delivery', stateKey: 'deliveryDocEntry', docType: 'delivery', title: 'Delivery' },
     13: { path: '/ar-invoice', stateKey: 'arInvoiceDocEntry', docType: 'ar-invoice', title: 'A/R Invoice' },
     14: { path: '/ar-credit-memo', stateKey: 'arCreditMemoDocEntry', docType: 'ar-credit-memo', title: 'A/R Credit Memo' },
     1470000113: { path: '/purchase-request', stateKey: 'purchaseRequestDocEntry', docType: 'purchase-request', title: 'Purchase Request' },

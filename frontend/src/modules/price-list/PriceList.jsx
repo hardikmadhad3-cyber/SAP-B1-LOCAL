@@ -58,10 +58,11 @@ function buildPayload(form) {
   // Factor: decimal
   if (num(form.Factor) != null)        p.Factor        = num(form.Factor);
   // Currency
-  if (opt(form.PriceListCurrency))     p.PriceListCurrency = form.PriceListCurrency;
+  // Emptied fields are sent as null so the stored value is cleared.
+  p.PriceListCurrency = opt(form.PriceListCurrency) ? form.PriceListCurrency : null;
   // Validity dates
-  if (opt(form.ValidFrom)) p.ValidFrom = form.ValidFrom;
-  if (opt(form.ValidTo))   p.ValidTo   = form.ValidTo;
+  p.ValidFrom = opt(form.ValidFrom) ? form.ValidFrom : null;
+  p.ValidTo   = opt(form.ValidTo)   ? form.ValidTo   : null;
 
   return p;
 }

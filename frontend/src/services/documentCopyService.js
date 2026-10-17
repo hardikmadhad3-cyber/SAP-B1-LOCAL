@@ -44,83 +44,11 @@ const copyTargetConfig = {
       targetPath: '/ar-invoice',
     },
   },
-  dcSalesOrder: {
-    delivery: {
-      targetDocType: 'dcDelivery',
-      targetLabel: 'DC Delivery',
-      targetPath: '/dc-delivery/new',
-      targetAliases: ['/dc-delivery'],
-    },
-    'ar-invoice': {
-      targetDocType: 'arInvoice',
-      targetLabel: 'A/R Invoice',
-      targetPath: '/ar-invoice',
-    },
-  },
-  ncSalesOrder: {
-    delivery: {
-      targetDocType: 'ncDelivery',
-      targetLabel: 'NC Delivery',
-      targetPath: '/nc-delivery/new',
-      targetAliases: ['/nc-delivery'],
-    },
-    'ar-invoice': {
-      targetDocType: 'arInvoice',
-      targetLabel: 'A/R Invoice',
-      targetPath: '/ar-invoice',
-    },
-  },
-  sodaSalesOrder: {
-    delivery: {
-      targetDocType: 'sodaDelivery',
-      targetLabel: 'SODA Delivery',
-      targetPath: '/soda-delivery/new',
-      targetAliases: ['/soda-delivery'],
-    },
-    'ar-invoice': {
-      targetDocType: 'arInvoice',
-      targetLabel: 'A/R Invoice',
-      targetPath: '/ar-invoice',
-    },
-  },
   delivery: {
     'ar-invoice': {
       targetDocType: 'arInvoice',
       targetLabel: 'A/R Invoice',
       targetPath: '/ar-invoice',
-    },
-  },
-  dcDelivery: {
-    'ar-invoice': {
-      targetDocType: 'arInvoice',
-      targetLabel: 'A/R Invoice',
-      targetPath: '/ar-invoice',
-    },
-  },
-  ncDelivery: {
-    'ar-invoice': {
-      targetDocType: 'arInvoice',
-      targetLabel: 'A/R Invoice',
-      targetPath: '/ar-invoice',
-    },
-  },
-  sodaDelivery: {
-    'ar-invoice': {
-      targetDocType: 'arInvoice',
-      targetLabel: 'A/R Invoice',
-      targetPath: '/ar-invoice',
-    },
-  },
-  arInvoice: {
-    'ar-credit-memo': {
-      targetDocType: 'arCreditMemo',
-      targetLabel: 'A/R Credit Memo',
-      targetPath: '/ar-credit-memo',
-    },
-    arCreditMemo: {
-      targetDocType: 'arCreditMemo',
-      targetLabel: 'A/R Credit Memo',
-      targetPath: '/ar-credit-memo',
     },
   },
   serviceArInvoice: {
@@ -208,13 +136,7 @@ const sourceLabels = {
   purchaseRequest: 'Purchase Request',
   salesQuotation: 'Sales Quotation',
   salesOrder: 'Sales Order',
-  dcSalesOrder: 'DC Sales Order',
-  ncSalesOrder: 'NC Sales Order',
-  sodaSalesOrder: 'SODA Sales Order',
   delivery: 'Delivery',
-  dcDelivery: 'DC Delivery',
-  ncDelivery: 'NC Delivery',
-  sodaDelivery: 'SODA Delivery',
   arInvoice: 'A/R Invoice',
   serviceArInvoice: 'Service A/R Invoice',
   serviceApInvoice: 'Service A/P Invoice',
@@ -230,13 +152,7 @@ const sourceBaseTypes = {
   purchaseRequest: 1470000113,
   salesQuotation: 23,
   salesOrder: 17,
-  dcSalesOrder: 17,
-  ncSalesOrder: 17,
-  sodaSalesOrder: 17,
   delivery: 15,
-  dcDelivery: 15,
-  ncDelivery: 15,
-  sodaDelivery: 15,
   arInvoice: 13,
   serviceArInvoice: 13,
   serviceApInvoice: 18,

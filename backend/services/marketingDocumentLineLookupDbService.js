@@ -6,6 +6,8 @@ const safe = async (promise) => {
     const result = await promise;
     return result.recordset || [];
   } catch (error) {
+    // Logged, not hidden: a failing query would otherwise look like "no data".
+    console.warn('[DB] query failed, returning no rows:', error?.message || error);
     return [];
   }
 };

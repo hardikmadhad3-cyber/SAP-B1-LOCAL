@@ -135,7 +135,24 @@ export const replaceRouteStatePreservingWindow = (navigate, pathname, state) => 
   navigate(pathname, { replace: true, state: getWindowOnlyRouteState(state) });
 };
 
-export const restoreTargetWindowState = (path, taskId = null) => {
+export const getDocumentStatusMessage = (action) =>
+  (action === 'close' ? 'Document closed.' : 'Document cancelled.');
+
+// After SAP Data > Cancel/Close, re-open the same document through the page's
+// own load-by-docEntry route effect; that load shows documentStatusMessage.
+export const reloadRouteDocument = (navigate, location, stateKey, docEntry, action) => {
+  if (!navigate || !docEntry) return;
+  navigate(location.pathname, {
+    replace: true,
+    state: createActiveCompanyScopedRouteState({
+      ...getWindowOnlyRouteState(location.state),
+      [stateKey]: docEntry,
+      documentStatusMessage: getDocumentStatusMessage(action),
+    }),
+  });
+};
+
+export const restoreTargetWindowState =(path, taskId = null) => {
   if (typeof window === 'undefined') return;
 
   const normalizedPath = normalizeCopyToPath(path);

@@ -103,7 +103,7 @@
 }
 
 .bom-page .im-modal-overlay--bom-list {
-  position: absolute;
+  position: fixed;
   inset: 0;
   align-items: flex-start;
   justify-content: center;

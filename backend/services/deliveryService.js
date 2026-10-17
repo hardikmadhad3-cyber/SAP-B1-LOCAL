@@ -1220,7 +1220,8 @@ const getDelivery = async (docEntry) => {
         };
       }
     } catch (eWayBillError) {
-      console.warn(`[Delivery] Could not load E-Way Bill details from Service Layer for ${docEntry}: ${eWayBillError.message}`);
+      // 501: the local ERP keeps E-Way Bill details in the database only.
+      if (eWayBillError.response?.status !== 501) console.warn(`[Delivery] Could not load E-Way Bill details from Service Layer for ${docEntry}: ${eWayBillError.message}`);
     }
     return result;
   } catch (error) {

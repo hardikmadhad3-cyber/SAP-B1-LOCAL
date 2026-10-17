@@ -485,7 +485,7 @@
 }
 
 .ia-account-modal__backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 1800;
   background: transparent;

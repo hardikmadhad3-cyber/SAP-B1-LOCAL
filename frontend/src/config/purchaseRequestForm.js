@@ -23,8 +23,46 @@ const BASE_MATRIX_COLUMNS = [
   { key: 'total', label: 'Total (LC)', minWidth: 105 },
 ];
 
+const PURCHASE_REQUEST_MATRIX_KEY_ALIASES = {
+  requiredQty: 'quantity',
+  totalLC: 'total',
+  distRule: 'distributionRule',
+  uomName: 'uomCode',
+  glAccount: 'itemNo',
+  price: 'unitPrice',
+  lineDeliveryDate: 'requiredDate',
+};
+
+// Lines the user enters on an SAP B1 Purchase Request (PRQ1). The shared layout
+// builder marks columns read-only when Sales Order has no writable mapping
+// (Required Qty., Info Price, Vendor...), so PR re-opens them here.
+const PURCHASE_REQUEST_EDITABLE_KEYS = new Set([
+  'itemNo', 'itemDescription', 'vendor', 'requiredDate', 'quantity', 'unitPrice',
+  'stdDiscount', 'taxCode', 'distributionRule', 'uomCode', 'whse', 'hsnCode',
+]);
+
+const normalizePurchaseRequestMatrixColumns = (columns = []) => {
+  const seenKeys = new Set();
+  return (columns || []).reduce((result, column) => {
+    const sourceKey = String(column?.key || '').trim();
+    const key = PURCHASE_REQUEST_MATRIX_KEY_ALIASES[sourceKey] || sourceKey;
+    if (!key || seenKeys.has(key)) return result;
+    seenKeys.add(key);
+    const editable = PURCHASE_REQUEST_EDITABLE_KEYS.has(key);
+    result.push({
+      ...column,
+      key,
+      valueKey: key,
+      rendererKey: key,
+      ...(editable ? { readOnly: false, displayOnly: false } : {}),
+    });
+    return result;
+  }, []);
+};
+
 export {
   BASE_MATRIX_COLUMNS,
+  normalizePurchaseRequestMatrixColumns,
   HEADER_UDF_DEFINITIONS,
   ROW_UDF_DEFINITIONS,
   createDefaultFormSettings,

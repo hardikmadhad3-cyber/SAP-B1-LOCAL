@@ -9,7 +9,6 @@ import CopyFromModal from '../../components/document/CopyFromModal';
 import DocumentCurrencySelect from '../../components/document/DocumentCurrencySelect';
 import FormSettingsPanel from '../../components/purchase-order/FormSettingsPanel';
 import HeaderUdfSidebar from '../../components/purchase-order/HeaderUdfSidebar';
-import PrintLayoutToolbar from '../../components/print-layout/PrintLayoutToolbar';
 import LineValueLookupModal from '../../components/sales-document/LineValueLookupModal';
 import { duplicateDocumentInPlace } from '../../utils/documentDuplicate';
 import { createActiveCompanyScopedRouteState, isRouteStateForCompany } from '../../utils/companyStorageScope';
@@ -19,7 +18,7 @@ import { getOrderedVisibleMatrixColumns } from '../../utils/formSettingsColumns'
 import { getReadableDocumentLineColumnWidth } from '../../utils/documentLineColumnWidth';
 import { hydrateServiceAccountLine, populateServiceAccountLine } from '../../utils/serviceDocumentAccount';
 import { calculateServiceInvoiceLine } from '../../utils/serviceInvoiceLineCalculations';
-import { consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
+import { getDocumentStatusMessage, consumeCopyToState, replaceRouteStatePreservingWindow } from '../../utils/copyToState';
 import useStandardDocumentDraftTask from '../../hooks/useStandardDocumentDraftTask';
 import { buildVisibleEnteredRowUdfPayload } from '../../utils/rowUdfPayload';
 import { getSapVisibleDocumentSeries, getDefaultSeriesForCurrentYear, canUseManualSeries } from '../../utils/seriesDefaults';
@@ -77,6 +76,8 @@ import '../ar-invoice/styles/arInvoice.css';
 import '../services-ar-invoice/serviceArInvoice.css';
 import './serviceArCreditMemo.css';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
 const today = () => new Date().toISOString().split('T')[0];
 
 const INIT_HEADER = {
@@ -694,6 +695,7 @@ function ServiceARCreditMemoPage() {
     return fallback || refData.local_currency || refData.company_currency || '';
   }, [refData.company_currency, refData.local_currency]);
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const primaryActionLabel = pageState.posting
     ? 'Saving...'
@@ -2276,16 +2278,6 @@ function ServiceARCreditMemoPage() {
           {sidebarOpen ? 'Hide UDFs' : 'Show UDFs'}
         </button>
         <button type="button" className="del-btn sap-document-toolbar__settings" onClick={toggleFormSettings} disabled={!companyFormSettingsReady} title={companyFormSettingsReady ? 'Choose document-line fields' : 'Loading company Form Settings'}>Form Settings</button>
-        <PrintLayoutToolbar
-          documentType="serviceArCreditMemo"
-          documentLabel="Service A/R Credit Memo"
-          docEntry={currentDocEntry}
-          docNumber={header.docNo}
-          disabled={pageState.posting}
-          classPrefix="del"
-          onSuccess={(message) => setPageState((prev) => ({ ...prev, error: '', success: message }))}
-          onError={(message) => setPageState((prev) => ({ ...prev, success: '', error: message }))}
-        />
         {!currentDocEntry && (
           <button
             type="button"
@@ -2298,6 +2290,20 @@ function ServiceARCreditMemoPage() {
         )}
         <button type="button" className="del-btn sap-document-toolbar__find" onClick={() => navigate('/services/ar-credit-memo/find')}>Find</button>
         <button type="button" className="del-btn sap-document-toolbar__new" onClick={resetForm}>New</button>
+        <DocumentStatusActions
+          type="service-ar-credit-memo"
+          docEntry={currentDocEntry}
+          actions={['cancel']}
+          className="del-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={async (action) => {
+            const res = await fetchServiceARCreditMemoByDocEntry(currentDocEntry).catch(() => null);
+            const status = res?.data?.service_ar_credit_memo?.header?.status;
+            if (status) setHeader((prev) => ({ ...prev, status }));
+            setPageState((prev) => ({ ...prev, error: '', success: getDocumentStatusMessage(action) }));
+          }}
+          onError={(message) => setPageState((prev) => ({ ...prev, error: message, success: '' }))}
+        />
         <div className="del-dropdown" style={{ position: 'relative', display: 'inline-block' }}>
           <button type="button" className="del-btn" disabled={!isDocumentEditable || !!currentDocEntry} onClick={(event) => {
             event.preventDefault();
@@ -2338,9 +2344,7 @@ function ServiceARCreditMemoPage() {
       {pageState.loading && <div className="alert alert-success py-2">Loading...</div>}
       {pageState.error && <div className="alert alert-danger py-2">{pageState.error}</div>}
       {pageState.success && <div className="alert alert-success py-2">{pageState.success}</div>}
-      {(refData.warnings || []).length > 0 && (
-        <div className="alert alert-warning py-2">{(refData.warnings || []).join(' ')}</div>
-      )}
+
 
       <fieldset disabled={pageState.posting} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className={`so-layout${isRightSidebarOpen ? ' is-sidebar-open' : ''}`}>

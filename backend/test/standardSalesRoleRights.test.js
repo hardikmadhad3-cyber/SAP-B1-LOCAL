@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createSqliteAuthDbTestAdapter } = require('./helpers/sqliteAuthDbTestAdapter');
-const { syncStandardSalesRoleRights } = require('../services/standardSalesRoleRightsService');
+const { syncStandardSalesRoleRights, removeRetiredSalesMenus } = require('../services/standardSalesRoleRightsService');
 
 test('migrates variant rights without granting hidden capabilities, preserves protected roles, and is idempotent', async () => {
   const harness = createSqliteAuthDbTestAdapter(`
@@ -31,5 +31,28 @@ test('migrates variant rights without granting hidden capabilities, preserves pr
     const after = await db.queryRows('SELECT * FROM RoleRights ORDER BY Id');
     assert.equal(await db.transaction(syncStandardSalesRoleRights), 0);
     assert.deepEqual(await db.queryRows('SELECT * FROM RoleRights ORDER BY Id'), after);
+  } finally { harness.close(); }
+});
+
+test('retires stored variant menus, preserves report links and children, and is idempotent', async () => {
+  const harness = createSqliteAuthDbTestAdapter(`
+    CREATE TABLE Menus (MenuId INTEGER PRIMARY KEY, MenuPath TEXT, ParentId INTEGER REFERENCES Menus(MenuId));
+    CREATE TABLE RoleRights (RoleId INTEGER, MenuId INTEGER REFERENCES Menus(MenuId));
+    CREATE TABLE MenuReports (MenuId INTEGER REFERENCES Menus(MenuId), ReportId INTEGER);
+    INSERT INTO Menus VALUES (1,'/sales-order',NULL),(2,'/delivery',NULL),(3,'/dc-sales-order',NULL),(4,'/nc-delivery',NULL),(5,'/custom-report',3);
+    INSERT INTO RoleRights VALUES (1,3),(2,4),(1,1);
+    INSERT INTO MenuReports VALUES (3,10),(4,20);
+  `);
+  const db = harness.authDb;
+  try {
+    assert.equal(await db.transaction(removeRetiredSalesMenus), 2);
+    assert.deepEqual(await db.queryRows('SELECT MenuId,ParentId FROM Menus ORDER BY MenuId'), [
+      { MenuId: 1, ParentId: null }, { MenuId: 2, ParentId: null }, { MenuId: 5, ParentId: 1 },
+    ]);
+    assert.deepEqual(await db.queryRows('SELECT * FROM MenuReports ORDER BY ReportId'), [
+      { MenuId: 1, ReportId: 10 }, { MenuId: 2, ReportId: 20 },
+    ]);
+    assert.deepEqual(await db.queryRows('SELECT * FROM RoleRights'), [{ RoleId: 1, MenuId: 1 }]);
+    assert.equal(await db.transaction(removeRetiredSalesMenus), 0);
   } finally { harness.close(); }
 });

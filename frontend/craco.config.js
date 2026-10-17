@@ -17,59 +17,70 @@ const getBackendDevPort = () => {
 module.exports = {
   webpack: {
     configure: (webpackConfig) => {
-      webpackConfig.optimization = {
-        ...webpackConfig.optimization,
-        runtimeChunk: "single",
-        splitChunks: {
-          chunks: "all",
-          maxInitialRequests: 30,
-          maxAsyncRequests: 30,
-          cacheGroups: {
-            pdfVendor: {
-              test: /[\\/]node_modules[\\/]pdfjs-dist[\\/]/,
-              name: "vendor-pdf",
-              chunks: "async",
-              priority: 40,
-              enforce: true,
-            },
-            reactVendor: {
-              test: /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom)[\\/]/,
-              name: "vendor-react",
-              chunks: "all",
-              priority: 30,
-              enforce: true,
-            },
-            uiVendor: {
-              test: /[\\/]node_modules[\\/](bootstrap|@popperjs)[\\/]/,
-              name: "vendor-ui",
-              chunks: "all",
-              priority: 20,
-              enforce: true,
-            },
-            vendor: {
-              test: /[\\/]node_modules[\\/]/,
-              name: "vendor",
-              chunks: "all",
-              priority: 10,
-              reuseExistingChunk: true,
-            },
-            common: {
-              test: /[\\/]src[\\/](api|auth|components|utils)[\\/]/,
-              name: "common",
-              minChunks: 2,
-              chunks: "all",
-              priority: 5,
-              reuseExistingChunk: true,
+      const isProduction = webpackConfig.mode === "production";
+      if (!isProduction && process.env.DEV_LAZY_COMPILATION === "true") {
+        // Local-only opt-in: the lazy compiler connects to localhost and delays first page visits.
+        webpackConfig.experiments = {
+          ...webpackConfig.experiments,
+          lazyCompilation: { entries: false, imports: true },
+        };
+      }
+
+      if (isProduction) {
+        webpackConfig.optimization = {
+          ...webpackConfig.optimization,
+          runtimeChunk: "single",
+          splitChunks: {
+            chunks: "all",
+            maxInitialRequests: 30,
+            maxAsyncRequests: 30,
+            cacheGroups: {
+              pdfVendor: {
+                test: /[\\/]node_modules[\\/]pdfjs-dist[\\/]/,
+                name: "vendor-pdf",
+                chunks: "async",
+                priority: 40,
+                enforce: true,
+              },
+              reactVendor: {
+                test: /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom)[\\/]/,
+                name: "vendor-react",
+                chunks: "all",
+                priority: 30,
+                enforce: true,
+              },
+              uiVendor: {
+                test: /[\\/]node_modules[\\/](bootstrap|@popperjs)[\\/]/,
+                name: "vendor-ui",
+                chunks: "all",
+                priority: 20,
+                enforce: true,
+              },
+              vendor: {
+                test: /[\\/]node_modules[\\/]/,
+                name: "vendor",
+                chunks: "all",
+                priority: 10,
+                reuseExistingChunk: true,
+              },
+              common: {
+                test: /[\\/]src[\\/](api|auth|components|utils)[\\/]/,
+                name: "common",
+                minChunks: 2,
+                chunks: "all",
+                priority: 5,
+                reuseExistingChunk: true,
+              },
             },
           },
-        },
-      };
+        };
 
-      webpackConfig.output = {
-        ...webpackConfig.output,
-        filename: "static/js/[name].[contenthash:8].js",
-        chunkFilename: "static/js/[name].[contenthash:8].chunk.js",
-      };
+        webpackConfig.output = {
+          ...webpackConfig.output,
+          filename: "static/js/[name].[contenthash:8].js",
+          chunkFilename: "static/js/[name].[contenthash:8].chunk.js",
+        };
+      }
 
       const environmentPlugin = webpackConfig.plugins.find(
         (plugin) => plugin?.constructor?.name === "DefinePlugin" && plugin?.definitions?.["process.env"],
@@ -83,7 +94,7 @@ module.exports = {
         );
       }
 
-      webpackConfig.plugins.push(
+      if (isProduction) webpackConfig.plugins.push(
         new CompressionPlugin({
           algorithm: "gzip",
           test: /\.(js|css|html|svg)$/,
@@ -110,7 +121,7 @@ module.exports = {
     // configured port even when the frontend has no local .env file.
     devServerConfig.proxy = [{
       context: ["/api"],
-      target: `http://localhost:${getBackendDevPort()}`,
+      target: `http://127.0.0.1:${getBackendDevPort()}`,
       changeOrigin: true,
     }];
 

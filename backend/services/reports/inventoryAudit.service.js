@@ -580,7 +580,7 @@ const getReport = async (criteria = {}, options = {}) => {
         LEFT JOIN OACT A
           ON A.AcctCode = ${accountJoinSql}
         WHERE ${openingWhereSql}
-        GROUP BY T0.ItemCode, ISNULL(${warehouseSql}, ''), ${accountSql}
+        GROUP BY T0.ItemCode, ISNULL(${warehouseSql}, '')${accountSql === "''" ? '' : `, ${accountSql}`}
         HAVING ABS(SUM((${inQtySql}) - (${outQtySql}))) > 0.000001
           OR ABS(SUM(${transValueSql})) > 0.000001
       ),

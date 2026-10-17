@@ -20,6 +20,8 @@ test('keeps a fixed-currency SAP business partner on its assigned currency and s
   );
 
   expect(screen.queryByTitle('Document Currency')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Document Currency (fixed)')).toHaveValue('USD');
+  expect(screen.getByLabelText('Document Currency (fixed)')).toHaveAttribute('readonly');
   expect(screen.getByLabelText('Exchange Rate')).toHaveValue('86.5');
 });
 
@@ -64,4 +66,16 @@ test('switching currency source emits the resolved document currency and clears 
   expect(onHeaderChange).toHaveBeenCalledWith(expect.objectContaining({ target: expect.objectContaining({ name: 'currencyMode', value: 'LOCAL' }) }));
   expect(onHeaderChange).toHaveBeenCalledWith(expect.objectContaining({ target: expect.objectContaining({ name: 'currency', value: 'INR' }) }));
   expect(onHeaderChange).toHaveBeenCalledWith(expect.objectContaining({ target: expect.objectContaining({ name: 'exchangeRate', value: '' }) }));
+});
+
+test('local currency mode still shows which currency the document uses', () => {
+  render(
+    <DocumentCurrencySelect
+      header={{ vendor: 'C-INR', currencyMode: 'LOCAL', currency: 'INR' }}
+      businessPartners={[{ CardCode: 'C-INR', Currency: 'INR' }]}
+      currencyOptions={currencies}
+      localCurrency="INR"
+    />,
+  );
+  expect(screen.getByLabelText('Document Currency (fixed)')).toHaveValue('INR');
 });

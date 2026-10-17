@@ -11,16 +11,10 @@ const today = () => new Date().toISOString().split('T')[0];
 
 const DOCUMENT_DEFAULTS = [
   { key: 'sales', label: 'Sales Order', warehouseKey: 'salesWarehouse', seriesKey: 'salesSeries', seriesGroup: 'sales' },
-  { key: 'dcSales', label: 'DC Sales Order', warehouseKey: 'dcSalesWarehouse', seriesKey: 'dcSalesSeries', seriesGroup: 'sales' },
-  { key: 'ncSales', label: 'NC Sales Order', warehouseKey: 'ncSalesWarehouse', seriesKey: 'ncSalesSeries', seriesGroup: 'sales' },
-  { key: 'sodaSales', label: 'SODA Sales Order', warehouseKey: 'sodaSalesWarehouse', seriesKey: 'sodaSalesSeries', seriesGroup: 'sales' },
   { key: 'salesQuotation', label: 'Sales Quotation', warehouseKey: 'salesQuotationWarehouse', seriesKey: 'salesQuotationSeries', seriesGroup: 'salesQuotation' },
   { key: 'arInvoice', label: 'A/R Invoice', warehouseKey: 'arInvoiceWarehouse', seriesKey: 'arInvoiceSeries', seriesGroup: 'arInvoice' },
   { key: 'arCreditMemo', label: 'A/R Credit Memo', warehouseKey: 'arCreditMemoWarehouse', seriesKey: 'arCreditMemoSeries', seriesGroup: 'arCreditMemo' },
   { key: 'delivery', label: 'Delivery', warehouseKey: 'deliveryWarehouse', seriesKey: 'deliverySeries', seriesGroup: 'delivery' },
-  { key: 'dcDelivery', label: 'DC Delivery', warehouseKey: 'dcDeliveryWarehouse', seriesKey: 'dcDeliverySeries', seriesGroup: 'delivery' },
-  { key: 'ncDelivery', label: 'NC Delivery', warehouseKey: 'ncDeliveryWarehouse', seriesKey: 'ncDeliverySeries', seriesGroup: 'delivery' },
-  { key: 'sodaDelivery', label: 'SODA Delivery', warehouseKey: 'sodaDeliveryWarehouse', seriesKey: 'sodaDeliverySeries', seriesGroup: 'delivery' },
   { key: 'purchaseRequest', label: 'Purchase Request', warehouseKey: 'purchaseRequestWarehouse', seriesKey: 'purchaseRequestSeries', seriesGroup: 'purchaseRequest' },
   { key: 'purchaseQuotation', label: 'Purchase Quotation', warehouseKey: 'purchaseQuotationWarehouse', seriesKey: 'purchaseQuotationSeries', seriesGroup: 'purchaseQuotation' },
   { key: 'purchaseOrder', label: 'Purchase Order', warehouseKey: 'purchaseOrderWarehouse', seriesKey: 'purchaseOrderSeries', seriesGroup: 'purchaseOrder' },

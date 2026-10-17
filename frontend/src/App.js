@@ -5,7 +5,7 @@ import Layout from "./components/Layout";
 import LazyLoadErrorBoundary from "./components/LazyLoadErrorBoundary";
 import RelationshipMapHost from "./components/relationship-map/RelationshipMapHost";
 import RouteLoadingFallback from "./components/RouteLoadingFallback";
-import SapFindShortcutManager from "./components/SapFindShortcutManager";
+import SapShortcutManager from "./components/SapShortcutManager";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import {
   RequireAdminAuth,
@@ -33,13 +33,12 @@ const GeneralSettings = lazyWithRetry(() => import("./pages/GeneralSettings"));
 const PriceList = lazyWithRetry(() => import("./pages/PriceList"));
 const Delivery = lazyWithRetry(() => import("./pages/Delivery"));
 const DeliveryList = lazyWithRetry(() => import("./pages/DeliveryList"));
-const DCDelivery = lazyWithRetry(() => import("./pages/DCDelivery"));
-const DCDeliveryList = lazyWithRetry(() => import("./pages/DCDeliveryList"));
-const NCDelivery = lazyWithRetry(() => import("./pages/NCDelivery"));
-const NCDeliveryList = lazyWithRetry(() => import("./pages/NCDeliveryList"));
-const SODADelivery = lazyWithRetry(() => import("./pages/SODADelivery"));
-const SODADeliveryList = lazyWithRetry(() => import("./pages/SODADeliveryList"));
 const TaxCode = lazyWithRetry(() => import("./pages/TaxCode"));
+const HsnSacCodes = lazyWithRetry(() => import("./pages/HsnSacCodes"));
+const LocalSetup = lazyWithRetry(() => import("./modules/local-setup/LocalSetup"));
+const OpeningBalances = lazyWithRetry(() => import("./modules/local-setup/OpeningBalances"));
+const InternalReconciliation = lazyWithRetry(() => import("./modules/local-setup/InternalReconciliation"));
+const UdfManagement = lazyWithRetry(() => import("./modules/udf-management/UdfManagement"));
 const UoMGroup = lazyWithRetry(() => import("./pages/UoMGroup"));
 const PaymentTerms = lazyWithRetry(() => import("./pages/PaymentTerms"));
 const ShippingType = lazyWithRetry(() => import("./pages/ShippingType"));
@@ -76,12 +75,6 @@ const GRPOList = lazyWithRetry(() => import("./pages/GRPOList"));
 const SalesOrder = lazyWithRetry(() => import("./pages/SalesOrder"));
 const TransactionFieldConfiguration = lazyWithRetry(() => import("./pages/TransactionFieldConfiguration"));
 const SalesOrderList = lazyWithRetry(() => import("./pages/SalesOrderList"));
-const DCSalesOrder = lazyWithRetry(() => import("./pages/DCSalesOrder"));
-const DCSalesOrderList = lazyWithRetry(() => import("./pages/DCSalesOrderList"));
-const NCSalesOrder = lazyWithRetry(() => import("./pages/NCSalesOrder"));
-const NCSalesOrderList = lazyWithRetry(() => import("./pages/NCSalesOrderList"));
-const SODASalesOrder = lazyWithRetry(() => import("./pages/SODASalesOrder"));
-const SODASalesOrderList = lazyWithRetry(() => import("./pages/SODASalesOrderList"));
 const BOM = lazyWithRetry(() => import("./pages/BOM"));
 const BOMList = lazyWithRetry(() => import("./pages/BOMList"));
 const ProductionOrder = lazyWithRetry(() => import("./pages/ProductionOrder"));
@@ -203,7 +196,7 @@ function App() {
       <AuthProvider>
         <CompanyTitleManager />
         <SapInitialFocusManager />
-        <SapFindShortcutManager />
+        <SapShortcutManager />
         <LazyLoadErrorBoundary>
           <RelationshipMapHost />
           <Suspense fallback={<RouteLoadingFallback />}>
@@ -240,6 +233,11 @@ function App() {
                   <Route path="/warehouse" element={<Warehouse />} />
                   <Route path="/price-list" element={<PriceList />} />
                   <Route path="/tax-code" element={<TaxCode />} />
+                  <Route path="/hsn-sac-codes" element={<HsnSacCodes />} />
+                  <Route path="/setup/:kind" element={<LocalSetup />} />
+                  <Route path="/opening-balances" element={<OpeningBalances />} />
+                  <Route path="/internal-reconciliation" element={<InternalReconciliation />} />
+                  <Route path="/udf-management" element={<UdfManagement />} />
                   <Route path="/uom-group" element={<UoMGroup />} />
                   <Route path="/payment-terms" element={<PaymentTerms />} />
                   <Route path="/goods-receipt" element={<GoodsReceipt />} />
@@ -254,15 +252,6 @@ function App() {
                   <Route path="/delivery/new" element={<Delivery />} />
                   <Route path="/Delivery" element={<Navigate to="/delivery" replace />} />
                   <Route path="/delivery/find" element={<DeliveryList />} />
-                  <Route path="/dc-delivery" element={<DCDelivery />} />
-                  <Route path="/dc-delivery/new" element={<DCDelivery />} />
-                  <Route path="/dc-delivery/find" element={<DCDeliveryList />} />
-                  <Route path="/nc-delivery" element={<NCDelivery />} />
-                  <Route path="/nc-delivery/new" element={<NCDelivery />} />
-                  <Route path="/nc-delivery/find" element={<NCDeliveryList />} />
-                  <Route path="/soda-delivery" element={<SODADelivery />} />
-                  <Route path="/soda-delivery/new" element={<SODADelivery />} />
-                  <Route path="/soda-delivery/find" element={<SODADeliveryList />} />
                   <Route path="/shipping-type" element={<ShippingType />} />
                   <Route path="/whatsapp" element={<WhatsAppDashboardPage />} />
                   <Route path="/whatsapp/configuration" element={<WhatsAppConfigurationPage />} />
@@ -289,12 +278,6 @@ function App() {
                   <Route path="/sales-order" element={<SalesOrder />} />
                   <Route path="/sales-order/old" element={<SalesOrder />} />
                   <Route path="/sales-order/find" element={<SalesOrderList />} />
-                  <Route path="/dc-sales-order" element={<DCSalesOrder />} />
-                  <Route path="/dc-sales-order/find" element={<DCSalesOrderList />} />
-                  <Route path="/nc-sales-order" element={<NCSalesOrder />} />
-                  <Route path="/nc-sales-order/find" element={<NCSalesOrderList />} />
-                  <Route path="/soda-sales-order" element={<SODASalesOrder />} />
-                  <Route path="/soda-sales-order/find" element={<SODASalesOrderList />} />
                   <Route path="/sales-quotation" element={<SalesQuotation />} />
                   <Route path="/sales-quotation/find" element={<SalesQuotationList />} />
                   <Route path="/reportlayoutmanager" element={<ReportsStudioPage />} />

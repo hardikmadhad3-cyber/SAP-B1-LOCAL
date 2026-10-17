@@ -37,6 +37,16 @@ const sanitizePayloadForActiveSap = async (payload) => {
   return sanitizedPayload;
 };
 
+// The local PostgreSQL adapter stores SAP yes/no fields as CHAR(1). Keep the
+// withholding flag in the same tYES/tNO form as the other BP flags before the
+// payload reaches either the local adapter or a real Service Layer.
+const normalizeBusinessPartnerEnums = (payload = {}) => {
+  const next = { ...payload };
+  if (next.SubjectToWithholdingTax === "boYES") next.SubjectToWithholdingTax = "tYES";
+  if (next.SubjectToWithholdingTax === "boNO") next.SubjectToWithholdingTax = "tNO";
+  return next;
+};
+
 const formatSapEnumLabel = (value) =>
   String(value || "")
     .replace(/^[a-z](?=[A-Z])/, "")
@@ -358,7 +368,9 @@ const createBP = async (req, res) => {
         delete duplicatePayload.Series;
       }
       await normalizeBusinessPartnerAddressPayload(duplicatePayload, req);
-      const sanitizedDuplicatePayload = await sanitizePayloadForActiveSap(duplicatePayload);
+      const sanitizedDuplicatePayload = await sanitizePayloadForActiveSap(
+        normalizeBusinessPartnerEnums(duplicatePayload),
+      );
 
       const result = await sapService.request({
         method: "POST",
@@ -397,7 +409,7 @@ const createBP = async (req, res) => {
 
     const result = await sapService.createItem_generic(
       "/BusinessPartners",
-      await sanitizePayloadForActiveSap(data),
+      await sanitizePayloadForActiveSap(normalizeBusinessPartnerEnums(data)),
     );
     res.status(201).json(result);
   } catch (err) {
@@ -497,7 +509,9 @@ const updateBP = async (req, res) => {
     const withholdingCollectionPayload = hasWithholdingCollection && newWithholdingRows.length
       ? { BPWithholdingTaxCollection: newWithholdingRows }
       : null;
-    const sanitizedPayload = await sanitizePayloadForActiveSap(payloadWithCollectionKeys);
+    const sanitizedPayload = await sanitizePayloadForActiveSap(
+      normalizeBusinessPartnerEnums(payloadWithCollectionKeys),
+    );
 
     await sapService.request({
       method: "PATCH",
@@ -643,6 +657,10 @@ const lookupCompanyTypes = async (_req, res) => {
 
     res.json(rows);
   } catch (err) {
+    // Local companies have no SL $metadata; SAP's BoCardCompanyTypes values are fixed.
+    if (err.response?.status === 501) {
+      return res.json(["cCompany", "cPrivate", "cGovernment"].map((code) => ({ code, name: formatSapEnumLabel(code) || code })));
+    }
     res.status(err.response?.status || 500).json({
       message: err.response?.data?.error?.message?.value || err.message,
     });

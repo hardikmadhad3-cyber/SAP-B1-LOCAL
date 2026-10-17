@@ -9,6 +9,8 @@ import {
   getAccount,
   updateAccount,
   searchAccounts,
+  fetchParentAccounts,
+  fetchCoACurrencies,
 } from "../../api/chartOfAccountsApi";
 
 const EMPTY_FORM = {
@@ -33,17 +35,28 @@ const EMPTY_FORM = {
   BranchDistribution: "",
   IsTitleAccount: "tNO",
   ActiveAccount: "tYES",
+  FatherAccountKey: "",
 };
 
 export default function ChartOfAccounts() {
   const location = useLocation();
   const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY_FORM);
+  // The company's own currencies (OCRN), not a fixed list.
+  const [currencies, setCurrencies] = useState([]);
+  useEffect(() => {
+    fetchCoACurrencies("").then((rows) => setCurrencies(Array.isArray(rows) ? rows : [])).catch(() => setCurrencies([]));
+  }, []);
   const [alert, setAlert] = useState(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("add");
   const [findResults, setFindResults] = useState([]);
   const [showFindResults, setShowFindResults] = useState(false);
+  const [parentAccounts, setParentAccounts] = useState([]);
+
+  useEffect(() => {
+    fetchParentAccounts("").then(setParentAccounts).catch(() => setParentAccounts([]));
+  }, []);
 
   const showAlert = (type, msg) => {
     setAlert({ type, msg });
@@ -169,9 +182,11 @@ export default function ChartOfAccounts() {
       Name: form.Name.trim(),
     };
 
-    if (form.ExternalCode?.trim()) payload.ExternalCode = form.ExternalCode.trim();
-    if (form.AccountCurrency) payload.AccountCurrency = form.AccountCurrency;
-    if (form.ProjectCode?.trim()) payload.ProjectCode = form.ProjectCode.trim();
+    // Emptied fields are sent as null so the stored value is cleared.
+    payload.ExternalCode = form.ExternalCode?.trim() || null;
+    payload.AccountCurrency = form.AccountCurrency || null;
+    payload.ProjectCode = form.ProjectCode?.trim() || null;
+    payload.FatherAccountKey = form.FatherAccountKey || null;
 
     payload.AccountType = form.AccountType || "sat_Other";
     payload.IsTitleAccount = form.IsTitleAccount || "tNO";
@@ -180,6 +195,8 @@ export default function ChartOfAccounts() {
     payload.ControlAccount = form.ControlAccount || "tNO";
     payload.CashAccount = form.CashAccount || "tNO";
     payload.RevaluationCoordinated = form.RevaluationCoordinated || "tNO";
+    payload.BlockManualPosting = form.BlockManualPosting || "tNO";
+    payload.CashFlowRelevant = form.CashFlowRelevant || "tNO";
 
     return payload;
   };
@@ -242,23 +259,38 @@ export default function ChartOfAccounts() {
                   <label className="coa-radio">
                     <input
                       type="radio"
-                      name="IsTitleAccount"
-                      value="tNO"
-                      checked={form.IsTitleAccount === "tNO"}
-                      onChange={handleChange}
+                      name="AccountKind"
+                      checked={form.IsTitleAccount === "tYES"}
+                      onChange={() => setForm((prev) => ({ ...prev, IsTitleAccount: "tYES" }))}
                     />
                     <span>Title</span>
                   </label>
                   <label className="coa-radio">
                     <input
                       type="radio"
-                      name="ActiveAccount"
-                      value="tYES"
-                      checked={form.ActiveAccount === "tYES"}
-                      onChange={handleChange}
+                      name="AccountKind"
+                      checked={form.IsTitleAccount !== "tYES"}
+                      onChange={() => setForm((prev) => ({ ...prev, IsTitleAccount: "tNO" }))}
                     />
                     <span>Active Account</span>
                   </label>
+                </div>
+
+                <div className="coa-field-group">
+                  <label className="coa-label">Parent (Title) Account</label>
+                  <select
+                    className="coa-select"
+                    name="FatherAccountKey"
+                    value={form.FatherAccountKey || ""}
+                    onChange={handleChange}
+                  >
+                    <option value="">None (top level)</option>
+                    {parentAccounts
+                      .filter((account) => account.code !== form.Code)
+                      .map((account) => (
+                        <option key={account.code} value={account.code}>{account.name}</option>
+                      ))}
+                  </select>
                 </div>
 
                 <div className="coa-field-group">
@@ -306,10 +338,13 @@ export default function ChartOfAccounts() {
                     onChange={handleChange}
                   >
                     <option value="">Select Currency</option>
-                    <option value="INR">Indian Rupee</option>
-                    <option value="USD">US Dollar</option>
-                    <option value="EUR">Euro</option>
-                    <option value="GBP">British Pound</option>
+                    <option value="##">All Currencies</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.code} value={currency.code}>{currency.name || currency.code}</option>
+                    ))}
+                    {form.AccountCurrency && form.AccountCurrency !== "##" && !currencies.some((c) => c.code === form.AccountCurrency) && (
+                      <option value={form.AccountCurrency}>{form.AccountCurrency}</option>
+                    )}
                   </select>
                 </div>
               </div>

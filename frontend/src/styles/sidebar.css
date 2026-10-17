@@ -1153,6 +1153,483 @@ body.sap-floating-window-maximized .app-shell {
   font-weight: 700;
 }
 
+/* ======================================================================
+   Fiori Horizon shell: light side navigation, flat white shell bar,
+   window frame as a soft card. Overrides the dark dashboard shell above
+   (same selectors, later in the file). Colours come from --sap-* tokens.
+   ====================================================================== */
+.app-shell {
+  --sap-topbar-height: 48px;
+  background: var(--sap-page-bg);
+  font-family: var(--sap-font-family);
+}
+
+/* ---- Side navigation -------------------------------------------------- */
+.sidebar-shell {
+  width: 264px;
+  min-width: 264px;
+}
+
+.sidebar-shell.is-collapsed {
+  width: 56px;
+  min-width: 56px;
+}
+
+.sidebar {
+  background: var(--sap-surface);
+  border-right: 1px solid var(--sap-border-soft);
+  box-shadow: none;
+}
+
+.sidebar__top {
+  min-height: var(--sap-topbar-height);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sap-border-soft);
+}
+
+.sidebar__brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-primary);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.sidebar__brand-title {
+  color: var(--sap-text);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.sidebar__brand-subtitle {
+  color: var(--sap-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.sidebar__collapse-btn {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  border: 0;
+  border-radius: var(--sap-radius-sm);
+  background: transparent;
+  color: var(--sap-text-muted);
+  font-size: 15px;
+}
+
+.sidebar__collapse-btn:hover,
+.sidebar__collapse-btn:focus-visible {
+  border: 0;
+  background: var(--sap-button-bg-hover);
+  color: var(--sap-text);
+}
+
+.sidebar__content {
+  padding: 8px 6px 12px;
+}
+
+.sidebar__search {
+  margin-bottom: 6px;
+  padding: 2px 4px 6px;
+  background: var(--sap-surface);
+}
+
+.sidebar__search-label {
+  color: var(--sap-text-muted);
+  letter-spacing: 0.06em;
+}
+
+.sidebar__search-icon {
+  color: var(--sap-text-muted);
+}
+
+.sidebar__search-input {
+  height: 30px;
+  border: 1px solid var(--sap-border-strong);
+  border-radius: 999px;
+  background: var(--sap-surface-soft);
+  color: var(--sap-text);
+  box-shadow: none;
+  font-weight: 400;
+}
+
+.sidebar__search-input::placeholder {
+  color: var(--sap-text-muted);
+  font-weight: 400;
+}
+
+.sidebar__search-input:focus {
+  border-color: var(--sap-primary);
+  background: var(--sap-surface);
+  box-shadow: 0 0 0 2px var(--sap-primary-soft);
+}
+
+.sidebar__search-clear {
+  border: 0;
+  background: transparent;
+  color: var(--sap-text-muted);
+}
+
+.sidebar__search-clear:hover,
+.sidebar__search-clear:focus-visible {
+  border: 0;
+  background: var(--sap-button-bg-hover);
+}
+
+.sidebar__nav,
+.sidebar__section,
+.sidebar__section-body,
+.sidebar__search-results {
+  gap: 1px;
+}
+
+.sidebar__link,
+.sidebar__section-toggle,
+.sidebar__search-result {
+  position: relative;
+  border-radius: var(--sap-radius-sm);
+}
+
+.sidebar__link {
+  min-height: 32px;
+  padding: 5px 10px;
+  color: var(--sap-text);
+}
+
+.sidebar__link-text {
+  padding-top: 2px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.sidebar__link:hover,
+.sidebar__section-toggle:hover,
+.sidebar__search-result:hover,
+.sidebar__search-result:focus-visible {
+  background: var(--sap-button-bg-hover);
+  color: var(--sap-text);
+}
+
+.sidebar__section-toggle.is-open {
+  background: transparent;
+  color: var(--sap-text);
+}
+
+.sidebar__link--active,
+.sidebar__link--active:hover {
+  background: #ebf3fe;
+  color: var(--sap-link);
+  box-shadow: none;
+}
+
+.sidebar__link--active .sidebar__link-text {
+  font-weight: 700;
+}
+
+.sidebar__link--active::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--sap-primary);
+}
+
+.sidebar__link-icon,
+.sidebar__section-icon,
+.sidebar__search-result-icon {
+  width: 22px;
+  height: 22px;
+  flex-basis: 22px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sap-text-muted);
+}
+
+.sidebar__link--active .sidebar__link-icon {
+  color: var(--sap-link);
+}
+
+.sidebar__icon-svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.7;
+}
+
+.sidebar__section-toggle {
+  min-height: 32px;
+  padding: 5px 10px;
+  color: var(--sap-text);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.sidebar__section-caret,
+.sidebar__section-caret.is-open {
+  color: var(--sap-text-muted);
+}
+
+.sidebar__section-toggle--nested {
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.sidebar__section-body {
+  padding-left: 10px;
+  border-left: 1px solid var(--sap-border-soft);
+}
+
+.sidebar__section-body .sidebar__section-body {
+  border-left-color: var(--sap-border-soft);
+}
+
+.sidebar__search-result {
+  color: var(--sap-text);
+}
+
+.sidebar__search-result-path {
+  color: var(--sap-text-muted);
+}
+
+.sidebar__empty {
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-surface-soft);
+  color: var(--sap-text-muted);
+}
+
+/* ---- Shell bar -------------------------------------------------------- */
+.topbar {
+  min-height: var(--sap-topbar-height);
+  padding: 6px 16px;
+  background: var(--sap-surface);
+  border-bottom: 1px solid var(--sap-border-soft);
+  box-shadow: 0 1px 3px rgba(34, 53, 72, 0.08);
+  backdrop-filter: none;
+}
+
+.topbar h1 {
+  color: var(--sap-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.topbar__eyebrow {
+  color: var(--sap-text-muted);
+  letter-spacing: 0.08em;
+}
+
+.topbar__meta {
+  gap: 4px;
+}
+
+.topbar__chip {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--sap-radius-sm);
+  background: transparent;
+  color: var(--sap-text);
+}
+
+.topbar__chip + .topbar__chip {
+  border-left: 1px solid var(--sap-border-soft);
+  border-radius: 0;
+}
+
+.topbar__chip-label {
+  color: var(--sap-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.topbar__chip strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.topbar__logout {
+  margin-left: 6px;
+  padding: 5px 14px;
+  border: 1px solid var(--sap-button-border);
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-button-bg);
+  color: var(--sap-button-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.topbar__logout:hover {
+  background: var(--sap-button-bg-hover);
+}
+
+/* ---- Window frame ----------------------------------------------------- */
+.app-shell__content {
+  padding: 10px 12px;
+}
+
+.page-window-frame {
+  border: 1px solid var(--sap-border-soft);
+  border-radius: var(--sap-radius-md);
+  background: var(--sap-surface);
+  box-shadow: var(--sap-shadow-card);
+}
+
+.page-window-frame__titlebar {
+  min-height: 30px;
+  padding: 3px 8px;
+  background: var(--sap-surface);
+  border-bottom: 1px solid var(--sap-border-soft);
+}
+
+.page-window-frame__controls {
+  gap: 2px;
+}
+
+.page-window-frame__controls button {
+  width: 26px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--sap-radius-sm);
+  background: transparent;
+}
+
+.page-window-frame__controls button:hover {
+  background: var(--sap-button-bg-hover);
+}
+
+.page-window-frame__controls button[aria-label="Close"]:hover {
+  background: #fbe5e5;
+}
+
+.page-window-frame__controls button::before {
+  color: var(--sap-text-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* ---- Taskbar (minimised documents) ------------------------------------ */
+.sap-window-taskbar {
+  gap: 6px;
+  min-height: 38px;
+  padding: 5px 8px;
+  border: 1px solid var(--sap-border-soft);
+  border-radius: var(--sap-radius-md);
+  background: var(--sap-surface);
+  box-shadow: var(--sap-shadow-card);
+}
+
+.sap-window-taskbar__item {
+  padding: 5px 10px;
+  border: 1px solid var(--sap-button-border);
+  border-radius: var(--sap-radius-sm);
+  background: var(--sap-button-bg);
+  color: var(--sap-text);
+}
+
+.sap-window-taskbar__item:hover {
+  background: var(--sap-button-bg-hover);
+}
+
+.sap-window-taskbar__icon {
+  width: 8px;
+  height: 8px;
+  flex-basis: 8px;
+  background: var(--sap-primary);
+  box-shadow: none;
+}
+
+.sap-window-taskbar__title {
+  font-size: 12px;
+}
+
+/* ---- Shell polish: one type scale, no uppercase labels ---------------- */
+.sidebar__brand-title {
+  font-size: var(--sap-section-font-size);
+  font-weight: var(--sap-font-weight-bold);
+}
+
+.sidebar__brand-subtitle,
+.sidebar__search-label,
+.topbar__eyebrow,
+.topbar__chip-label {
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-regular);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sidebar__section-toggle {
+  font-size: var(--sap-control-font-size);
+  font-weight: var(--sap-font-weight-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sidebar__section-toggle--nested {
+  font-weight: var(--sap-font-weight-regular);
+}
+
+.sidebar__link-text,
+.sidebar__search-result-title {
+  font-size: var(--sap-control-font-size);
+  font-weight: var(--sap-font-weight-regular);
+}
+
+.sidebar__link--active .sidebar__link-text {
+  font-weight: var(--sap-font-weight-semibold);
+}
+
+.topbar h1 {
+  font-size: var(--sap-section-font-size);
+  font-weight: var(--sap-font-weight-semibold);
+}
+
+.topbar__chip strong {
+  font-size: var(--sap-control-font-size);
+  font-weight: var(--sap-font-weight-semibold);
+}
+
+.topbar__logout {
+  font-size: var(--sap-control-font-size);
+  font-weight: var(--sap-font-weight-regular);
+}
+
+/* Window controls: easier to see and hit. */
+.page-window-frame__titlebar {
+  min-height: 32px;
+}
+
+.page-window-frame__controls button {
+  width: 32px;
+  height: 26px;
+}
+
+.page-window-frame__controls button::before {
+  color: var(--sap-text);
+  font-size: 15px;
+}
+
+/* Taskbar: a slim strip so the page keeps its height. */
+.app-shell__taskbar {
+  padding: 0 10px 6px;
+}
+
+.sap-window-taskbar {
+  min-height: 0;
+  padding: 3px 6px;
+  border-radius: var(--sap-radius-sm);
+}
+
+.sap-window-taskbar__item {
+  padding: 2px 10px;
+}
+
+.sap-window-taskbar__title {
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-regular);
+}
+
 @media (max-width: 1024px) {
   .topbar,
   .dashboard-banner {

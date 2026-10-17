@@ -1,27 +1,7 @@
 import React from 'react';
 
-const buttonStyle = {
-  flex: '0 0 20px',
-  width: 20,
-  minWidth: 20,
-  height: 22,
-  padding: 0,
-  border: '1px solid #c19a1d',
-  borderRadius: 2,
-  background: 'linear-gradient(180deg, #fff4b7 0%, #e0ad22 100%)',
-  color: '#6f5200',
-  fontSize: 11,
-  fontWeight: 800,
-  lineHeight: '18px',
-  cursor: 'pointer',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.75)',
-};
-
-const disabledStyle = {
-  opacity: 0.45,
-  cursor: 'not-allowed',
-};
-
+// SAP B1 "golden arrow" (open the linked record), drawn as a Fiori
+// navigation button. Styles: `.sap-link-arrow-btn` in styles/sap-ui.css.
 export default function SapGoldenArrowButton({
   disabled = false,
   title = 'Open linked document',
@@ -31,14 +11,15 @@ export default function SapGoldenArrowButton({
   return (
     <button
       type="button"
-      className={className}
+      className={`sap-link-arrow-btn ${className}`.trim()}
       onClick={onClick}
       disabled={disabled}
       title={title}
       aria-label={title}
-      style={{ ...buttonStyle, ...(disabled ? disabledStyle : {}) }}
     >
-      &gt;
+      <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
+        <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     </button>
   );
 }

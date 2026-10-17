@@ -24,7 +24,16 @@ const REPORTS = {
     title: "Document Journal",
     subtitle: "Detailed journal rows created by SAP Business One documents",
   },
+  "journal-transaction-amount-range": {
+    title: "Locate Journal Transaction by Amount Range",
+    subtitle: "Journal rows whose debit or credit amount lies in the range",
+  },
+  "journal-transaction-fc-amount-range": {
+    title: "Locate Journal Transaction by FC Amount Range",
+    subtitle: "Foreign-currency journal rows whose amount lies in the range",
+  },
 };
+const AMOUNT_RANGE_REPORTS = new Set(["journal-transaction-amount-range", "journal-transaction-fc-amount-range"]);
 
 const ORIGINAL_JOURNALS = [
   ["all", "All Transactions"],
@@ -64,6 +73,8 @@ const initialCriteria = () => {
     accountTo: "",
     originalJournal: "all",
     voucherNumber: "",
+    amountFrom: "",
+    amountTo: "",
     displayCurrency: "local",
     seriesCodes: [],
   };
@@ -295,7 +306,8 @@ function FinancialAccountingReportPage() {
             {reportKey === "transaction-by-projects" || reportKey === "document-journal" ? range("Document Date", "documentDateFrom", "documentDateTo", "date") : null}
             {reportKey !== "transaction-by-projects" ? range("Transaction No.", "transactionFrom", "transactionTo", "number") : null}
             {reportKey === "transaction-by-projects" ? range("Project", "projectFrom", "projectTo", "text", "atr-projects") : null}
-            {reportKey === "transaction-by-projects" ? range("G/L Account", "accountFrom", "accountTo", "text", "atr-accounts") : null}
+            {reportKey === "transaction-by-projects" || AMOUNT_RANGE_REPORTS.has(reportKey) ? range("G/L Account", "accountFrom", "accountTo", "text", "atr-accounts") : null}
+            {AMOUNT_RANGE_REPORTS.has(reportKey) ? range(reportKey === "journal-transaction-fc-amount-range" ? "FC Amount" : "Amount", "amountFrom", "amountTo", "number") : null}
             <div className="atr-select-row">
               <label>Display Currency</label>
               <select value={criteria.displayCurrency} onChange={(event) => setField("displayCurrency", event.target.value)}>

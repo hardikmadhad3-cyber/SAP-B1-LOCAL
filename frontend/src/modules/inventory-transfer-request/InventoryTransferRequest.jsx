@@ -9,7 +9,6 @@ import ContentsTab from './components/ContentsTab';
 import AttachmentsTab from './components/AttachmentsTab';
 import FormSettingsPanel from '../../components/purchase-order/FormSettingsPanel';
 import HeaderUdfSidebar from '../../components/purchase-order/HeaderUdfSidebar';
-import InventoryPrintLayoutActions from '../../components/print-layout/InventoryPrintLayoutActions';
 import ItemSelectionModal from '../../components/common/ItemSelectionModal';
 import LineValueLookupModal from '../../components/sales-document/LineValueLookupModal';
 import {
@@ -38,6 +37,9 @@ import {
   readSavedFormSettings,
 } from '../../config/inventoryDocumentForm';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
+import { reloadRouteDocument } from '../../utils/copyToState';
 const TAB_NAMES = ['Contents', 'Attachments'];
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -146,9 +148,10 @@ function InventoryTransferRequest() {
     [headerUdfFields, rowUdfFields, INVENTORY_TRANSFER_MATRIX_COLUMNS],
     { saveMode: 'explicit' },
   );
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [businessPartners, setBusinessPartners] = useState([]);
+  const [salesEmployees, setSalesEmployees] = useState([]);
   const [distributionRules, setDistributionRules] = useState([]);
   const [locations, setLocations] = useState([]);
   const [paymentTerms, setPaymentTerms] = useState([]);
@@ -188,6 +191,7 @@ function InventoryTransferRequest() {
     seriesOptions[0] ||
     null;
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const primaryActionLabel = pageState.posting
     ? 'Saving...'
@@ -329,6 +333,7 @@ function InventoryTransferRequest() {
           };
         });
         setBusinessPartners(metadata.businessPartners || []);
+        setSalesEmployees(metadata.salesEmployees || []);
         setDistributionRules(metadata.distributionRules || []);
         setLocations(metadata.locations || []);
         setPaymentTerms(metadata.paymentTerms || []);
@@ -414,9 +419,9 @@ function InventoryTransferRequest() {
         setIsDirty(false);
         setPageState((current) => ({
           ...current,
-          success: document.docNum
+          success: location.state?.documentStatusMessage || (document.docNum
             ? `Inventory Transfer Request ${document.docNum} loaded.`
-            : 'Inventory Transfer Request loaded.',
+            : 'Inventory Transfer Request loaded.'),
         }));
       } catch (error) {
         if (!ignore) {
@@ -1221,6 +1226,15 @@ function InventoryTransferRequest() {
         <button type="button" className="po-btn sap-document-toolbar__new" onClick={resetForm}>
           New
         </button>
+        <DocumentStatusActions
+          type="inventory-transfer-request"
+          docEntry={currentDocEntry}
+          actions={['close', 'cancel']}
+          className="po-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'inventoryTransferRequestDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
         <button
           type="button"
           className="po-btn sap-document-toolbar__duplicate"
@@ -1245,16 +1259,6 @@ function InventoryTransferRequest() {
         >
           Form Settings
         </button>
-        <InventoryPrintLayoutActions
-          documentKey="inventoryTransferRequest"
-          docEntry={currentDocEntry}
-          docNumber={header.number}
-          series={header.series}
-          cardCode={header.businessPartner}
-          disabled={pageState.posting || pageState.loading}
-          onSuccess={(message) => setPageState((current) => ({ ...current, error: '', success: message }))}
-          onError={(message) => setPageState((current) => ({ ...current, success: '', error: message }))}
-        />
       </div>
 
       {pageState.loading && <div className="po-alert po-alert--success">Loading...</div>}
@@ -1543,6 +1547,43 @@ function InventoryTransferRequest() {
             onFreeTextChange={handleAttachmentFreeTextChange}
           />
         )}
+      </div>
+
+      {/* SAP B1 footer: Sales Employee, Journal Remark, Remarks (OWTR/OWTQ SlpCode, JrnlMemo, Comments). */}
+      <div className="po-header-card">
+        <div className="sap-document-footer-fields">
+        <div className="po-field">
+          <label className="po-field__label" htmlFor="it-sales-employee">Sales Employee</label>
+          <select
+            id="it-sales-employee"
+            className="po-field__select"
+            value={header.salesEmployee || ''}
+            onChange={(event) => handleHeaderChange('salesEmployee', event.target.value)}
+          >
+            <option value="">-No Sales Employee-</option>
+            {salesEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+          </select>
+        </div>
+        <div className="po-field">
+          <label className="po-field__label" htmlFor="it-journal-remark">Journal Remark</label>
+          <input
+            id="it-journal-remark"
+            className="po-field__input"
+            value={header.journalRemark || ''}
+            onChange={(event) => handleHeaderChange('journalRemark', event.target.value)}
+          />
+        </div>
+        <div className="po-field" style={{ alignItems: 'flex-start' }}>
+          <label className="po-field__label" htmlFor="it-remarks">Remarks</label>
+          <textarea
+            id="it-remarks"
+            className="po-textarea"
+            rows={3}
+            value={header.remarks || ''}
+            onChange={(event) => handleHeaderChange('remarks', event.target.value)}
+          />
+        </div>
+        </div>
       </div>
 
       {valErrors.form && <div className="po-alert po-alert--error">{valErrors.form}</div>}

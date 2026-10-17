@@ -54,6 +54,7 @@ const EMPTY_FORM = {
   InventoryAccount: "",
   CostOfGoodsSoldAccount: "",
   TransferAccount: "",
+  PriceDifferencesAccount: "",
   ReturnsAccount: "",
   DecreasingAccount: "",
   IncreasingAccount: "",
@@ -76,37 +77,39 @@ function buildPayload(form) {
     EnableBinLocations: form.EnableBinLocations || "tNO",
   };
 
-  // Optional fields — using exact SAP field names
-  if (form.Location) payload.Location = Number(form.Location);
-  if (form.ShipToName) payload.WHShipToName = form.ShipToName;
+  // Optional fields — using exact SAP field names. An emptied field is sent as null
+  // so the stored value is cleared (it used to be left out and stay unchanged).
+  payload.Location = form.Location ? Number(form.Location) : null;
+  payload.WHShipToName = form.ShipToName ? form.ShipToName : null;
   if (form.BusinessPlaceID && Number(form.BusinessPlaceID) > 0) payload.BusinessPlaceID = Number(form.BusinessPlaceID);
-  if (form.AddressType) payload.AddressType = form.AddressType;
-  if (form.Street) payload.Street = form.Street;
-  if (form.StreetNo) payload.StreetNo = form.StreetNo;
-  if (form.Block) payload.Block = form.Block;
-  if (form.BuildingFloorRoom) payload.BuildingFloorRoom = form.BuildingFloorRoom;
-  if (form.ZipCode) payload.ZipCode = form.ZipCode;
-  if (form.City) payload.City = form.City;
-  if (form.County) payload.County = form.County;
-  if (form.Country) payload.Country = form.Country;
-  if (form.State) payload.State = form.State;
-  if (form.GlobalLocationNumber) payload.GlobalLocationNumber = form.GlobalLocationNumber;
-  if (form.AddressName2) payload.AddressName2 = form.AddressName2;
-  if (form.AddressName3) payload.AddressName3 = form.AddressName3;
+  payload.AddressType = form.AddressType ? form.AddressType : null;
+  payload.Street = form.Street ? form.Street : null;
+  payload.StreetNo = form.StreetNo ? form.StreetNo : null;
+  payload.Block = form.Block ? form.Block : null;
+  payload.BuildingFloorRoom = form.BuildingFloorRoom ? form.BuildingFloorRoom : null;
+  payload.ZipCode = form.ZipCode ? form.ZipCode : null;
+  payload.City = form.City ? form.City : null;
+  payload.County = form.County ? form.County : null;
+  payload.Country = form.Country ? form.Country : null;
+  payload.State = form.State ? form.State : null;
+  payload.GlobalLocationNumber = form.GlobalLocationNumber ? form.GlobalLocationNumber : null;
+  payload.AddressName2 = form.AddressName2 ? form.AddressName2 : null;
+  payload.AddressName3 = form.AddressName3 ? form.AddressName3 : null;
 
   // Accounting fields — using exact SAP field names
-  if (form.InventoryAccount) payload.StockAccount = form.InventoryAccount;
-  if (form.CostOfGoodsSoldAccount) payload.CostOfGoodsSold = form.CostOfGoodsSoldAccount;
-  if (form.TransferAccount) payload.TransfersAcc = form.TransferAccount;
-  if (form.ReturnsAccount) payload.ReturningAccount = form.ReturnsAccount;
-  if (form.DecreasingAccount) payload.DecreasingAccount = form.DecreasingAccount;
-  if (form.IncreasingAccount) payload.IncreasingAcc = form.IncreasingAccount;
-  if (form.PurchaseAccount) payload.PurchaseAccount = form.PurchaseAccount;
-  if (form.PurchaseReturnAccount) payload.PurchaseReturningAccount = form.PurchaseReturnAccount;
-  if (form.PurchaseOffsetAccount) payload.PurchaseOffsetAccount = form.PurchaseOffsetAccount;
-  if (form.WipAccount) payload.WIPMaterialAccount = form.WipAccount;
-  if (form.ExpenseClearingAccount) payload.ExpensesClearingAccount = form.ExpenseClearingAccount;
-  if (form.TaxGroup) payload.TaxGroup = form.TaxGroup;
+  payload.StockAccount = form.InventoryAccount ? form.InventoryAccount : null;
+  payload.CostOfGoodsSold = form.CostOfGoodsSoldAccount ? form.CostOfGoodsSoldAccount : null;
+  payload.TransfersAcc = form.TransferAccount ? form.TransferAccount : null;
+  payload.PriceDifferencesAccount = form.PriceDifferencesAccount ? form.PriceDifferencesAccount : null;
+  payload.ReturningAccount = form.ReturnsAccount ? form.ReturnsAccount : null;
+  payload.DecreasingAccount = form.DecreasingAccount ? form.DecreasingAccount : null;
+  payload.IncreasingAcc = form.IncreasingAccount ? form.IncreasingAccount : null;
+  payload.PurchaseAccount = form.PurchaseAccount ? form.PurchaseAccount : null;
+  payload.PurchaseReturningAccount = form.PurchaseReturnAccount ? form.PurchaseReturnAccount : null;
+  payload.PurchaseOffsetAccount = form.PurchaseOffsetAccount ? form.PurchaseOffsetAccount : null;
+  payload.WIPMaterialAccount = form.WipAccount ? form.WipAccount : null;
+  payload.ExpensesClearingAccount = form.ExpenseClearingAccount ? form.ExpenseClearingAccount : null;
+  payload.TaxGroup = form.TaxGroup ? form.TaxGroup : null;
 
   return payload;
 }
@@ -141,6 +144,7 @@ function mapSapToForm(data) {
     InventoryAccount: data.StockAccount || "",
     CostOfGoodsSoldAccount: data.CostOfGoodsSold || "",
     TransferAccount: data.TransfersAcc || "",
+    PriceDifferencesAccount: data.PriceDifferencesAccount || "",
     ReturnsAccount: data.ReturningAccount || "",
     DecreasingAccount: data.DecreasingAccount || "",
     IncreasingAccount: data.IncreasingAcc || "",

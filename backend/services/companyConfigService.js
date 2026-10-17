@@ -59,7 +59,8 @@ const numberFromConfig = (value, fallback = 0) => {
 
 const normalizeDbDialect = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'hana' ? 'hana' : 'sqlserver';
+  if (normalized === 'hana' || normalized === 'postgres') return normalized;
+  return 'sqlserver';
 };
 
 const splitSqlServerName = (serverName = '', explicitInstance = '') => {

@@ -35,7 +35,6 @@ export default function TaxInfoModal({ isOpen, onClose, onSave, taxInfoForm, onF
               <label className="del-field__label">P.A.N. No.</label>
               <input
                 className="del-field__input"
-                style={{ background: '#ffffcc' }}
                 name="panNo"
                 value={taxInfoForm.panNo}
                 onChange={onFormChange}

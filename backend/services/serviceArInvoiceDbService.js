@@ -11,7 +11,7 @@ const safe = async (promise) => {
     const result = await promise;
     return result.recordset || [];
   } catch (error) {
-    console.warn('[Service AR Invoice DB] Query failed silently:', error.message);
+    if (!db.isMissingTableError(error)) console.warn('[Service AR Invoice DB] Query failed silently:', error.message);
     return [];
   }
 };

@@ -188,8 +188,9 @@ const normalizeSapIdentifier = (value, label = 'SAP table') => {
 const buildCufdSql = (columnNames, rawDialect = 'sqlserver') => {
   const dialect = normalizeSqlDialect(rawDialect);
   const columns = new Map([...columnNames].map((name) => [String(name).toUpperCase(), String(name)]));
+  // name may list alternatives: SAP's own column first, then older/custom names.
   const select = (name, alias, fallback = "''") => {
-    const actual = columns.get(name.toUpperCase());
+    const actual = [].concat(name).map((candidate) => columns.get(candidate.toUpperCase())).find(Boolean);
     return actual
       ? aliased(columnReference('T0', actual, dialect), alias, dialect)
       : aliased(fallback, alias, dialect);
@@ -204,12 +205,12 @@ const buildCufdSql = (columnNames, rawDialect = 'sqlserver') => {
       ${select('AliasID', 'aliasId')},
       ${select('Descr', 'label')},
       ${select('TypeID', 'typeId')},
-      ${select('SubType', 'subType')},
+      ${select(['SubType', 'EditType'], 'subType')},
       ${select('EditSize', 'editSize', 'NULL')},
       ${select('NotNull', 'notNull')},
       ${select('Mandatory', 'mandatory')},
       ${select('Editable', 'editable')},
-      ${select('LinkedTable', 'linkedTable')},
+      ${select(['LinkedTable', 'RTable'], 'linkedTable')},
       ${select('RelUDO', 'relUDO')},
       ${select('Dflt', 'defaultValue', 'NULL')}
     FROM ${quoteIdentifier('CUFD', dialect)} T0

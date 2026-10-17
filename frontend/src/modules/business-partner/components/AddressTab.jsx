@@ -296,6 +296,8 @@ export default function AddressTab({ form, setForm }) {
                   name={name}
                   value={current[name] || ""}
                   onChange={saveField}
+                  placeholder={name === "AddressName" ? "Required" : undefined}
+                  aria-required={name === "AddressName" || undefined}
                   style={{ maxWidth: 350 }}
                 />
               </div>
@@ -360,6 +362,8 @@ export default function AddressTab({ form, setForm }) {
                   name={name}
                   value={current[name] || ""}
                   onChange={saveField}
+                  placeholder={name === "AddressName" ? "Required" : undefined}
+                  aria-required={name === "AddressName" || undefined}
                   style={{ maxWidth: 350 }}
                 />
               </div>

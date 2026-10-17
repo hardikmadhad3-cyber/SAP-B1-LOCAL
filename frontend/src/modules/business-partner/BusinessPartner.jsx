@@ -10,6 +10,7 @@ import AddressTab    from "./components/AddressTab";
 import ContactTab    from "./components/ContactTab";
 import PropertiesTab from "./components/PropertiesTab";
 import RemarksTab    from "./components/RemarksTab";
+import { findUnnamedRow } from "./unnamedRows";
 import {
   createBP, getBP, updateBP, searchBP,
   fetchBPGroups, fetchBPPriceLists, fetchPaymentTerms, fetchCurrencies, fetchBPCountries,
@@ -934,11 +935,21 @@ export default function BusinessPartnerModule() {
     finally { setCurrencyLoading(false); }
   };
 
+  // A contact or address filled in without its ID would be dropped by buildPayload; say so instead.
+  const stopOnUnnamedRow = (sourceForm) => {
+    const unnamed = findUnnamedRow(sourceForm);
+    if (!unnamed) return false;
+    setTab(TABS.indexOf(unnamed.tab === "contacts" ? "Contact Persons" : "Addresses"));
+    showAlert("error", unnamed.message);
+    return true;
+  };
+
   // CRUD handlers
   const handleAdd = useCallback(async () => {
     const cardCode = safeTrim(form.CardCode);
     if (!cardCode) { showAlert("error", "Card Code is required."); return; }
     if (!safeTrim(form.CardName)) { showAlert("error", "Card Name is required."); return; }
+    if (stopOnUnnamedRow(form)) return;
     setLoading(true);
     try {
       const normalizedForm = await normalizeContactBirthCountries(form);
@@ -1098,6 +1109,7 @@ export default function BusinessPartnerModule() {
     const cardCode = safeTrim(form.CardCode);
     if (!cardCode) { showAlert("error", "Card Code is required."); return; }
     if (!safeTrim(form.CardName)) { showAlert("error", "Card Name is required."); return; }
+    if (stopOnUnnamedRow(form)) return;
     setLoading(true);
     try {
       const normalizedForm = await normalizeContactBirthCountries(form);

@@ -24,6 +24,8 @@ const REPORT_TITLES = {
   "transaction-by-projects": "Transaction Report by Projects",
   "transactions-received-from-voucher": "Transactions Received from Voucher Report",
   "document-journal": "Document Journal",
+  "journal-transaction-amount-range": "Locate Journal Transaction by Amount Range",
+  "journal-transaction-fc-amount-range": "Locate Journal Transaction by FC Amount Range",
 };
 
 const normalizeText = (value) => String(value || "").trim();
@@ -143,6 +145,22 @@ const getReport = async (reportKey, criteria = {}) => {
     voucherColumn = await getVoucherColumn();
     params.voucherNumber = Number(criteria.voucherNumber || 0);
     clauses.push(`${voucherColumn} = @voucherNumber`);
+  }
+
+  // SAP "Locate Journal Transaction by (FC) Amount Range": rows whose debit or credit
+  // amount lies in the range; the FC version looks only at foreign-currency rows.
+  if (reportKey === "journal-transaction-amount-range" || reportKey === "journal-transaction-fc-amount-range") {
+    const foreign = reportKey === "journal-transaction-fc-amount-range";
+    const amount = foreign ? "(ISNULL(L.FCDebit, 0) + ISNULL(L.FCCredit, 0))" : "(ISNULL(L.Debit, 0) + ISNULL(L.Credit, 0))";
+    if (foreign) clauses.push(`${amount} <> 0`);
+    if (normalizeText(criteria.amountFrom)) {
+      params.amountFrom = toNumber(criteria.amountFrom);
+      clauses.push(`${amount} >= @amountFrom`);
+    }
+    if (normalizeText(criteria.amountTo)) {
+      params.amountTo = toNumber(criteria.amountTo);
+      clauses.push(`${amount} <= @amountTo`);
+    }
   }
 
   const amountExpressions = criteria.displayCurrency === "system"

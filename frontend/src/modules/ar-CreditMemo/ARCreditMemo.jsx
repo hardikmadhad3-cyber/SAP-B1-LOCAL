@@ -25,7 +25,6 @@ import ExchangeRatesIndexesModal from '../sales-order/components/ExchangeRatesIn
 import FreightChargesModal from '../../components/freight/FreightChargesModal';
 import LineValueLookupModal from '../../components/sales-document/LineValueLookupModal';
 import DocumentCurrencySelect from '../../components/document/DocumentCurrencySelect';
-import PrintLayoutToolbar from '../../components/print-layout/PrintLayoutToolbar';
 import JournalEntryPreviewButton from '../../components/journal-entry/JournalEntryPreviewButton';
 import SalesEmployeeSetupModal from '../../components/sales-employee/SalesEmployeeSetupModal';
 import { useRelationshipMapRegistration } from '../../components/relationship-map/RelationshipMapHost';
@@ -53,6 +52,7 @@ import { getStateCodeValue, getStateDisplayName } from '../../utils/stateDisplay
 import { findTaxCode, getTaxComponentCodes } from '../../utils/taxCodeComponents';
 import { getDocumentLinePayableTax } from '../../utils/documentLineTax';
 import {
+  reloadRouteDocument,
   buildCopyToState,
   consumeCopyToState,
   openCopyToDocument,
@@ -104,6 +104,8 @@ import {
   readSavedFormSettings,
 } from '../../config/arCreditMemoForm';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
 const SAP_MANUAL_SERIES_VALUE = '__SAP_MANUAL__';
 const GENERAL_SETTINGS = readGeneralSettings();
 
@@ -493,6 +495,7 @@ function ARCreditMemo() {
   const isDocumentEditable = !currentDocEntry || String(header.status || '').toLowerCase() === 'open';
   const hasBuyerCode = Boolean(String(header.vendor || '').trim());
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const getBranchFromWarehouseCode = useCallback((warehouseCode = '') => {
     const code = String(warehouseCode || '').trim();
@@ -896,7 +899,7 @@ function ARCreditMemo() {
         if (so.header?.customerCode || so.header?.customer) {
           loadVendorDetails(so.header?.customerCode || so.header?.customer);
         }
-        setPageState(p => ({ ...p, success: so.doc_num ? `AR Credit Memo ${so.doc_num} loaded.` : 'AR Credit Memo loaded.' }));
+        setPageState(p => ({ ...p, success: location.state?.documentStatusMessage || (so.doc_num ? `AR Credit Memo ${so.doc_num} loaded.` : 'AR Credit Memo loaded.') }));
       } catch (e) {
         if (!ignore) setPageState(p => ({ ...p, error: getErrMsg(e, 'Failed to load AR Credit Memo.') }));
       } finally {
@@ -3076,16 +3079,6 @@ function ARCreditMemo() {
         <button type="button" className="del-btn sap-document-toolbar__settings" onClick={toggleFormSettings} disabled={!companyFormSettingsReady || formSettingsStatus.queryModeActive} title={formSettingsStatus.queryModeActive ? 'Company SQL Content layout is active' : (companyFormSettingsReady ? 'Choose document-line fields' : 'Loading company Form Settings')}>
           Form Settings
         </button>
-        <PrintLayoutToolbar
-          documentType="arCreditMemo"
-          documentLabel="A/R Credit Memo"
-          docEntry={currentDocEntry}
-          docNumber={header.docNo}
-          disabled={pageState.posting}
-          classPrefix="del"
-          onSuccess={(message) => setPageState(p => ({ ...p, error: '', success: message }))}
-          onError={(message) => setPageState(p => ({ ...p, success: '', error: message }))}
-        />
         <JournalEntryPreviewButton
           documentType="arCreditMemo"
           documentLabel="A/R Credit Memo"
@@ -3138,20 +3131,22 @@ function ARCreditMemo() {
         )}
         <button type="button" className="del-btn sap-document-toolbar__find" onClick={() => navigate('/ar-credit-memo/find')}>Find</button>
         <button type="button" className="del-btn sap-document-toolbar__new" onClick={resetForm}>New</button>
+        <DocumentStatusActions
+          type="ar-credit-memo"
+          docEntry={currentDocEntry}
+          actions={['cancel']}
+          className="del-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'arCreditMemoDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
       </div>
 
       {/* alerts */}
       {pageState.loading && <div className="del-alert del-alert--success" style={{ marginTop: 0 }}>Loading...</div>}
       {pageState.error && <div className="del-alert del-alert--error">{pageState.error}</div>}
       {pageState.success && <div className="del-alert del-alert--success">{pageState.success}</div>}
-      {refData.warnings?.length > 0 && (
-        <div className="alert alert-warning py-2" style={{ fontSize: 11 }}>
-          <strong>SAP warnings:</strong>
-          {refData.warnings.map((w, i) => <div key={i}>{w}</div>)}
-          <div style={{ marginTop: 4, color: '#555' }}>Dropdowns are showing fallback values. Connect to SAP to load live data.</div>
-          <div style={{ marginTop: 4, color: '#d00', fontWeight: 600 }}>âš ï¸ Tax codes shown are examples only. Use actual SAP tax codes to avoid submission errors.</div>
-        </div>
-      )}
+
 
       <fieldset ref={documentBodyRef} className="del-fieldset" aria-disabled={!isDocumentEditable} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className={`sap-document-layout so-layout${isRightSidebarOpen ? ' is-sidebar-open' : ' sap-document-layout--no-udf'}`}>
@@ -3428,7 +3423,7 @@ function ARCreditMemo() {
             )}
 
             {activeTab === 'Tax' && (
-              <TaxTab onOpenTaxInfoModal={openTaxInfoModal} />
+              <TaxTab header={header} onHeaderChange={handleHeaderChange} onOpenTaxInfoModal={openTaxInfoModal} />
             )}
 
             {activeTab === 'Electronic Documents' && (

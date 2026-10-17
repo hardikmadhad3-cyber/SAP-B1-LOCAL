@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import "./styles/paymentTermsSetup.css";
 import DueDateSection from "./components/DueDateSection";
 import InstallmentsSection from "./components/InstallmentsSection";
@@ -8,6 +8,8 @@ import {
   getPaymentTerms,
   updatePaymentTerms,
   searchPaymentTerms,
+  fetchCashDiscounts,
+  fetchPaymentMethods,
 } from "../../api/paymentTermsApi";
 
 const EMPTY_FORM = {
@@ -24,6 +26,8 @@ const EMPTY_FORM = {
   CreditLimit: 0,
   LoadLimitCredit: "tNO",
   PaymentTermsInstallments: [],
+  DiscountCode: "",
+  PaymentMethod: "",
 };
 
 function buildPayload(form) {
@@ -37,9 +41,12 @@ function buildPayload(form) {
 
   payload.BaselineDate = form.BaselineDate || "bld_PostingDate";
   payload.StartFrom = form.StartFrom || "ptsf_DayOfMonth";
+  payload.DiscountCode = form.DiscountCode || null;
+  payload.PaymentMethod = form.PaymentMethod || null;
 
   if (form.NumberOfAdditionalMonths != null) payload.NumberOfAdditionalMonths = Number(form.NumberOfAdditionalMonths);
   if (form.NumberOfAdditionalDays != null) payload.NumberOfAdditionalDays = Number(form.NumberOfAdditionalDays);
+  if (form.ToleranceDays != null) payload.ToleranceDays = Number(form.ToleranceDays || 0);
   if (form.NumberOfInstallments != null) payload.NumberOfInstallments = Number(form.NumberOfInstallments);
   if (form.CreditLimit != null) payload.CreditLimit = Number(form.CreditLimit);
   
@@ -57,7 +64,8 @@ function buildPayload(form) {
       StartFrom: l.StartFrom || form.StartFrom,
     }));
 
-  if (lines.length > 0) payload.PaymentTermsInstallments = lines;
+  // Always sent, so removing every row removes the saved installments too.
+  payload.PaymentTermsInstallments = lines;
 
   return payload;
 }
@@ -68,6 +76,15 @@ export default function PaymentTermsSetup() {
   const [alert, setAlert] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showFindModal, setShowFindModal] = useState(false);
+  const [cashDiscounts, setCashDiscounts] = useState([]);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchCashDiscounts(), fetchPaymentMethods()]).then(([discounts, methods]) => {
+      if (active) { setCashDiscounts(discounts); setPaymentMethods(methods); }
+    }).catch(() => { if (active) setAlert({ type: "error", msg: "Unable to load cash discounts and payment methods." }); });
+    return () => { active = false; };
+  }, []);
 
   const showAlert = (type, msg) => {
     setAlert({ type, msg });
@@ -257,6 +274,19 @@ export default function PaymentTermsSetup() {
       </div>
 
       {/* Installments */}
+      <div className="pt-section">
+        <div className="pt-section__title">Payment Defaults</div>
+        <div className="pt-section__content pt-field-row">
+          {[["DiscountCode", "Cash Discount", cashDiscounts], ["PaymentMethod", "Payment Method", paymentMethods]].map(([name, label, options]) => (
+            <label className="pt-field" key={name}>{label}
+              <select className="pt-field__input" name={name} value={form[name] || ""} onChange={handleChange}>
+                <option value="">None</option>
+                {options.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}
+              </select>
+            </label>
+          ))}
+        </div>
+      </div>
       <InstallmentsSection form={form} setForm={setForm} />
 
       {/* Find Modal */}

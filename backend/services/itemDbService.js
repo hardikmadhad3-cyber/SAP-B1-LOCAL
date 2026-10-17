@@ -39,17 +39,17 @@ const toIntOrDefault = (value, fallback = -1) => {
 const mapCostAccountingMethod = (value) => {
   const map = {
     A: 'bis_MovingAverage',
-    B: 'bis_Standard',
+    S: 'bis_Standard',
     F: 'bis_FIFO',
-    S: 'bis_SNB',
+    B: 'bis_SNB',
   };
   return map[value] || value || '';
 };
 
 const mapGLMethod = (value) => {
   const map = {
-    C: 'glm_WH',
-    W: 'glm_ItemClass',
+    W: 'glm_WH',
+    C: 'glm_ItemClass',
     L: 'glm_ItemLevel',
   };
   return map[value] || value || '';
@@ -58,6 +58,7 @@ const mapGLMethod = (value) => {
 const mapTaxType = (value) => {
   const map = {
     Y: 'tt_Yes',
+    U: 'tt_UseTax',
     N: 'tt_No',
   };
   return map[value] || value || '';
@@ -100,6 +101,7 @@ const mapItemType = (value) => {
     I: 'itItems',
     L: 'itLabor',
     T: 'itTravel',
+    F: 'itFixedAssets',
   };
   return map[value] || value || '';
 };
@@ -1049,6 +1051,7 @@ const getItemProperties = async () => {
 
 module.exports = {
   getItem,
+  mapHeaderRow,
   searchItems,
   getRecentItemCodes,
   generateItemCode,

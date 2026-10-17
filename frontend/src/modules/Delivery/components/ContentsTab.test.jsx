@@ -85,7 +85,7 @@ test('keeps configured Delivery column widths and lets the wrapper scroll for ex
   const scroller = table.closest('.del-grid-wrap__scroller--contents');
 
   // 42px row number + visible columns + compulsory Bin Location Allocation + 48px action column.
-  expect(table).toHaveStyle({ width: '944px', minWidth: '100%', tableLayout: 'fixed' });
+  expect(table).toHaveStyle({ width: '967px', minWidth: '100%', tableLayout: 'fixed' });
   expect(scroller).toHaveStyle({ overflowX: 'auto' });
   expect(screen.getByText('Extra Field').closest('th')).toHaveStyle({ width: '180px' });
   expect(screen.getByText('Bin Location Allocation')).toBeInTheDocument();
@@ -241,7 +241,7 @@ test('uses label-aware minimum spacing for narrow company UDF columns', () => {
     rowUdfFields: [{ key: 'U_ContainerType', label: 'ContainerType', type: 'text' }],
   });
 
-  expect(screen.getByText('ContainerType').closest('th')).toHaveStyle({ width: '115px' });
+  expect(screen.getByText('ContainerType').closest('th')).toHaveStyle({ width: '122px' });
 });
 
 test('keeps standard Delivery fields readable when SAP supplies narrow widths', () => {

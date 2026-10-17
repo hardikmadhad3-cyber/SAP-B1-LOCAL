@@ -142,6 +142,22 @@ export default function SapLookupModal({
     chooseRow(activeRows[selectedIndex]);
   };
 
+  // SAP Choose From List: arrows move the highlight from the search box and
+  // Enter picks it (the first row when nothing is highlighted yet).
+  const handleSearchKeyDown = (event) => {
+    if (!activeRows.length) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      const next = Math.min(activeRows.length - 1, Math.max(0, selectedIndex + step));
+      setSelectedIndex(next);
+      bodyRef.current?.querySelectorAll('tbody tr')[next]?.scrollIntoView?.({ block: 'nearest' });
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      chooseRow(activeRows[selectedIndex >= 0 ? selectedIndex : 0]);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -190,7 +206,9 @@ export default function SapLookupModal({
               setQuery(event.target.value);
               onQueryChange?.(event.target.value);
             }}
+            onKeyDown={handleSearchKeyDown}
             placeholder={searchPlaceholder}
+            aria-controls={`${searchId}-results`}
             autoFocus
           />
           {query ? <button type="button" className="sap-lookup-modal__btn" onClick={() => {
@@ -208,7 +226,7 @@ export default function SapLookupModal({
           ) : activeRows.length === 0 ? (
             <div className="sap-lookup-modal__empty">{emptyMessage}</div>
           ) : (
-            <table className="sap-lookup-modal__table">
+            <table className="sap-lookup-modal__table" id={`${searchId}-results`}>
               <thead>
                 <tr>
                   {visibleColumns.map((column) => (
@@ -223,6 +241,7 @@ export default function SapLookupModal({
                   <tr
                     key={getRowKey ? getRowKey(row, index) : (row.code || row.CardCode || row.ItemCode || row.value || index)}
                     className={selectedIndex === index ? "is-selected" : undefined}
+                    aria-selected={selectedIndex === index}
                     onClick={() => setSelectedIndex(index)}
                     onDoubleClick={(event) => {
                       event.stopPropagation();

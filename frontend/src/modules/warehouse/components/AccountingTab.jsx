@@ -62,7 +62,8 @@ export default function AccountingTab({ form, onChange }) {
   const accountFields = [
     { name: "InventoryAccount", label: "Inventory Account" },
     { name: "CostOfGoodsSoldAccount", label: "Cost Of Goods Sold Account" },
-    { name: "TransferAccount", label: "Transfer Account" },
+    { name: "TransferAccount", label: "Allocation Account" },
+    { name: "PriceDifferencesAccount", label: "Price Difference Account" },
     { name: "ReturnsAccount", label: "Returns Account" },
     { name: "DecreasingAccount", label: "Decreasing Account" },
     { name: "IncreasingAccount", label: "Increasing Account" },

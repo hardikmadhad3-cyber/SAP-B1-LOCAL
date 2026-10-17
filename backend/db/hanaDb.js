@@ -782,4 +782,5 @@ module.exports = {
   normalizeRowValues,
   normalizeSql,
   query,
+  replaceFunctionCalls,
 };

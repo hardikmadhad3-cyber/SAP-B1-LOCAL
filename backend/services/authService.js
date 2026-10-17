@@ -127,9 +127,16 @@ const buildMenuTree = (menus, rightsByMenuId) => {
 const isAdminRoleName = (roleName) =>
   ['admin', 'superadmin'].includes(String(roleName || '').trim().toLowerCase());
 
+// Constant-time compare; the emergency login is off while SETUP_ADMIN_PASSWORD is weak.
+const sameSecret = (a, b) => {
+  const left = Buffer.from(String(a || ''));
+  const right = Buffer.from(String(b || ''));
+  return left.length === right.length && require('crypto').timingSafeEqual(left, right);
+};
 const isSetupAdminLogin = (username, password) =>
+  env.setupAdminLoginEnabled &&
   String(username || '') === env.setupAdminUsername &&
-  String(password || '') === env.setupAdminPassword;
+  sameSecret(password, env.setupAdminPassword);
 
 const createSetupAdminLoginResult = () => {
   const username = env.setupAdminUsername || 'manager';

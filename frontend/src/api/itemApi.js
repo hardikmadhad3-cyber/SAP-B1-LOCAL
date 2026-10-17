@@ -92,4 +92,12 @@ export const uploadAttachment = (itemCode, formData) =>
   }).then((r) => r.data);
 
 export const deleteAttachment = (itemCode, attachmentId) =>
-  apiClient.delete(`/items/${encodeURIComponent(itemCode)}/attachments/${attachmentId}`).then((r) => r.data);
+  apiClient.delete(`/items/${encodeURIComponent(itemCode)}/attachments/${encodeURIComponent(attachmentId)}`).then((r) => r.data);
+
+export const fetchAttachments = (itemCode) =>
+  apiClient.get(`/items/${encodeURIComponent(itemCode)}/attachments`).then((r) => r.data);
+
+// Through the API client (it carries the login token); a plain link would not.
+export const downloadAttachment = (itemCode, attachmentId) =>
+  apiClient.get(`/items/${encodeURIComponent(itemCode)}/attachments/${encodeURIComponent(attachmentId)}`, { responseType: "blob" })
+    .then((r) => r.data);

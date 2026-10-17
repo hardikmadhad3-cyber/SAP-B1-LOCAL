@@ -175,18 +175,13 @@ const createItem = async (req, res) => {
   }
   
   // === Numeric Range Validations ===
-  const validatePositiveNumber = (value, fieldName) => {
-    if (value !== undefined && value !== "" && (isNaN(value) || parseFloat(value) < 0)) {
-      return res.status(400).json({ message: `${fieldName} must be a positive number.` });
-    }
-  };
-  
-  validatePositiveNumber(data.CommissionPercent, "Commission Percent");
-  validatePositiveNumber(data.MinInventory, "Minimum Inventory");
-  validatePositiveNumber(data.MaxInventory, "Maximum Inventory");
-  validatePositiveNumber(data.DesiredInventory, "Desired Inventory");
-  validatePositiveNumber(data.OrderMultiple, "Order Multiple");
-  validatePositiveNumber(data.MinOrderQuantity, "Minimum Order Quantity");
+  // Stop at the first invalid value (the response must not be followed by a save).
+  const negative = [
+    ["CommissionPercent", "Commission Percent"], ["MinInventory", "Minimum Inventory"],
+    ["MaxInventory", "Maximum Inventory"], ["DesiredInventory", "Desired Inventory"],
+    ["OrderMultiple", "Order Multiple"], ["MinOrderQuantity", "Minimum Order Quantity"],
+  ].find(([key]) => data[key] != null && data[key] !== "" && (isNaN(data[key]) || parseFloat(data[key]) < 0));
+  if (negative) return res.status(400).json({ message: `${negative[1]} must be a positive number.` });
   
   // === UoM Consistency Validation ===
   const validateUoMConsistency = () => {
@@ -321,18 +316,13 @@ const updateItem = async (req, res) => {
   }
   
   // === Numeric Range Validations ===
-  const validatePositiveNumber = (value, fieldName) => {
-    if (value !== undefined && value !== "" && (isNaN(value) || parseFloat(value) < 0)) {
-      return res.status(400).json({ message: `${fieldName} must be a positive number.` });
-    }
-  };
-  
-  validatePositiveNumber(data.CommissionPercent, "Commission Percent");
-  validatePositiveNumber(data.MinInventory, "Minimum Inventory");
-  validatePositiveNumber(data.MaxInventory, "Maximum Inventory");
-  validatePositiveNumber(data.DesiredInventory, "Desired Inventory");
-  validatePositiveNumber(data.OrderMultiple, "Order Multiple");
-  validatePositiveNumber(data.MinOrderQuantity, "Minimum Order Quantity");
+  // Stop at the first invalid value (the response must not be followed by a save).
+  const negative = [
+    ["CommissionPercent", "Commission Percent"], ["MinInventory", "Minimum Inventory"],
+    ["MaxInventory", "Maximum Inventory"], ["DesiredInventory", "Desired Inventory"],
+    ["OrderMultiple", "Order Multiple"], ["MinOrderQuantity", "Minimum Order Quantity"],
+  ].find(([key]) => data[key] != null && data[key] !== "" && (isNaN(data[key]) || parseFloat(data[key]) < 0));
+  if (negative) return res.status(400).json({ message: `${negative[1]} must be a positive number.` });
   
   // === UoM Consistency Validation ===
   const validateUoMConsistency = () => {
@@ -555,39 +545,76 @@ const lookupItemCodePrefixes = async (req, res) => {
 const UPLOAD_DIR = path.join(__dirname, "../uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// Item attachments live per company and item (uploads/items/<companyId>/<item>/),
+// so the same item code in two companies never shares files. Names are reduced to
+// a plain file name: no folders, no "..", nothing outside that directory.
+const safeFileName = (value) => path.basename(String(value || ""))
+  .replace(/[^A-Za-z0-9._ ()-]/g, "_").replace(/^\.+/, "").trim().slice(0, 180);
+const attachmentDir = (req) => {
+  const companyId = Number(req.auth?.companyId);
+  const item = safeFileName(req.params.itemCode);
+  if (!(companyId > 0) || !item) {
+    const error = new Error("Select a company and a saved item first.");
+    error.status = 400;
+    throw error;
+  }
+  return path.join(UPLOAD_DIR, "items", String(companyId), item);
+};
+const attachmentPath = (req) => {
+  const name = safeFileName(req.params.attachmentId);
+  if (!name) {
+    const error = new Error("Invalid attachment name.");
+    error.status = 400;
+    throw error;
+  }
+  return path.join(attachmentDir(req), name);
+};
+const attachmentRow = (itemCode, dir, name) => {
+  const stat = fs.statSync(path.join(dir, name));
+  return {
+    id: name, name, size: stat.size, type: path.extname(name).slice(1).toUpperCase(),
+    url: `/items/${encodeURIComponent(itemCode)}/attachments/${encodeURIComponent(name)}`,
+  };
+};
+const attachmentError = (res, error) => res.status(error.status || 500).json({ message: error.message });
+
 const getAttachments = async (req, res) => {
-  const { itemCode } = req.params;
-  const dir = path.join(UPLOAD_DIR, itemCode);
-  if (!fs.existsSync(dir)) return res.json([]);
-  const files = fs.readdirSync(dir).map((f) => {
-    const stat = fs.statSync(path.join(dir, f));
-    return { id: f, name: f, size: stat.size, type: path.extname(f).slice(1).toUpperCase(), url: `/api/items/${itemCode}/attachments/${f}` };
-  });
-  res.json(files);
+  try {
+    const dir = attachmentDir(req);
+    if (!fs.existsSync(dir)) return res.json([]);
+    res.json(fs.readdirSync(dir).map((name) => attachmentRow(req.params.itemCode, dir, name)));
+  } catch (error) { attachmentError(res, error); }
 };
 
 const uploadAttachment = async (req, res) => {
-  const { itemCode } = req.params;
-  if (!req.file) return res.status(400).json({ message: "No file uploaded." });
-  const dir = path.join(UPLOAD_DIR, itemCode);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const dest = path.join(dir, req.file.originalname);
-  fs.renameSync(req.file.path, dest);
-  res.json({ id: req.file.originalname, name: req.file.originalname, size: req.file.size });
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded." });
+    const dir = attachmentDir(req);
+    const name = safeFileName(req.file.originalname);
+    if (!name) throw Object.assign(new Error("Invalid attachment name."), { status: 400 });
+    fs.mkdirSync(dir, { recursive: true });
+    fs.renameSync(req.file.path, path.join(dir, name));
+    res.json(attachmentRow(req.params.itemCode, dir, name));
+  } catch (error) {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    attachmentError(res, error);
+  }
 };
 
 const deleteAttachment = async (req, res) => {
-  const { itemCode, attachmentId } = req.params;
-  const filePath = path.join(UPLOAD_DIR, itemCode, attachmentId);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  res.json({ success: true });
+  try {
+    const filePath = attachmentPath(req);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ success: true });
+  } catch (error) { attachmentError(res, error); }
 };
 
 const serveAttachment = (req, res) => {
-  const { itemCode, attachmentId } = req.params;
-  const filePath = path.join(UPLOAD_DIR, itemCode, attachmentId);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found." });
-  res.download(filePath);
+  try {
+    const filePath = attachmentPath(req);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found." });
+    res.download(filePath);
+  } catch (error) { attachmentError(res, error); }
 };
 
 module.exports = {

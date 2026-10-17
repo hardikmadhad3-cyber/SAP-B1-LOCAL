@@ -8,7 +8,8 @@ const normalizeGenderValue = (value) => {
 };
 
 const EMPTY_CONTACT = {
-  Name: "Define New",
+  // Empty until the user types the Contact ID; the list still shows "Define New".
+  Name: "",
   FirstName: "", MiddleName: "", LastName: "",
   Title: "", Position: "", Address: "",
   Phone1: "", Phone2: "", MobilePhone: "", Fax: "", E_Mail: "",
@@ -172,6 +173,8 @@ export default function ContactTab({ form, setForm, fetchCountries }) {
                   name={name}
                   value={current[name] || ""}
                   onChange={saveField}
+                  placeholder={name === "Name" ? "Required" : undefined}
+                  aria-required={name === "Name" || undefined}
                   style={{ maxWidth: 280 }}
                 />
               </div>

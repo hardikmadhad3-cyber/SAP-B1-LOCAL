@@ -185,6 +185,7 @@ const createInventoryTransfer = async (payload) => {
     TaxDate: toIsoDate(header.documentDate),
     Comments: header.remarks || '',
     JournalMemo: header.journalRemark || 'Inventory Transfer',
+    ...(header.salesEmployee ? { SalesPersonCode: Number(header.salesEmployee) } : {}),
     FromWarehouse: documentFromWarehouse,
     ToWarehouse: documentToWarehouse,
     StockTransferLines: activeLines
@@ -266,6 +267,7 @@ const updateInventoryTransfer = async (docEntry, payload) => {
   const sapPayload = {
     Comments: header.remarks || '',
     JournalMemo: header.journalRemark || 'Inventory Transfer',
+    ...(header.salesEmployee ? { SalesPersonCode: Number(header.salesEmployee) } : {}),
   };
 
   if (header.referencedDocument) {

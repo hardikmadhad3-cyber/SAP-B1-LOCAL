@@ -1,0 +1,19 @@
+/* Layout only; look and feel come from the im-* family and --sap-* tokens (docs/UI_THEME.md). */
+.udf-page .udf-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 10px; margin: 10px 12px 12px; align-items: start; }
+.udf-page .udf-card { padding: 10px 14px; background: var(--sap-surface); border: 1px solid var(--sap-border); border-radius: var(--sap-radius-sm); }
+.udf-page .udf-main { display: grid; gap: 10px; min-width: 0; }
+.udf-page .udf-tree { display: grid; gap: 8px; max-height: calc(100vh - 160px); overflow: auto; }
+.udf-page .udf-tree__item { display: block; width: 100%; text-align: left; padding: 3px 6px; font-size: 12px; border: 1px solid transparent;
+  border-radius: var(--sap-radius-xs); background: none; color: var(--sap-text); cursor: pointer; }
+.udf-page .udf-tree__item:hover { background: var(--sap-row-hover); }
+.udf-page .udf-tree__item--active { background: var(--sap-primary-soft); border-color: var(--sap-primary); font-weight: 600; }
+.udf-page .udf-muted { color: var(--sap-text-muted); font-size: 11px; }
+.udf-page .udf-note { margin: 6px 0; font-size: 12px; color: var(--sap-text-muted); }
+.udf-page .udf-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.udf-page .udf-section { margin-top: 12px; }
+.udf-page .udf-actions { display: flex; gap: 6px; margin-top: 10px; }
+.udf-page .udf-wide { max-width: none; margin-bottom: 4px; }
+.udf-page .udf-prefixed { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; }
+.udf-page .udf-values { max-width: 640px; }
+.udf-page .udf-row--selected, .udf-page .udf-row--selected:hover { background: var(--sap-primary-soft) !important; }
+@media (max-width: 760px) { .udf-page .udf-layout { grid-template-columns: 1fr; } }

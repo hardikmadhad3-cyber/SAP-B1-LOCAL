@@ -112,3 +112,42 @@ test('service mode uses a G/L account field and account reference data', () => {
   expect(screen.getByDisplayValue('610000')).toHaveAttribute('name', 'accountCode');
   expect(screen.getByText('Consulting Expense')).toBeInTheDocument();
 });
+
+test('Required Qty. and Info Price stay editable when the SAP layout marks them read-only', () => {
+  const { normalizePurchaseRequestMatrixColumns } = require('../../../config/purchaseRequestForm');
+  const columns = normalizePurchaseRequestMatrixColumns([
+    { key: 'itemNo', label: 'Item No.' },
+    { key: 'requiredQty', label: 'Required Qty.', readOnly: true },
+    { key: 'price', label: 'Info Price', readOnly: true },
+    { key: 'totalLC', label: 'Total (LC)', readOnly: true },
+  ]);
+  expect(columns.find((c) => c.key === 'total').readOnly).toBe(true);
+  const onLineChange = jest.fn();
+  render(
+    <ContentsTab
+      {...baseProps}
+      onLineChange={onLineChange}
+      lines={[{ itemNo: 'ITM001', quantity: '', unitPrice: '' }]}
+      matrixFields={columns}
+    />
+  );
+  const qty = document.querySelector('input[name="quantity"]');
+  const price = document.querySelector('input[name="unitPrice"]');
+  expect(qty.readOnly).toBe(false);
+  expect(price.readOnly).toBe(false);
+  fireEvent.change(qty, { target: { value: '5' } });
+  expect(onLineChange).toHaveBeenCalled();
+});
+
+test('Item/Service Type selector switches type and locks for added documents', () => {
+  const onDocumentTypeChange = jest.fn();
+  const { rerender } = render(
+    <ContentsTab {...baseProps} lines={[{}]} matrixFields={[{ key: 'itemNo', label: 'Item No.' }]} onDocumentTypeChange={onDocumentTypeChange} />
+  );
+  fireEvent.change(screen.getByLabelText('Item/Service Type'), { target: { value: 'Service' } });
+  expect(onDocumentTypeChange).toHaveBeenCalledWith('Service');
+  rerender(
+    <ContentsTab {...baseProps} lines={[{}]} matrixFields={[{ key: 'itemNo', label: 'Item No.' }]} onDocumentTypeChange={onDocumentTypeChange} documentTypeLocked />
+  );
+  expect(screen.getByLabelText('Item/Service Type')).toBeDisabled();
+});

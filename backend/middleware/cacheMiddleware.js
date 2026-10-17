@@ -100,6 +100,11 @@ const invalidateCacheMiddleware = (namespace) => (req, res, next) => {
   res.on("finish", () => {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       clearCache(namespace);
+      // Cached /lookup/ lists (30 min) hold master data too: a new UoM, group or
+      // account must show in every page's dropdowns at once.
+      for (const [name, store] of stores) {
+        if (String(name).startsWith("lookup:")) store.clear();
+      }
     }
   });
 

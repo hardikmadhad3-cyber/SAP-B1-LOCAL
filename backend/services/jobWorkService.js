@@ -368,6 +368,18 @@ const updateDocument = async (transactionKey, docEntry, payload) => {
   const sapPayload = buildDocumentPayload(transaction, payload);
   applyStockMovementRefs(config, sapPayload, stockMovements);
 
+  // A row the user removed in the UI is simply absent from the submitted
+  // array — Service Layer's PATCH never deletes on our behalf, so it has to
+  // be cleaned up directly (see jobWorkDbService.deleteRemovedLines). This runs
+  // before the PATCH, which would otherwise have added rows (no LineId yet)
+  // that would be deleted here as well.
+  const primaryLineTable = transaction.listFields.primaryLineTable;
+  const submittedLines = (payload.lines || {})[primaryLineTable] || [];
+  const keepLineIds = submittedLines
+    .map((line) => line.LineId)
+    .filter((lineId) => lineId !== undefined && lineId !== null && lineId !== '');
+  await jobWorkDb.deleteRemovedLines(primaryLineTable, docEntry, keepLineIds);
+
   await sapService.request({
     method: 'PATCH',
     url: `/${transaction.udo.objectType}(${Number(docEntry)})`,
@@ -375,16 +387,6 @@ const updateDocument = async (transactionKey, docEntry, payload) => {
   });
 
   await linkStockMovementsBack(config, stockMovements, Number(docEntry), existingDocNum);
-
-  // A row the user removed in the UI is simply absent from the submitted
-  // array — Service Layer's PATCH never deletes on our behalf, so it has to
-  // be cleaned up directly (see jobWorkDbService.deleteRemovedLines).
-  const primaryLineTable = transaction.listFields.primaryLineTable;
-  const submittedLines = (payload.lines || {})[primaryLineTable] || [];
-  const keepLineIds = submittedLines
-    .map((line) => line.LineId)
-    .filter((lineId) => lineId !== undefined && lineId !== null && lineId !== '');
-  await jobWorkDb.deleteRemovedLines(primaryLineTable, docEntry, keepLineIds);
 
   return {
     success: true,

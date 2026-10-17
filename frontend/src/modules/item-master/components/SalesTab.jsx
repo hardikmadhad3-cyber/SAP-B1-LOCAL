@@ -114,7 +114,7 @@ export default function SalesTab({ form, onChange }) {
       <div className="im-field-grid">
         <div className="im-field">
           <label className="im-field__label">Create QR Code From</label>
-          <input className="im-field__input" name="QRCodeSource" value={form.QRCodeSource || ""} onChange={onChange} />
+          <input className="im-field__input" name="CreateQRCodeFrom" value={form.CreateQRCodeFrom || ""} onChange={onChange} />
         </div>
       </div>
     </div>

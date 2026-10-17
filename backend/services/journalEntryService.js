@@ -17,9 +17,6 @@ const formatDate = (value) => {
 const SAP_JOURNAL_PREVIEW_DOCUMENT_TYPES = {
   arReserveInvoice: { label: 'A/R Reserve Invoice' },
   delivery: { label: 'Delivery' },
-  dcDelivery: { label: 'DC Delivery', sapType: 'delivery' },
-  ncDelivery: { label: 'NC Delivery', sapType: 'delivery' },
-  sodaDelivery: { label: 'SODA Delivery', sapType: 'delivery' },
   arInvoice: { label: 'A/R Invoice' },
   serviceArInvoice: { label: 'Service A/R Invoice', generator: 'generateFromServiceARInvoice' },
   return: { label: 'Return' },
@@ -1387,7 +1384,8 @@ const createManualJournalEntry = async (payload = {}) => {
 
   const totalDebit = round2(lines.reduce((sum, line) => sum + line.debit, 0));
   const totalCredit = round2(lines.reduce((sum, line) => sum + line.credit, 0));
-  if (Math.abs(totalDebit - totalCredit) >= 0.005) {
+  // Rows with a tax code get their tax rows added on posting, which then checks the balance.
+  if (!lines.some((line) => line.taxCode) && Math.abs(totalDebit - totalCredit) >= 0.005) {
     throw new Error('Journal entry is not balanced.');
   }
 

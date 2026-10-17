@@ -22,6 +22,8 @@ const safe = async (promise) => {
     const r = await promise;
     return r.recordset || [];
   } catch (e) {
+    // Logged, not hidden: a failing query would otherwise look like "no data".
+    console.warn('[DB] query failed, returning no rows:', e?.message || e);
     return [];
   }
 };
@@ -782,7 +784,7 @@ const getPurchaseOrderList = async ({
 
 const getPurchaseOrder = async (docEntry) => {
   // Get header
-  const headerRows = await safe(db.query(`
+  const { recordset: headerRows } = await db.query(`
     SELECT 
       T0.DocEntry,
       T0.DocNum,
@@ -812,7 +814,7 @@ const getPurchaseOrder = async (docEntry) => {
       T0.Address AS ShipToAddress,
       T0.Address2 AS PayToAddress,
       T0.TrnspCode AS ShippingType,
-      T0.LangCode AS Language,
+      ${selectPhysicalOptionalColumn(await getTableColumnSet('OPOR'), 'T0', 'LangCode', 'Language')},
       T0.Confirmed,
       CASE T0.DocStatus
         WHEN 'O' THEN 'Open'
@@ -822,7 +824,7 @@ const getPurchaseOrder = async (docEntry) => {
     FROM OPOR T0
     LEFT JOIN OSLP T1 ON T1.SlpCode = T0.SlpCode
     WHERE T0.DocEntry = @docEntry
-  `, { docEntry }));
+  `, { docEntry });
 
   if (!headerRows.length) {
     throw new Error(`Purchase Order ${docEntry} not found`);

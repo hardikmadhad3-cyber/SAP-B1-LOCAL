@@ -8,12 +8,6 @@ import { readGeneralSettings } from '../utils/generalSettingsStorage';
 const seriesSettingKeys = {
   '/sales-order': 'salesSeries',
   '/delivery': 'deliverySeries',
-  '/dc-sales-order': 'dcSalesSeries',
-  '/nc-sales-order': 'ncSalesSeries',
-  '/soda-sales-order': 'sodaSalesSeries',
-  '/dc-delivery': 'dcDeliverySeries',
-  '/nc-delivery': 'ncDeliverySeries',
-  '/soda-delivery': 'sodaDeliverySeries',
   '/sales-quotation': 'salesQuotationSeries',
   '/ar-invoice': 'arInvoiceSeries',
   '/ar-credit-memo': 'arCreditMemoSeries',

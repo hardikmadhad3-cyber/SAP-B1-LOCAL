@@ -1,303 +1,342 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import "./styles/taxCodeSetup.css";
-import TaxComponentsGrid from "./components/TaxComponentsGrid";
 import LookupModal from "./components/LookupModal";
 import {
-  createTaxCode,
-  getTaxCode,
-  updateTaxCode,
-  searchTaxCodes,
+  createTaxCode, getTaxCode, updateTaxCode, listSetupTaxCodes,
+  listTaxTypes, listTaxComponents, getTaxComponent, createTaxComponent, updateTaxComponent,
+  fetchTaxGLAccounts,
 } from "../../api/taxCodeApi";
-import { validateTaxCodeForm, validateBusinessRules } from "./validation/taxCodeValidation";
 
-// Tax Type Combination options - SAP B1 BoVatCategoryEnum
-const TAX_TYPE_COMBINATIONS = [
-  { value: "", label: "" },
-  { value: "O", label: "Output Tax (Sales)" },
-  { value: "I", label: "Input Tax (Purchasing)" },
-];
+// SAP B1 India GST setup:
+//   Tax Components (tax authorities) - e.g. CGST9: type CGST, rate 9%, sales/purchase tax accounts.
+//   Tax Codes - e.g. GST18 = CGST9 + SGST9 (intra-state) or IGST18 (inter-state).
+// The server enforces SAP's rules; this page shows its messages as they come.
 
-const EMPTY_FORM = {
-  Code: "",
-  Name: "",
-  Rate: "0.00",
-  Inactive: false,
-  Freight: false,
-  TaxTypeCombination: "",
-  VatGroups_Lines: [],
-};
+const yes = (value) => (value ? "tYES" : "tNO");
+const errorText = (err, fallback) => err.response?.data?.message || err.message || fallback;
+const formatRate = (value) => Number(value || 0).toFixed(2);
 
-function buildPayload(form) {
-  const payload = {
-    Code: form.Code.trim(),
-    Name: form.Name.trim(),
-  };
-
-  // Add optional fields
-  if (form.Inactive) {
-    payload.Inactive = "tYES";
-  }
-  
-  // Freight - only set on creation, cannot be changed
-  if (form.Freight) {
-    payload.TaxType = "vgt_Freight";
-  }
-
-  // Category - only set on creation, cannot be changed
-  if (form.TaxTypeCombination) {
-    payload.Category = form.TaxTypeCombination;
-  }
-
-  // Note: VatGroups_Lines and other complex fields not supported
-  // SAP B1 manages tax codes as simple entities
-
-  return payload;
+function useAlert() {
+  const [alert, setAlert] = useState(null);
+  const show = useCallback((type, msg) => {
+    setAlert({ type, msg });
+    setTimeout(() => setAlert(null), 6000);
+  }, []);
+  return [alert, show];
 }
 
-export default function TaxCodeSetup() {
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [mode, setMode] = useState("add"); // add | update
-  const [alert, setAlert] = useState(null);
+function Toolbar({ title, mode, loading, onSave, onNew, onFind }) {
+  return (
+    <div className="tc-toolbar">
+      <span className="tc-toolbar__title">{title}</span>
+      <button className="tc-btn tc-btn--primary" onClick={onSave} disabled={loading}>
+        {loading ? "..." : mode === "add" ? "Add" : "Update"}
+      </button>
+      <button className="tc-btn" onClick={onNew}>New</button>
+      <button className="tc-btn" onClick={onFind}>Find</button>
+    </div>
+  );
+}
+
+function Field({ label, children, wide }) {
+  return (
+    <div className={`tc-field${wide ? " tc-field--wide" : ""}`}>
+      <label className="tc-field__label">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function Check({ id, label, checked, onChange, disabled }) {
+  return (
+    <div className="tc-field tc-field--checkbox">
+      <input type="checkbox" id={id} checked={checked} onChange={(e) => onChange(e.target.checked)} disabled={disabled} />
+      <label htmlFor={id}>{label}</label>
+    </div>
+  );
+}
+
+// ---- Tax Codes ---------------------------------------------------------------
+
+const EMPTY_CODE = { Code: "", Name: "", ValidForAR: true, ValidForAP: true, Freight: false, Inactive: false, Lines: [] };
+
+function TaxCodesTab() {
+  const [form, setForm] = useState(EMPTY_CODE);
+  const [mode, setMode] = useState("add");
   const [loading, setLoading] = useState(false);
-  const [showFindModal, setShowFindModal] = useState(false);
+  const [lookup, setLookup] = useState(null);
+  const [alert, showAlert] = useAlert();
+  const set = (patch) => setForm((prev) => ({ ...prev, ...patch }));
+  const totalRate = form.Lines.reduce((sum, line) => sum + Number(line.Rate || 0), 0);
 
-  // Debug: Test API on mount
-  useEffect(() => {
-    console.log('TaxCodeSetup mounted');
-    searchTaxCodes('').then(data => {
-      console.log('Initial search test - Tax codes available:', data?.length || 0);
-    }).catch(err => {
-      console.error('Initial search test failed:', err.message);
-    });
-  }, []);
-
-  const showAlert = (type, msg) => {
-    setAlert({ type, msg });
-    setTimeout(() => setAlert(null), 5000);
-  };
-
-  const handleChange = useCallback((e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  }, []);
-
-  const resetForm = () => {
-    setForm(EMPTY_FORM);
-    setMode("add");
-    setAlert(null);
-  };
-
-  const handleAdd = async () => {
-    // Validations
-    const errors = validateTaxCodeForm(form);
-    if (errors.length > 0) {
-      showAlert("error", errors[0]); // Show first error
-      return;
-    }
-
-    // Business rule warnings
-    const warnings = validateBusinessRules(form);
-    if (warnings.length > 0) {
-      console.warn("Business rule warnings:", warnings);
-    }
-
+  const load = async (code) => {
     setLoading(true);
     try {
-      await createTaxCode(buildPayload(form));
-      showAlert("success", `Tax Code "${form.Code}" created successfully.`);
-      setMode("update");
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || "Failed to create Tax Code.";
-      showAlert("error", msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdate = async () => {
-    if (!form.Code.trim()) return;
-
-    // Validations
-    const errors = validateTaxCodeForm(form);
-    if (errors.length > 0) {
-      showAlert("error", errors[0]); // Show first error
-      return;
-    }
-
-    // Business rule warnings
-    const warnings = validateBusinessRules(form);
-    if (warnings.length > 0) {
-      console.warn("Business rule warnings:", warnings);
-    }
-
-    setLoading(true);
-    try {
-      await updateTaxCode(form.Code.trim(), buildPayload(form));
-      showAlert("success", `Tax Code "${form.Code}" updated successfully.`);
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || "Failed to update Tax Code.";
-      showAlert("error", msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = () => {
-    if (mode === "add") return handleAdd();
-    if (mode === "update") return handleUpdate();
-  };
-
-  const handleFind = async (code) => {
-    setLoading(true);
-    try {
-      const data = await getTaxCode(code);
+      const [data, components] = await Promise.all([getTaxCode(code), listTaxComponents("")]);
+      const byCode = new Map(components.map((component) => [component.Code, component]));
       setForm({
-        Code: data.Code || "",
+        Code: data.Code,
         Name: data.Name || "",
-        Rate: data.Rate || "0.00",
+        ValidForAR: data.ValidForAR !== "tNO",
+        ValidForAP: data.ValidForAP !== "tNO",
+        Freight: data.Freight === "tYES",
         Inactive: data.Inactive === "tYES",
-        Freight: data.TaxType === "vgt_Freight",
-        TaxTypeCombination: data.Category || "",
-        VatGroups_Lines: data.VatGroups_Lines || [],
+        Lines: (data.SalesTaxCodes_Lines || []).map((line) => ({
+          STACode: line.STACode,
+          Name: byCode.get(line.STACode)?.Name || "",
+          TypeName: byCode.get(line.STACode)?.TypeName || "",
+          Rate: line.EffectiveRate,
+        })),
       });
       setMode("update");
-      setShowFindModal(false);
-      showAlert("success", `Tax Code "${code}" loaded.`);
     } catch (err) {
-      showAlert("error", "Tax Code not found.");
+      showAlert("error", errorText(err, "Tax code not found."));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLinesChange = useCallback((lines) => {
-    setForm((prev) => ({ ...prev, VatGroups_Lines: lines }));
-  }, []);
+  const save = async () => {
+    const payload = {
+      Code: form.Code.trim(),
+      Name: form.Name.trim(),
+      ValidForAR: yes(form.ValidForAR),
+      ValidForAP: yes(form.ValidForAP),
+      Freight: yes(form.Freight),
+      Inactive: yes(form.Inactive),
+      SalesTaxCodes_Lines: form.Lines.map((line) => ({ STACode: line.STACode })),
+    };
+    setLoading(true);
+    try {
+      if (mode === "add") await createTaxCode(payload);
+      else await updateTaxCode(payload.Code, payload);
+      showAlert("success", `Tax code "${payload.Code}" ${mode === "add" ? "added" : "updated"}.`);
+      await load(payload.Code);
+    } catch (err) {
+      showAlert("error", errorText(err, "Could not save the tax code."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addComponent = (component) => {
+    setLookup(null);
+    if (form.Lines.some((line) => line.STACode === component.Code)) return;
+    set({ Lines: [...form.Lines, { STACode: component.Code, Name: component.Name, TypeName: component.TypeName, Rate: component.Rate }] });
+  };
 
   return (
-    <div className="tc-page">
-      {/* Toolbar */}
-      <div className="tc-toolbar">
-        <span className="tc-toolbar__title">Tax Codes - Setup</span>
-        <button className="tc-btn tc-btn--primary" onClick={handleSave} disabled={loading}>
-          {loading ? "..." : mode === "add" ? "Add" : "Update"}
-        </button>
-        <button className="tc-btn" onClick={resetForm}>
-          Cancel
-        </button>
-        <button className="tc-btn" onClick={() => setShowFindModal(true)}>
-          Find
-        </button>
-      </div>
-
+    <>
+      <Toolbar title="Tax Codes - Setup" mode={mode} loading={loading} onSave={save}
+        onNew={() => { setForm(EMPTY_CODE); setMode("add"); }} onFind={() => setLookup("find")} />
       {alert && <div className={`tc-alert tc-alert--${alert.type}`}>{alert.msg}</div>}
 
-      {/* Header Section */}
       <div className="tc-header">
         <div className="tc-header-row">
-          <div className="tc-field">
-            <label className="tc-field__label">Code*</label>
-            <input
-              className="tc-field__input tc-field__input--code"
-              name="Code"
-              value={form.Code}
-              onChange={handleChange}
-              readOnly={mode === "update"}
-              maxLength={8}
-              autoFocus
-            />
-          </div>
-
-          <div className="tc-field tc-field--wide">
-            <label className="tc-field__label">Description*</label>
-            <input
-              className="tc-field__input"
-              name="Name"
-              value={form.Name}
-              onChange={handleChange}
-              maxLength={100}
-            />
-          </div>
-
-          <div className="tc-field">
-            <label className="tc-field__label">Tax Rate</label>
-            <input
-              className="tc-field__input tc-field__input--rate tc-field__input--readonly"
-              name="Rate"
-              type="number"
-              step="0.01"
-              value={form.Rate}
-              readOnly
-              title="Tax Rate is calculated automatically from tax components"
-            />
-          </div>
-
-          <div className="tc-field tc-field--checkbox">
-            <input
-              type="checkbox"
-              id="inactive"
-              name="Inactive"
-              checked={form.Inactive}
-              onChange={handleChange}
-            />
-            <label htmlFor="inactive">Inactive</label>
-          </div>
+          <Field label="Code*">
+            <input className="tc-field__input tc-field__input--code" value={form.Code} maxLength={8}
+              readOnly={mode === "update"} onChange={(e) => set({ Code: e.target.value.toUpperCase() })} autoFocus />
+          </Field>
+          <Field label="Description*" wide>
+            <input className="tc-field__input" value={form.Name} maxLength={100} onChange={(e) => set({ Name: e.target.value })} />
+          </Field>
+          <Field label="Total Rate %">
+            <input className="tc-field__input tc-field__input--rate tc-field__input--readonly" value={formatRate(totalRate)} readOnly
+              title="Sum of the component rates" />
+          </Field>
         </div>
-
         <div className="tc-header-row">
-          <div className="tc-field tc-field--checkbox">
-            <input
-              type="checkbox"
-              id="freight"
-              name="Freight"
-              checked={form.Freight}
-              onChange={handleChange}
-              disabled={mode === "update"}
-            />
-            <label htmlFor="freight" style={{ color: mode === "update" ? "#888" : "#1a1a1a" }}>
-              Freight
-            </label>
-          </div>
-
-          <div className="tc-field tc-field--combination">
-            <label className="tc-field__label">Category</label>
-            <select
-              className="tc-field__select"
-              name="TaxTypeCombination"
-              value={form.TaxTypeCombination}
-              onChange={handleChange}
-              disabled={mode === "update"}
-            >
-              {TAX_TYPE_COMBINATIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Check id="tc-ar" label="Valid for Sales (A/R)" checked={form.ValidForAR} onChange={(v) => set({ ValidForAR: v })} />
+          <Check id="tc-ap" label="Valid for Purchasing (A/P)" checked={form.ValidForAP} onChange={(v) => set({ ValidForAP: v })} />
+          <Check id="tc-freight" label="Freight" checked={form.Freight} onChange={(v) => set({ Freight: v })} />
+          <Check id="tc-inactive" label="Inactive" checked={form.Inactive} onChange={(v) => set({ Inactive: v })} />
         </div>
       </div>
 
-      {/* Tax Components Grid */}
-      <TaxComponentsGrid lines={form.VatGroups_Lines} onChange={handleLinesChange} />
+      <div className="tc-grid-section">
+        <div className="tc-grid-wrap">
+          <table className="tc-grid">
+            <thead>
+              <tr><th>#</th><th>Component</th><th>Description</th><th>Tax Type</th><th>Rate %</th><th /></tr>
+            </thead>
+            <tbody>
+              {form.Lines.length === 0 && (
+                <tr><td colSpan={6} className="tc-grid__cell--center">Add components, e.g. CGST + SGST (intra-state) or IGST (inter-state).</td></tr>
+              )}
+              {form.Lines.map((line, index) => (
+                <tr key={line.STACode}>
+                  <td className="tc-grid__cell--center">{index + 1}</td>
+                  <td>{line.STACode}</td>
+                  <td>{line.Name}</td>
+                  <td>{line.TypeName}</td>
+                  <td className="tc-grid__cell--center">{formatRate(line.Rate)}</td>
+                  <td className="tc-grid__cell--center">
+                    <button className="tc-grid__delete-btn" title="Remove"
+                      onClick={() => set({ Lines: form.Lines.filter((_, i) => i !== index) })}>✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="tc-grid-actions">
+          <button className="tc-btn tc-btn--small" onClick={() => setLookup("component")}>Add Component</button>
+        </div>
+      </div>
 
-      {/* Find Modal */}
-      {showFindModal && (
-        <LookupModal
-          title="Find Tax Code"
-          onClose={() => setShowFindModal(false)}
-          onSelect={(row) => handleFind(row.Code)}
-          fetchOptions={searchTaxCodes}
-          columns={[
-            { key: "Code", label: "Code" },
-            { key: "Name", label: "Description" },
-            { key: "Rate", label: "Rate %" },
-          ]}
-        />
+      {lookup === "find" && (
+        <LookupModal title="Find Tax Code" onClose={() => setLookup(null)} fetchOptions={listSetupTaxCodes}
+          onSelect={(row) => { setLookup(null); load(row.Code); }}
+          columns={[{ key: "Code", label: "Code" }, { key: "Name", label: "Description" }, { key: "Rate", label: "Rate %" }, { key: "Lock", label: "Inactive" }]} />
       )}
+      {lookup === "component" && (
+        <LookupModal title="Select Tax Component" onClose={() => setLookup(null)} fetchOptions={listTaxComponents}
+          onSelect={addComponent}
+          columns={[{ key: "Code", label: "Code" }, { key: "Name", label: "Description" }, { key: "TypeName", label: "Tax Type" }, { key: "Rate", label: "Rate %" }]} />
+      )}
+    </>
+  );
+}
+
+// ---- Tax Components ------------------------------------------------------------
+
+const EMPTY_COMPONENT = {
+  Code: "", Name: "", Type: "", Rate: "0", SalesTaxAccount: "", PurchaseTaxAccount: "",
+  NonDeductiblePercent: "0", NonDeductibleAccount: "", ReverseChargePercent: "0",
+};
+const ACCOUNT_FIELDS = [
+  ["SalesTaxAccount", "Sales Tax Account*"],
+  ["PurchaseTaxAccount", "Purchase Tax Account*"],
+  ["NonDeductibleAccount", "Non-Deductible Account"],
+];
+
+function TaxComponentsTab() {
+  const [form, setForm] = useState(EMPTY_COMPONENT);
+  const [types, setTypes] = useState([]);
+  const [mode, setMode] = useState("add");
+  const [loading, setLoading] = useState(false);
+  const [lookup, setLookup] = useState(null);
+  const [alert, showAlert] = useAlert();
+  const set = (patch) => setForm((prev) => ({ ...prev, ...patch }));
+
+  useEffect(() => {
+    listTaxTypes().then(setTypes).catch((err) => showAlert("error", errorText(err, "Could not load tax types.")));
+  }, [showAlert]);
+
+  const load = async (code) => {
+    setLoading(true);
+    try {
+      const data = await getTaxComponent(code);
+      setForm({
+        Code: data.Code, Name: data.Name || "", Type: String(data.Type ?? ""), Rate: String(data.Rate ?? 0),
+        SalesTaxAccount: data.SalesTaxAccount || "", PurchaseTaxAccount: data.PurchaseTaxAccount || "",
+        NonDeductiblePercent: String(data.NonDeductiblePercent ?? 0), NonDeductibleAccount: data.NonDeductibleAccount || "",
+        ReverseChargePercent: String(data.ReverseChargePercent ?? 0),
+      });
+      setMode("update");
+    } catch (err) {
+      showAlert("error", errorText(err, "Tax component not found."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const save = async () => {
+    const payload = {
+      ...form,
+      Code: form.Code.trim(),
+      Name: form.Name.trim(),
+      Type: form.Type === "" ? null : Number(form.Type),
+      Rate: Number(form.Rate || 0),
+      NonDeductiblePercent: Number(form.NonDeductiblePercent || 0),
+      ReverseChargePercent: Number(form.ReverseChargePercent || 0),
+    };
+    setLoading(true);
+    try {
+      if (mode === "add") await createTaxComponent(payload);
+      else await updateTaxComponent(payload.Code, payload);
+      showAlert("success", `Tax component "${payload.Code}" ${mode === "add" ? "added" : "updated"}.`);
+      await load(payload.Code);
+    } catch (err) {
+      showAlert("error", errorText(err, "Could not save the tax component."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <Toolbar title="Tax Components - Setup" mode={mode} loading={loading} onSave={save}
+        onNew={() => { setForm(EMPTY_COMPONENT); setMode("add"); }} onFind={() => setLookup("find")} />
+      {alert && <div className={`tc-alert tc-alert--${alert.type}`}>{alert.msg}</div>}
+
+      <div className="tc-header">
+        <div className="tc-header-row">
+          <Field label="Code*">
+            <input className="tc-field__input tc-field__input--code" value={form.Code} maxLength={8}
+              readOnly={mode === "update"} onChange={(e) => set({ Code: e.target.value.toUpperCase() })} autoFocus />
+          </Field>
+          <Field label="Description*" wide>
+            <input className="tc-field__input" value={form.Name} maxLength={100} onChange={(e) => set({ Name: e.target.value })} />
+          </Field>
+        </div>
+        <div className="tc-header-row">
+          <Field label="Tax Type*">
+            <select className="tc-field__select" value={form.Type} onChange={(e) => set({ Type: e.target.value })}>
+              <option value="" />
+              {types.map((type) => <option key={type.AbsId} value={type.AbsId}>{type.Name}</option>)}
+            </select>
+          </Field>
+          <Field label="Rate %*">
+            <input className="tc-field__input tc-field__input--rate" type="number" min="0" max="100" step="0.01"
+              value={form.Rate} onChange={(e) => set({ Rate: e.target.value })} />
+          </Field>
+          <Field label="Non-Deductible %">
+            <input className="tc-field__input tc-field__input--rate" type="number" min="0" max="100" step="0.01"
+              value={form.NonDeductiblePercent} onChange={(e) => set({ NonDeductiblePercent: e.target.value })} />
+          </Field>
+          <Field label="Reverse Charge %">
+            <input className="tc-field__input tc-field__input--rate" type="number" min="0" max="100" step="0.01"
+              value={form.ReverseChargePercent} onChange={(e) => set({ ReverseChargePercent: e.target.value })} />
+          </Field>
+        </div>
+        <div className="tc-header-row">
+          {ACCOUNT_FIELDS.map(([field, label]) => (
+            <Field key={field} label={label}>
+              <div className="tc-grid__lookup">
+                <input className="tc-field__input" value={form[field]} onChange={(e) => set({ [field]: e.target.value })} />
+                <button className="tc-grid__lookup-btn" title="Select account" onClick={() => setLookup(field)}>…</button>
+              </div>
+            </Field>
+          ))}
+        </div>
+      </div>
+
+      {lookup === "find" && (
+        <LookupModal title="Find Tax Component" onClose={() => setLookup(null)} fetchOptions={listTaxComponents}
+          onSelect={(row) => { setLookup(null); load(row.Code); }}
+          columns={[{ key: "Code", label: "Code" }, { key: "Name", label: "Description" }, { key: "TypeName", label: "Tax Type" }, { key: "Rate", label: "Rate %" }]} />
+      )}
+      {ACCOUNT_FIELDS.some(([field]) => field === lookup) && (
+        <LookupModal title="Select G/L Account" onClose={() => setLookup(null)} fetchOptions={fetchTaxGLAccounts}
+          onSelect={(row) => { set({ [lookup]: row.code }); setLookup(null); }}
+          columns={[{ key: "code", label: "Account" }, { key: "name", label: "Name" }]} />
+      )}
+    </>
+  );
+}
+
+// ---- Page ------------------------------------------------------------------------
+
+export default function TaxCodeSetup() {
+  const [tab, setTab] = useState("codes");
+  return (
+    <div className="tc-page">
+      <div className="tc-tabs">
+        <button className={`tc-tab${tab === "codes" ? " tc-tab--active" : ""}`} onClick={() => setTab("codes")}>Tax Codes</button>
+        <button className={`tc-tab${tab === "components" ? " tc-tab--active" : ""}`} onClick={() => setTab("components")}>Tax Components</button>
+      </div>
+      {tab === "codes" ? <TaxCodesTab /> : <TaxComponentsTab />}
     </div>
   );
 }

@@ -10,7 +10,8 @@ const config = {
   apiRateWindowMs: toPositiveInt(process.env.API_RATE_WINDOW_MS, 60_000),
   apiRateMax: toPositiveInt(process.env.API_RATE_MAX, 180),
   reportRateWindowMs: toPositiveInt(process.env.REPORT_RATE_WINDOW_MS, 60_000),
-  reportRateMax: toPositiveInt(process.env.REPORT_RATE_MAX, 20),
+  // Each report page loads 4-5 lookups on open; 20 a minute blocked normal browsing.
+  reportRateMax: toPositiveInt(process.env.REPORT_RATE_MAX, 60),
   dbConcurrency: toPositiveInt(process.env.DB_QUERY_CONCURRENCY_LIMIT, 6),
   sapConcurrency: toPositiveInt(process.env.SAP_REQUEST_CONCURRENCY_LIMIT, 4),
   queueLimit: toPositiveInt(process.env.BACKEND_SAFETY_QUEUE_LIMIT, 100),

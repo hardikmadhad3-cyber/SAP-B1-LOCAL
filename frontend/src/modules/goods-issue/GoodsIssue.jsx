@@ -14,7 +14,6 @@ import ReferenceInformationModal, {
 import BatchAllocationModal from '../../components/BatchAllocationModal';
 import DistributionRuleAssignmentModal from '../../components/DistributionRuleAssignmentModal';
 import LineValueLookupModal from '../../components/sales-document/LineValueLookupModal';
-import InventoryPrintLayoutActions from '../../components/print-layout/InventoryPrintLayoutActions';
 import JournalEntryPreviewButton from '../../components/journal-entry/JournalEntryPreviewButton';
 import {
   BATCH_QTY_TOLERANCE,
@@ -47,6 +46,9 @@ import {
   readSavedFormSettings,
 } from '../../config/inventoryDocumentForm';
 
+import useUnsavedChangesWarning, { hasEnteredDocumentLines } from '../../hooks/useUnsavedChangesWarning';
+import DocumentStatusActions from '../../components/document/DocumentStatusActions';
+import { reloadRouteDocument } from '../../utils/copyToState';
 const TAB_NAMES = ['Contents', 'Attachments'];
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -201,7 +203,7 @@ function GoodsIssue() {
     [headerUdfFields, rowUdfFields, GOODS_RECEIPT_MATRIX_COLUMNS],
     { saveMode: 'explicit' },
   );
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [formSettingsOpen, setFormSettingsOpen] = useState(false);
   const [distributionRules, setDistributionRules] = useState([]);
   const [distributionDimensions, setDistributionDimensions] = useState([]);
@@ -253,6 +255,7 @@ function GoodsIssue() {
     seriesOptions[0] ||
     null;
   const hasUnsavedChanges = Boolean(currentDocEntry && isDirty);
+  useUnsavedChangesWarning(hasUnsavedChanges || (!currentDocEntry && hasEnteredDocumentLines(lines)));
   const updateActionLabel = hasUnsavedChanges ? 'Update' : 'OK';
   const primaryActionLabel = pageState.posting
     ? 'Saving...'
@@ -574,7 +577,7 @@ function GoodsIssue() {
         setIsDirty(false);
         setPageState((current) => ({
           ...current,
-          success: document.docNum ? `Goods Issue ${document.docNum} loaded.` : 'Goods Issue loaded.',
+          success: location.state?.documentStatusMessage || (document.docNum ? `Goods Issue ${document.docNum} loaded.` : 'Goods Issue loaded.'),
         }));
       } catch (error) {
         if (!ignore) {
@@ -1376,6 +1379,15 @@ function GoodsIssue() {
         <button type="button" className="po-btn sap-document-toolbar__new" onClick={resetForm}>
           New
         </button>
+        <DocumentStatusActions
+          type="goods-issue"
+          docEntry={currentDocEntry}
+          actions={['cancel']}
+          className="po-btn"
+          disabled={pageState.posting || pageState.loading}
+          onDone={(action) => reloadRouteDocument(navigate, location, 'goodsIssueDocEntry', currentDocEntry, action)}
+          onError={(message) => setPageState((p) => ({ ...p, error: message, success: '' }))}
+        />
         <button
           type="button"
           className="po-btn sap-document-toolbar__duplicate"
@@ -1400,15 +1412,6 @@ function GoodsIssue() {
         >
           Form Settings
         </button>
-        <InventoryPrintLayoutActions
-          documentKey="goodsIssue"
-          docEntry={currentDocEntry}
-          docNumber={header.number}
-          series={header.series}
-          disabled={pageState.posting || pageState.loading}
-          onSuccess={(message) => setPageState((current) => ({ ...current, error: '', success: message }))}
-          onError={(message) => setPageState((current) => ({ ...current, success: '', error: message }))}
-        />
         <JournalEntryPreviewButton
           documentType="goodsIssue"
           documentLabel="Goods Issue"
@@ -1584,7 +1587,7 @@ function GoodsIssue() {
       {valErrors.form && <div className="po-alert po-alert--error">{valErrors.form}</div>}
 
       <div className="po-header-card gr-goods-receipt__footer-card" style={{ marginTop: 0 }}>
-        <div>
+        <div className="sap-document-footer-fields">
           <div>
             <div className="po-field" style={{ alignItems: 'flex-start' }}>
               <label className="po-field__label" style={{ paddingTop: 4 }}>

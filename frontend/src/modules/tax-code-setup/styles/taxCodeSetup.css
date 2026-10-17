@@ -458,3 +458,27 @@
 .tc-lookup-table__row:hover {
   background: #e8f0fe;
 }
+
+/* Tax Codes / Tax Components tabs */
+.tc-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #c8c8c8;
+}
+
+.tc-tab {
+  padding: 6px 16px;
+  border: 1px solid #c8c8c8;
+  border-bottom: none;
+  background: #f0f0f0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tc-tab--active {
+  background: #fff;
+  font-weight: 600;
+  position: relative;
+  top: 1px;
+}
