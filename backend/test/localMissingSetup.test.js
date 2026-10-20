@@ -66,7 +66,7 @@ test('M6 masters round-trip into existing readers and enforce setup rules', {ski
 
     await setup.action('account-template','apply');
     await setup.action('account-template','apply');
-    assert.equal((await sql('SELECT count(*)::int AS n FROM "OACT"')).rows[0].n,15);
+    assert.equal((await sql('SELECT count(*)::int AS n FROM "OACT"')).rows[0].n,18, 'starter chart + template titles + WIP, variance (017) and resource absorption (019) accounts');
     assert.equal((await masters.getAccount('120000')).FatherAccountKey,'ASSETS');
     await assert.rejects(setup.save('item-groups',group.ItmsGrpCod,{BalInvntAc:'ASSETS'}),/title account/);
     const category=(await setup.list('gl-determination')).rows[0];

@@ -21,3 +21,9 @@ export const createIssue = (data) =>
 
 export const lookupProductionOrders = (query = '', type = '') =>
   apiClient.get('/issue-for-production/lookup/production-orders', { params: { query, type } }).then((r) => r.data);
+
+export const cancelIssue = (docEntry) =>
+  apiClient.post(`/issue-for-production/${encodeURIComponent(docEntry)}/cancel`).then((r) => r.data);
+
+export const navigateIssue = (direction, from = '') =>
+  apiClient.get('/issue-for-production/navigate', { params: { direction, from } }).then((r) => r.data);

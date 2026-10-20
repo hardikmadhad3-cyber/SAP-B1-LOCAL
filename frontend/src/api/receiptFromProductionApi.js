@@ -21,3 +21,9 @@ export const createReceipt = (data) =>
 
 export const lookupProductionOrdersForReceipt = (query = '', type = '') =>
   apiClient.get('/receipt-from-production/lookup/production-orders', { params: { query, type } }).then((r) => r.data);
+
+export const cancelReceipt = (docEntry) =>
+  apiClient.post(`/receipt-from-production/${encodeURIComponent(docEntry)}/cancel`).then((r) => r.data);
+
+export const navigateReceipt = (direction, from = '') =>
+  apiClient.get('/receipt-from-production/navigate', { params: { direction, from } }).then((r) => r.data);

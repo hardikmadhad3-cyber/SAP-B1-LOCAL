@@ -483,3 +483,11 @@ test('schema service exposes getCurrentSchema alias for dummy validation integra
   assert.ok(Array.isArray(schema.headerFields));
   assert.ok(Array.isArray(schema.lineFields));
 });
+
+test('document line matrices expose only the SAP B1 Distribution Rule column, not Distribution Rule 2-5', () => {
+  const constants = require('../modules/newSalesOrder/newSalesOrderConstants');
+  for (const fields of [constants.SALES_ORDER_LINE_STANDARD_FIELDS, constants.SERVICE_DOCUMENT_LINE_STANDARD_FIELDS]) {
+    assert.ok(fields.CostingCode, 'Distribution Rule stays');
+    for (const n of [2, 3, 4, 5]) assert.equal(fields[`CostingCode${n}`], undefined);
+  }
+});

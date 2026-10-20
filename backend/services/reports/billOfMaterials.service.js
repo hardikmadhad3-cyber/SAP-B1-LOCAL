@@ -17,11 +17,12 @@ const buildRangeCondition = (columnExpression, fromValue, toValue, params, prefi
     params[`${prefix}To`] = to;
     clauses.push(`${columnExpression} BETWEEN @${prefix}From AND @${prefix}To`);
   } else if (from) {
+    // SAP: a lone "From" starts the range there, a lone "To" ends it.
     params[`${prefix}From`] = from;
-    clauses.push(`${columnExpression} = @${prefix}From`);
+    clauses.push(`${columnExpression} >= @${prefix}From`);
   } else if (to) {
     params[`${prefix}To`] = to;
-    clauses.push(`${columnExpression} = @${prefix}To`);
+    clauses.push(`${columnExpression} <= @${prefix}To`);
   }
 
   return clauses;
@@ -168,8 +169,11 @@ if (parentCodes.length) {
             "COALESCE(NULLIF(I.InvntryUom, ''), NULLIF(U.UomCode, ''), NULLIF(U.UomName, ''), '') AS UoM,",
             "CAST(ISNULL(L.Quantity, 0) AS DECIMAL(19, 6)) AS Quantity,",
             "ISNULL(L.Warehouse, '') AS WarehouseCode, ISNULL(W.WhsName, '') AS WarehouseName,",
-            "CAST(ISNULL(L.Price, 0) AS DECIMAL(19, 6)) AS Price",
+            "CAST(ISNULL(L.Price, 0) AS DECIMAL(19, 6)) AS Price, ISNULL(L.Currency, '') AS Currency,",
+            "CAST(ISNULL(SUB.Qauntity, 1) AS DECIMAL(19, 6)) AS ChildBomQty, L.StageId, ISNULL(S.Name, '') AS StageName",
             "FROM ITT1 L LEFT JOIN OITM I ON I.ItemCode = L.Code",
+            "LEFT JOIN OITT SUB ON SUB.Code = L.Code",
+            "LEFT JOIN ITT2 S ON S.Father = L.Father AND S.StageId = L.StageId",
             hasResources ? "LEFT JOIN ORSC R ON R.ResCode = L.Code" : "",
             "LEFT JOIN OUOM U ON U.UomEntry = I.IUoMEntry",
             "LEFT JOIN OWHS W ON W.WhsCode = L.Warehouse",
@@ -184,23 +188,28 @@ if (parentCodes.length) {
       }
       pendingCodes = [...nextCodes].filter((code) => !directChildren.has(code));
     }
+    const rootQty = new Map(rows.map((row) => [row.ItemCode, Number(row.Quantity || 1) || 1]));
     parentCodes.forEach((rootCode) => {
       const children = [];
-      const visit = (parentCode, level, ancestors) => {
+      // quantity = per parent BOM (as entered); extendedQuantity = needed for the root's X quantity.
+      const visit = (parentCode, level, ancestors, parentQty, parentBomQty) => {
         if (level > MAX_BOM_DEPTH || ancestors.has(parentCode)) return;
         const path = new Set(ancestors).add(parentCode);
         (directChildren.get(parentCode) || []).forEach((node) => {
+          const extended = (parentQty * Number(node.Quantity || 0)) / (parentBomQty || 1);
           children.push({
             itemCode: node.ItemCode || "", itemDescription: node.ItemDescription || "",
-            uom: node.UoM || "", quantity: Number(node.Quantity || 0),
+            uom: node.UoM || "", quantity: Number(node.Quantity || 0), extendedQuantity: Number(extended.toFixed(6)),
             whse: node.WarehouseCode || "", warehouseName: node.WarehouseName || "",
-            price: Number(node.Price || 0), currency: "",
+            price: Number(node.Price || 0), currency: node.Currency || "",
+            routeStage: node.StageName || "", routeSequence: node.StageId ?? "",
             parentCode: node.ParentCode || "", depth: level + 1,
           });
-          visit(node.ItemCode, level + 1, path);
+          visit(node.ItemCode, level + 1, path, extended, Number(node.ChildBomQty || 1));
         });
       };
-      visit(rootCode, 1, new Set());
+      const quantity = rootQty.get(rootCode) || 1;
+      visit(rootCode, 1, new Set(), quantity, quantity);
       childrenByParent.set(rootCode, children);
     });
   }

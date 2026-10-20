@@ -55,7 +55,7 @@ const updateBOM = async (req, res) => {
     
     await _assertNoCircularReferences(payload.TreeCode || code, payload.ProductTreeLines);
     
-    await sapService.request({ method: "PATCH", url: `/ProductTrees('${encodeURIComponent(code)}')`, data: payload });
+    await sapService.request({ method: "PATCH", url: sapService.buildStringKeyPath("ProductTrees", code), data: payload });
     const updated = await masterDataDbService.getBOM(code);
     res.json(updated || payload);
   } catch (err) {
@@ -67,11 +67,28 @@ const updateBOM = async (req, res) => {
 // ── Delete BOM ────────────────────────────────────────────────────────────────
 const deleteBOM = async (req, res) => {
   try {
-    await sapService.request({ method: "DELETE", url: `/ProductTrees('${encodeURIComponent(req.params.treeCode)}')` });
+    await sapService.request({ method: "DELETE", url: sapService.buildStringKeyPath("ProductTrees", req.params.treeCode) });
     res.json({ success: true });
   } catch (err) {
     res.status(err.response?.status || 500).json({ message: _sapMsg(err) });
   }
+};
+
+// First / Previous / Next / Last BOM (SAP record browsing).
+const navigateBOM = async (req, res) => {
+  try {
+    const code = await require("../services/productionDbService").navigateRecord("bom", req.query.direction, req.query.from);
+    if (!code) return res.status(404).json({ message: "No more bills of materials." });
+    res.json(await masterDataDbService.getBOM(code));
+  } catch (err) {
+    res.status(err.status || 500).json({ message: _sapMsg(err) });
+  }
+};
+
+const lookupResources = async (req, res) => {
+  try {
+    res.json(await require("../services/productionDbService").lookupResources(req.query.query || ""));
+  } catch (err) { res.status(500).json({ message: _sapMsg(err) }); }
 };
 
 // ── Lookups ───────────────────────────────────────────────────────────────────
@@ -184,6 +201,17 @@ function _buildPayload(body) {
   if (opt(body.DistributionRule)) p.DistributionRule = body.DistributionRule;
   if (opt(body.Project))          p.Project          = body.Project;
 
+  // Route stages of the BOM; rows refer to them by StageID.
+  if (Array.isArray(body.ProductTreeStages)) {
+    p.ProductTreeStages = body.ProductTreeStages
+      .filter((stage) => opt(stage.StageEntry))
+      .map((stage) => ({
+        StageEntry: Number(stage.StageEntry),
+        ...(validStageId(stage.StageID) && { StageID: Number(stage.StageID) }),
+        ...(opt(stage.Name) && { Name: stage.Name }),
+      }));
+  }
+
   if (Array.isArray(body.ProductTreeLines) && body.ProductTreeLines.length > 0) {
     p.ProductTreeLines = body.ProductTreeLines
       .filter((l) => l.ItemType === "pit_Text" ? (l.LineText || l.Comment) : l.ItemCode)
@@ -262,7 +290,7 @@ const getItemDetails = async (req, res) => {
 };
 
 module.exports = {
-  listBOMs, getBOM, createBOM, updateBOM, deleteBOM,
+  listBOMs, getBOM, createBOM, updateBOM, deleteBOM, navigateBOM, lookupResources,
   lookupItems, lookupWarehouses, lookupPriceLists,
   lookupDistributionRules, lookupProjects, lookupGLAccounts,
   getItemDetails,

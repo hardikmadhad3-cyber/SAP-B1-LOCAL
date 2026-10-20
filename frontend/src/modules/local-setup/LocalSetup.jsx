@@ -5,6 +5,7 @@ import '../item-master/styles/itemMaster.css';
 import './localSetup.css';
 
 const yesNo = [['N','No'],['Y','Yes']];
+const resourceTypes = [['M','Machine'],['L','Labour'],['O','Other']];
 const field = (name,label,type='text',options) => ({name,label,type,options});
 const groupAccounts = [
   ['BalInvntAc','Inventory'],['SaleCostAc','Cost of goods sold'],['RevenuesAc','Revenue'],['ExpensesAc','Expense'],
@@ -25,7 +26,7 @@ const CONFIG = {
   'payment-methods': { title:'Payment Methods', key:'PayMethCod', manualKey:true, fields:[field('PayMethCod','Code'),field('Descript','Description'),field('Type','Direction','select',[['I','Incoming'],['O','Outgoing']]),field('BankTransf','Payment means','select',[['T','Bank transfer'],['C','Check'],['B','Bill of exchange']]),field('GLAccount','G/L account','accounts'),field('Active','Active','select',yesNo)], defaults:{Type:'O',BankTransf:'T',Active:'Y'} },
   'gl-determination': { title:'G/L Account Determination', key:'AbsEntry', editOnly:true, columns:['PeriodCat','PeriodName'], fields:[
     ['LinkAct_1','Domestic receivables'],['LinkAct_10','Domestic payables'],['LinkAct_3','Cash'],['LinkAct_18','Opening balance'],
-    ['DfltIncom','Revenue'],['DfltExpn','Expense'],['COGM_Act','Cost of goods sold'],['BalanceAct','Goods clearing'],['AlocCstAct','Allocation'],['DftStockOB','Opening warehouse balance'],['RoundAcct','Rounding'],['DecreasAc','Inventory offset - decrease'],['IncreasAc','Inventory offset - increase'],['CashDscAR','Cash discount (sales)'],['CashDscAP','Cash discount (purchasing)'],
+    ['DfltIncom','Revenue'],['DfltExpn','Expense'],['COGM_Act','Cost of goods sold'],['BalanceAct','Goods clearing'],['AlocCstAct','Allocation'],['DftStockOB','Opening warehouse balance'],['RoundAcct','Rounding'],['DecreasAc','Inventory offset - decrease'],['IncreasAc','Inventory offset - increase'],['CashDscAR','Cash discount (sales)'],['CashDscAP','Cash discount (purchasing)'],['WipAcct','Work in process'],['WipVarAcct','WIP variance'],['ResAcct','Resource absorption'],
   ].map(([name,label])=>field(name,`${label} account`,'accounts')) },
   'numbering-series': { title:'Numbering Series', key:'Series', columns:['SeriesName','ObjectCode','DocSubType','Indicator','NextNumber','LastNum','Locked'], fields:[
     field('SeriesName','Series name'),field('ObjectCode','Document / master','select',objectTypes),field('DocSubType','Subtype','select',[['--','Standard'],['GA','GST tax invoice'],['C','Customer / lead'],['S','Vendor']]),
@@ -35,6 +36,13 @@ const CONFIG = {
   'posting-periods': { title:'Monthly Posting Periods', key:'AbsEntry', editOnly:true, columns:['Code','F_RefDate','T_RefDate','PeriodStat'], fields:[field('Name','Period name'),field('PeriodStat','Status','select',[['N','Unlocked'],['Y','Locked']]),field('F_DueDate','Due date from','date'),field('T_DueDate','Due date to','date'),field('F_TaxDate','Document date from','date'),field('T_TaxDate','Document date to','date')] },
   'exchange-rates': { title:'Exchange Rates', key:'Currency', columns:['RateDate','Currency','Rate'], fields:[field('Currency','Currency','currencies'),field('RateDate','Date','date'),field('Rate','Local currency per 1 foreign unit','number')], defaults:{Rate:1} },
   'account-template': { title:'Chart of Accounts Template', key:'AcctCode', editOnly:true, columns:['AcctCode','AcctName','FatherNum','Postable'], fields:[] },
+  resources: { title:'Resources', key:'ResCode', manualKey:true, columns:['ResCode','ResName','ResType','StdCost','validFor'], fields:[
+    field('ResCode','Resource No.'),field('ResName','Description'),field('ResType','Type','select',resourceTypes),field('ResGrpCod','Resource group','resourceGroups'),
+    field('UnitOfMsr','Unit of measure'),field('IssueMthd','Issue method','select',[['M','Manual'],['B','Backflush']]),field('DfltWH','Default warehouse','warehouses'),
+    field('StdCost','Standard cost per unit','number'),field('ResAcct','Resource account','accounts'),field('validFor','Active','select',yesNo),field('Remarks','Remarks'),
+  ], defaults:{ResType:'M',IssueMthd:'M',StdCost:0,validFor:'Y'} },
+  'resource-groups': { title:'Resource Groups', key:'ResGrpCod', fields:[field('ResGrpNam','Group name'),field('ResType','Type','select',resourceTypes)], defaults:{ResType:'M'} },
+  'route-stages': { title:'Route Stages', key:'AbsEntry', columns:['AbsEntry','Code','Desc'], fields:[field('Code','Code'),field('Desc','Description')] },
 };
 const message = (error) => error.response?.data?.message || error.message;
 const display = (value) => value == null ? '' : /^\d{4}-\d{2}-\d{2}T/.test(String(value)) ? String(value).slice(0,10) : String(value);
@@ -81,6 +89,8 @@ function SetupPage({kind}) {
     countries:(data.countries || []).map((c)=>[c.Code,c.Name]),
     currencies:(data.currencies || []).map((c)=>[c.CurrCode,`${c.CurrCode} - ${c.CurrName}`]),
     uomGroups:(data.uomGroups || []).map((g)=>[g.UgpEntry,g.UgpName]),
+    warehouses:(data.warehouses || []).map((w)=>[w.WhsCode,`${w.WhsCode} - ${w.WhsName}`]),
+    resourceGroups:(data.resourceGroups || []).map((g)=>[g.ResGrpCod,g.ResGrpNam]),
   }[f.type]);
   const columns = config.columns || [config.key,...config.fields.slice(0,3).map((f)=>f.name).filter((name)=>name!==config.key)];
   const labels = { ItmsGrpCod:'Code',GroupCode:'Code',SlpCode:'Code',Series:'Series',AbsEntry:'ID',Code:'Code',

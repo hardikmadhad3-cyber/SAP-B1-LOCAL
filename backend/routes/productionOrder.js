@@ -25,10 +25,15 @@ router.get('/bom-explode/:itemCode', ctrl.explodeBOM);
 
 // CRUD
 router.get('/list',         ctrl.getProductionOrders);
+router.get('/navigate',     ctrl.navigateProductionOrder);
 router.get('/:docEntry',    ctrl.getProductionOrderByDocEntry);
 router.post('/',            ctrl.createProductionOrder);
 router.patch('/:docEntry',  ctrl.updateProductionOrder);
 router.post('/:docEntry/release', ctrl.releaseProductionOrder);
 router.post('/:docEntry/close', ctrl.closeProductionOrder);
+router.post('/:docEntry/cancel', ctrl.cancelProductionOrder);
+
+// Attachments tab (stored per company and record, like Item Master).
+require('../controllers/attachmentController').mountAttachments(router, require('multer')({ dest: 'uploads/tmp/' }), { kind: 'production-orders', param: 'docEntry', baseUrl: '/production-order' });
 
 module.exports = router;

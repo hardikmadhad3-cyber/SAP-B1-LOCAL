@@ -1,11 +1,14 @@
 import SapDateInput from '../../components/common/SapDateInput';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import "../../modules/item-master/styles/itemMaster.css";
 import "./receiptFromProduction.css";
 import ReceiptAllocationModal from "./components/ReceiptAllocationModal";
 import ReceiptList from "./components/ReceiptList";
 import ReceiptLines from "./components/ReceiptLines";
 import ProductionOrderSearchModal from "./components/ProductionOrderSearchModal";
+import BackflushPreview from "./components/BackflushPreview";
+import { toQty, getPostingLines, toPayloadLine } from "./receiptHelpers";
 import ItemSearchModal from "../bom/components/ItemSearchModal";
 import {
   fetchReceiptReferenceData,
@@ -13,6 +16,8 @@ import {
   fetchProductionOrderForReceipt,
   fetchReceiptByDocEntry,
   createReceipt,
+  cancelReceipt,
+  navigateReceipt,
 } from "../../api/receiptFromProductionApi";
 import { fetchBOMItems, getItemDetails } from "../../api/bomApi";
 import { getSapVisibleDocumentSeries } from "../../utils/seriesDefaults";
@@ -24,6 +29,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 const EPSILON = 0.000001;
 
 const EMPTY_HEADER = {
+  doc_entry: null,
+  cancelled: false,
+  trans_id: null,
   doc_num: "",
   series: "",
   posting_date: today(),
@@ -81,10 +89,6 @@ const EMPTY_LINE = (overrides = {}) => ({
 });
 
 const isYes = (value) => value === true || value === "tYES" || value === "Y";
-const toQty = (value) => {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : 0;
-};
 
 const getWarehouseMeta = (warehouses, code) =>
   warehouses.find((warehouse) => warehouse.WarehouseCode === code) || null;
@@ -163,6 +167,8 @@ const getAllocationError = (line) => {
 };
 
 export default function ReceiptFromProductionModule() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [mode, setMode] = useState(MODES.ADD);
   const [tab, setTab] = useState(0);
   const [header, setHeader] = useState(EMPTY_HEADER);
@@ -281,7 +287,7 @@ export default function ReceiptFromProductionModule() {
           order_no: String(poInfo.doc_num || ""),
           warehouse: poInfo.warehouse || "",
           base_entry: poInfo.doc_entry,
-          base_line: 0,
+          base_line: null,
           base_type: 202,
           by_product: true,
         }
@@ -301,6 +307,7 @@ export default function ReceiptFromProductionModule() {
     setLoading(true);
     try {
       const data = await fetchProductionOrderForReceipt(docEntry);
+      const receiptLines = Array.isArray(data.receipt_lines) ? data.receipt_lines : [];
 
       setPoInfo({
         doc_entry: data.doc_entry,
@@ -317,10 +324,10 @@ export default function ReceiptFromProductionModule() {
         warehouse: data.warehouse,
         due_date: data.due_date,
         manual_lines_count: data.manual_lines_count || 0,
+        by_products: receiptLines.filter((line) => line.by_product),
       });
 
       const isReturnComponents = data.type === "bopotDisassemble";
-      const receiptLines = Array.isArray(data.receipt_lines) ? data.receipt_lines : [];
 
       if (isReturnComponents && receiptLines.length > 0) {
         setLines(
@@ -373,11 +380,33 @@ export default function ReceiptFromProductionModule() {
         data.warehouse || ""
       );
 
+      // By-products (planned < 0 on the order): the user enters what was produced; 0 rows are not posted.
+      const byProductLines = receiptLines
+        .filter((line) => line.by_product)
+        .map((line) =>
+          applyWarehouseSettings(
+            EMPTY_LINE({
+              ...line,
+              quantity: 0,
+              by_product: true,
+              base_entry: data.doc_entry,
+              order_no: line.order_no || String(data.doc_num || ""),
+              series_no: line.series_no || data.series_name || "",
+              manage_batch: isYes(line.manage_batch),
+              manage_serial: isYes(line.manage_serial),
+              enable_bin_locations: isYes(line.enable_bin_locations),
+            }),
+            warehouses,
+            line.warehouse || data.warehouse || ""
+          )
+        );
+
       setLines([
         {
           ...primaryLine,
           enable_bin_locations: isYes(data.enable_bin_locations) || primaryLine.enable_bin_locations,
         },
+        ...byProductLines,
       ]);
 
       setBackflushLines(data.backflush_lines || []);
@@ -385,6 +414,9 @@ export default function ReceiptFromProductionModule() {
       const messages = [`Production Order #${data.doc_num} loaded.`];
       if (data.backflush_lines?.length > 0) {
         messages.push(`${data.backflush_lines.length} backflush component(s) will auto-issue on receipt.`);
+      }
+      if (byProductLines.length > 0) {
+        messages.push(`${byProductLines.length} by-product row(s) added; enter the produced quantity.`);
       }
       if (data.manual_lines_count > 0) {
         messages.push(`${data.manual_lines_count} manual component(s) must be issued separately via Issue for Production.`);
@@ -417,6 +449,9 @@ export default function ReceiptFromProductionModule() {
         const itemManagement = normalizeItemManagement(details || {});
         const nextWarehouse =
           details?.DefaultWarehouse || line.warehouse || poInfo?.warehouse || "";
+        const orderRow = line.by_product
+          ? (poInfo?.by_products || []).find((row) => row.item_code === item.ItemCode)
+          : null;
 
         return applyWarehouseSettings(
           {
@@ -433,6 +468,7 @@ export default function ReceiptFromProductionModule() {
             batch_numbers: [],
             serial_numbers: [],
             bin_allocations: [],
+            ...(orderRow && { base_line: orderRow.base_line }),
           },
           warehouses,
           nextWarehouse
@@ -472,7 +508,7 @@ export default function ReceiptFromProductionModule() {
       return false;
     }
 
-    const validLines = lines.filter((line) => line.item_code.trim());
+    const validLines = getPostingLines(lines);
     if (validLines.length === 0) {
       showAlert("error", "At least one receipt line with an item is required.");
       return false;
@@ -523,7 +559,7 @@ export default function ReceiptFromProductionModule() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const postingLines = lines.filter((line) => line.item_code.trim());
+      const postingLines = getPostingLines(lines);
       const primaryLine = getPrimaryLine(postingLines);
       const isReturnComponents = poInfo?.type === "bopotDisassemble";
       const payload = {
@@ -543,29 +579,7 @@ export default function ReceiptFromProductionModule() {
         branch: header.branch,
         remarks: header.remarks,
         journal_remark: header.journal_remark || "Receipt from Production",
-        lines: postingLines.map((line) => ({
-          item_code: line.item_code,
-          quantity: toQty(line.quantity),
-          warehouse: line.warehouse,
-          uom_code: line.uom_code,
-          unit_price: toQty(line.unit_price),
-          trans_type: line.trans_type,
-          location: line.location,
-          distribution_rule: line.distribution_rule,
-          project: line.project,
-          base_entry: line.base_entry ?? poInfo.doc_entry,
-          base_line: line.base_line ?? 0,
-          base_type: line.base_type ?? 202,
-          order_no: line.order_no,
-          series_no: line.series_no,
-          by_product: line.by_product,
-          manage_batch: line.manage_batch,
-          manage_serial: line.manage_serial,
-          enable_bin_locations: line.enable_bin_locations,
-          batch_numbers: line.batch_numbers || [],
-          serial_numbers: line.serial_numbers || [],
-          bin_allocations: line.bin_allocations || [],
-        })),
+        lines: postingLines.map((line) => toPayloadLine(line, poInfo.doc_entry)),
       };
 
       const result = await createReceipt(payload);
@@ -574,7 +588,7 @@ export default function ReceiptFromProductionModule() {
       showAlert(
         "success",
         `Receipt #${result.doc_num} added. Total quantity: ${totalPostedQty.toFixed(2)}.` +
-          (backflushLines.length > 0 ? ` ${backflushLines.length} backflush component(s) auto-issued.` : "")
+          (backflushLines.length > 0 ? ` ${backflushLines.length} backflush component(s) issued by the system.` : "")
       );
       resetForm();
     } catch (err) {
@@ -584,13 +598,11 @@ export default function ReceiptFromProductionModule() {
     }
   };
 
-  const handleSelectFromList = async (docEntry) => {
-    setLoading(true);
-    try {
-      const data = await fetchReceiptByDocEntry(docEntry);
-      const receipt = data.receipt;
-
+  const applyReceipt = (receipt) => {
       setHeader({
+        doc_entry: receipt.doc_entry ?? null,
+        cancelled: Boolean(receipt.cancelled),
+        trans_id: receipt.trans_id ?? null,
         doc_num: receipt.doc_num || "",
         series: receipt.series || "",
         posting_date: receipt.posting_date || today(),
@@ -655,14 +667,66 @@ export default function ReceiptFromProductionModule() {
 
       setPoInfo(receipt.prod_order_entry ? { doc_entry: receipt.prod_order_entry } : null);
       setBackflushLines([]);
+      setTab(0);
       setMode(MODES.VIEW);
-      showAlert("success", `Receipt #${receipt.doc_num} loaded.`);
+  };
+
+  const loadReceipt = async (docEntry, announce = true) => {
+    setLoading(true);
+    try {
+      const data = await fetchReceiptByDocEntry(docEntry);
+      applyReceipt(data.receipt);
+      if (announce) showAlert("success", `Receipt #${data.receipt.doc_num} loaded.`);
     } catch (err) {
       showAlert("error", err.response?.data?.detail || "Load failed.");
     } finally {
       setLoading(false);
     }
   };
+
+  const handleSelectFromList = (docEntry) => loadReceipt(docEntry);
+
+  const handleNavigate = async (direction) => {
+    setLoading(true);
+    try {
+      const data = await navigateReceipt(direction, mode === MODES.VIEW ? header.doc_entry ?? "" : "");
+      applyReceipt(data.receipt);
+    } catch (err) {
+      showAlert(err.response?.status === 404 ? "success" : "error", err.response?.data?.detail || "No more documents.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelDocument = async () => {
+    if (!header.doc_entry || header.cancelled) return;
+    // eslint-disable-next-line no-alert
+    if (!window.confirm(`Cancel Receipt from Production #${header.doc_num}? SAP creates a cancellation document.`)) return;
+    setLoading(true);
+    try {
+      const data = await cancelReceipt(header.doc_entry);
+      if (data?.receipt) applyReceipt(data.receipt);
+      else await loadReceipt(header.doc_entry, false);
+      showAlert("success", data?.message || `Receipt #${header.doc_num} cancelled.`);
+    } catch (err) {
+      showAlert("error", err.response?.data?.detail || err.message || "Cancel failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Deep links (Production Order "Report Completion"): router state or query string.
+  const deepLinkDone = useRef(false);
+  useEffect(() => {
+    if (deepLinkDone.current) return;
+    const params = new URLSearchParams(location.search || "");
+    const prodOrderEntry = location.state?.prodOrderEntry ?? params.get("prodOrder");
+    const receiptEntry = location.state?.docEntry ?? params.get("docEntry");
+    if (prodOrderEntry == null && receiptEntry == null) return;
+    deepLinkDone.current = true;
+    if (receiptEntry != null) loadReceipt(receiptEntry);
+    else loadProductionOrder(prodOrderEntry);
+  }, [location]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalQty = lines.reduce((sum, line) => sum + toQty(line.quantity), 0);
   const primaryLine = getPrimaryLine(lines);
@@ -689,6 +753,7 @@ export default function ReceiptFromProductionModule() {
         <span className={`im-mode-badge im-mode-badge--${isView ? "update" : "add"}`}>
           {isView ? "View Mode" : "Add Mode"}
         </span>
+        {isView && header.cancelled && <span className="im-mode-badge rfp-cancelled-badge">Cancelled</span>}
 
         {!isView && (
           <button className="im-btn im-btn--primary" onClick={handlePost} disabled={loading || !poInfo}>
@@ -696,8 +761,25 @@ export default function ReceiptFromProductionModule() {
           </button>
         )}
         <button className="im-btn" onClick={() => { resetForm(); setMode(MODES.ADD); }}>New</button>
-<button className="im-btn" data-sap-find-action onClick={() => setMode(MODES.LIST)}>Find</button>
-        <button className="im-btn" onClick={resetForm}>Cancel</button>
+        <button className="im-btn" data-sap-find-action onClick={() => setMode(MODES.LIST)}>Find</button>
+        {!isView && <button className="im-btn" onClick={resetForm}>Clear</button>}
+        {isView && header.trans_id && (
+          <button
+            className="im-btn"
+            onClick={() => navigate("/journal-entry", { state: { journalEntryTransId: header.trans_id } })}
+          >
+            Journal Entry
+          </button>
+        )}
+        {isView && header.doc_entry && !header.cancelled && (
+          <button className="im-btn" onClick={handleCancelDocument} disabled={loading}>Cancel Document</button>
+        )}
+        <span className="rfp-browse" role="group" aria-label="Browse documents">
+          <button className="im-btn" onClick={() => handleNavigate("first")} disabled={loading}>First</button>
+          <button className="im-btn" onClick={() => handleNavigate("prev")} disabled={loading}>Previous</button>
+          <button className="im-btn" onClick={() => handleNavigate("next")} disabled={loading}>Next</button>
+          <button className="im-btn" onClick={() => handleNavigate("last")} disabled={loading}>Last</button>
+        </span>
       </div>
 
       {alert && <div className={`im-alert im-alert--${alert.type}`}>{alert.msg}</div>}
@@ -828,6 +910,13 @@ export default function ReceiptFromProductionModule() {
             onAllocate={(lineId) => setAllocationModal({ open: true, lineId })}
           />
         )}
+        {tab === 0 && !isView && (
+          <BackflushPreview
+            lines={backflushLines}
+            receiptQty={primaryLine && !primaryLine.by_product ? toQty(primaryLine.quantity) : 0}
+            plannedQty={toQty(poInfo?.planned_qty)}
+          />
+        )}
 
         {tab === 1 && (
           <div className="rfp-attachment-panel">
@@ -896,6 +985,8 @@ export default function ReceiptFromProductionModule() {
         <ReceiptAllocationModal
           line={activeAllocationLine}
           readOnly={isView}
+          createBatches
+          postingDate={header.posting_date}
           onSave={(allocations) => handleAllocationSave(activeAllocationLine._id, allocations)}
           onClose={() => setAllocationModal({ open: false, lineId: null })}
         />

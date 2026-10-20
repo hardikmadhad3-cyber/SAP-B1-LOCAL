@@ -2,23 +2,32 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "../../modules/item-master/styles/itemMaster.css";
 import "./bom.css";
-import BOMLines from "./components/BOMLines";
-import BOMAttachments from "./components/BOMAttachments";
+import BOMLines, { STAGE_TYPE } from "./components/BOMLines";
 import ItemSearchModal from "./components/ItemSearchModal";
+import DocumentAttachmentsTab from "../../components/document/DocumentAttachmentsTab";
 import {
   getBOM,
   createBOM,
   updateBOM,
+  deleteBOM,
+  navigateBOM,
   fetchBOMItems,
+  fetchBOMResources,
   fetchBOMWarehouses,
   fetchBOMPriceLists,
   fetchBOMDistributionRules,
   fetchBOMProjects,
+  fetchBOMAttachments,
+  uploadBOMAttachment,
+  deleteBOMAttachment,
+  downloadBOMAttachment,
   getItemDetails,
 } from "../../api/bomApi";
+import { fetchProdOrderRouteStages } from "../../api/productionOrderApi";
 
 const MODES = { ADD: "add", FIND: "find", UPDATE: "update" };
 const TABS = ["Contents", "Attachments"];
+
 
 const BOM_TYPES = [
   { value: "iProductionTree", label: "Production" },
@@ -33,6 +42,8 @@ const EMPTY_HEADER = {
   TreeType: "iProductionTree",
   Quantity: 1,
   ProductionStdCost: 0,
+  ProductPrice: 0,
+  Currency: "",
   PlanAvgProdSize: 1,
   HideBOMComponentsInPrintout: "tNO",
   Warehouse: "",
@@ -41,9 +52,7 @@ const EMPTY_HEADER = {
   Project: "",
 };
 
-const getDefaultWarehouseCode = (warehouses = []) => {
-  return warehouses[0]?.WarehouseCode || "";
-};
+const getDefaultWarehouseCode = (warehouses = []) => warehouses[0]?.WarehouseCode || "";
 
 const getDefaultPriceListNo = (priceLists = []) => {
   const value = priceLists[0]?.PriceListNo ?? "";
@@ -62,20 +71,93 @@ export const EMPTY_LINE = () => ({
   ItemCode: "",
   ItemName: "",
   Quantity: 1,
+  AdditionalQuantity: 0,
   InventoryUOM: "",
   Warehouse: "",
   IssueMethod: "im_Manual",
   ProductionStdCost: 0,
-  TotalStdCost: 0,
   PriceList: "",
   Price: 0,
-  Total: 0,
   Comment: "",
   DistributionRule: "",
   WipAccount: "",
-  RouteSequence: "",
   Project: "",
+  StageID: null,
+  StageEntry: "",
 });
+
+const isComponentFilled = (line) =>
+  line.ItemType === "pit_Text"
+    ? Boolean(String(line.Comment || "").trim())
+    : Boolean(String(line.ItemCode || "").trim());
+
+// Stage rows -> ProductTreeStages (StageID 1..n in grid order, StageEntry =
+// route stage InternalNumber); each following component row gets its stage's
+// StageID. Rows above the first stage have no stage.
+export function splitStageRows(rows = []) {
+  const stages = [];
+  const components = [];
+  let current = null;
+  for (const row of rows) {
+    if (row.ItemType === STAGE_TYPE) {
+      if (row.StageEntry === "" || row.StageEntry == null) continue;
+      current = stages.length + 1;
+      stages.push({ StageID: current, StageEntry: Number(row.StageEntry), Name: row.ItemName || "" });
+    } else {
+      components.push({ ...row, StageID: current });
+    }
+  }
+  return { stages, components };
+}
+
+// ProductTreeStages + lines' StageID -> grid rows with a stage row heading
+// each stage's components. Lines with no (known) stage stay at the top.
+export function buildRowsWithStages(stages = [], lines = [], makeRow = EMPTY_LINE) {
+  const ordered = [...stages].sort(
+    (a, b) => Number(a.SequenceNumber ?? a.StageID) - Number(b.SequenceNumber ?? b.StageID)
+  );
+  const stageIds = new Set(ordered.map((stage) => Number(stage.StageID)));
+  const rows = lines.filter((line) => !stageIds.has(Number(line.StageID)));
+  for (const stage of ordered) {
+    rows.push({
+      ...makeRow(),
+      ItemType: STAGE_TYPE,
+      StageEntry: stage.StageEntry,
+      ItemCode: stage.StageCode || "",
+      ItemName: stage.Name || "",
+    });
+    rows.push(...lines.filter((line) => Number(line.StageID) === Number(stage.StageID)));
+  }
+  return rows;
+}
+
+const mapLoadedLine = (line) => ({
+  ...EMPTY_LINE(),
+  ItemType: line.ItemType || "pit_Item",
+  ItemCode: line.ItemCode || "",
+  ItemName: line.ItemName || line.ItemDescription || "",
+  Quantity: line.Quantity ?? 1,
+  AdditionalQuantity: line.AdditionalQuantity ?? 0,
+  InventoryUOM: line.UoMName || line.InventoryUOM || line.UomCode || "",
+  Warehouse: line.Warehouse || "",
+  IssueMethod: line.IssueMethod || "im_Manual",
+  ProductionStdCost: line.ProductionStdCost ?? 0,
+  PriceList: line.PriceList != null ? String(line.PriceList) : "",
+  Price: line.Price ?? 0,
+  Comment: line.Comment || line.LineText || "",
+  DistributionRule: line.DistributionRule || "",
+  WipAccount: line.WipAccount || "",
+  Project: line.Project || "",
+  StageID: line.StageID ?? null,
+});
+
+const errorMessage = (err, fallback) => err?.response?.data?.message || err?.message || fallback;
+
+// The row's unit price from the picked item's price for that price list.
+export const priceFromDetails = (details, priceList) => {
+  const price = (details?.Prices || []).find((entry) => String(entry.PriceList) === String(priceList));
+  return price ? { Price: price.Price, Currency: price.Currency } : {};
+};
 
 export default function BOMModule() {
   const location = useLocation();
@@ -94,29 +176,26 @@ export default function BOMModule() {
   const [distRules, setDistRules] = useState([]);
   const [projects, setProjects] = useState([]);
 
-  const [itemModal, setItemModal] = useState({ open: false, target: null });
+  // kind: header | item | resource | stage; target: "header" or a line id.
+  const [lookup, setLookup] = useState(null);
 
   const alertTimer = useRef(null);
+  const fileInputRef = useRef(null);
   const isProductionBOM = header.TreeType === "iProductionTree";
   const isSalesBOM = header.TreeType === "iSalesTree";
+  const savedTreeCode = mode === MODES.UPDATE ? String(header.TreeCode || "").trim() : "";
 
   useEffect(() => {
     fetchBOMWarehouses()
       .then((rows) => {
         setWarehouses(rows);
-        setHeader((prev) => ({
-          ...prev,
-          Warehouse: prev.Warehouse || getDefaultWarehouseCode(rows),
-        }));
+        setHeader((prev) => ({ ...prev, Warehouse: prev.Warehouse || getDefaultWarehouseCode(rows) }));
       })
       .catch(() => {});
     fetchBOMPriceLists()
       .then((rows) => {
         setPriceLists(rows);
-        setHeader((prev) => ({
-          ...prev,
-          PriceList: prev.PriceList || getDefaultPriceListNo(rows),
-        }));
+        setHeader((prev) => ({ ...prev, PriceList: prev.PriceList || getDefaultPriceListNo(rows) }));
       })
       .catch(() => {});
     fetchBOMDistributionRules().then(setDistRules).catch(() => {});
@@ -129,30 +208,56 @@ export default function BOMModule() {
     alertTimer.current = setTimeout(() => setAlert(null), 6000);
   }, []);
 
+  // Show a BOM returned by the backend (prices and std costs are computed there).
+  const applyBOM = useCallback((data) => {
+    setHeader({
+      ...EMPTY_HEADER,
+      TreeCode: data.TreeCode || "",
+      ProductDescription: data.ProductDescription || "",
+      TreeType: data.TreeType || "iProductionTree",
+      Quantity: data.Quantity ?? 1,
+      ProductionStdCost: data.ProductionStdCost ?? 0,
+      ProductPrice: data.ProductPrice ?? 0,
+      Currency: data.Currency || "",
+      PlanAvgProdSize: data.PlanAvgProdSize ?? 1,
+      HideBOMComponentsInPrintout: data.HideBOMComponentsInPrintout || "tNO",
+      Warehouse: data.TreeType === "iProductionTree" ? data.Warehouse || "" : "",
+      PriceList: data.PriceList != null ? String(data.PriceList) : "",
+      DistributionRule: data.DistributionRule || "",
+      Project: data.Project || "",
+    });
+    const rows = buildRowsWithStages(data.ProductTreeStages || [], (data.ProductTreeLines || []).map(mapLoadedLine));
+    const nextRows = rows.length ? rows : [EMPTY_LINE()];
+    setLines(nextRows);
+    setSelectedLineId(nextRows[0]._id);
+    setMode(MODES.UPDATE);
+    setAttachments([]);
+    if (data.TreeCode) {
+      fetchBOMAttachments(data.TreeCode).then(setAttachments).catch(() => setAttachments([]));
+    }
+  }, []);
+
   const loadExistingBOM = useCallback(
     async (treeCode, message) => {
       const data = await getBOM(treeCode);
-      loadBOM(data);
-      setMode(MODES.UPDATE);
-      if (message) showAlert("warning", message);
+      applyBOM(data);
+      if (message) showAlert("info", message);
       return data;
     },
-    [showAlert]
+    [applyBOM, showAlert]
   );
 
-  const resetForm = useCallback(() => {
-    const firstLine = EMPTY_LINE();
-    setHeader(getHeaderDefaults(warehouses, priceLists));
-    setLines([firstLine]);
-    setSelectedLineId(firstLine._id);
+  // New / Cancel / after Remove: Add mode with fresh defaults (or a duplicate seed).
+  const startAddMode = useCallback((seed = null) => {
+    const seedLines = seed?.lines?.length ? seed.lines : [EMPTY_LINE()];
+    setMode(MODES.ADD);
+    setHeader(seed?.header || getHeaderDefaults(warehouses, priceLists));
+    setLines(seedLines);
+    setSelectedLineId(seedLines[0]._id);
     setAttachments([]);
     setTab(0);
     setAlert(null);
-  }, []);
-
-  const enterFindMode = useCallback(() => {
-    navigate("/bom/find");
-  }, [navigate]);
+  }, [priceLists, warehouses]);
 
   const handleHeaderChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -168,91 +273,86 @@ export default function BOMModule() {
     }));
   }, [warehouses]);
 
-  const handleItemSelect = useCallback(
-    async (item) => {
-      const { target } = itemModal;
-      setItemModal({ open: false, target: null });
+  const patchLine = useCallback((id, patch) => {
+    setLines((prev) => prev.map((line) => (line._id === id ? { ...line, ...patch } : line)));
+  }, []);
 
-      try {
-        if (target === "header" && mode === MODES.ADD) {
-          try {
-            await loadExistingBOM(
-              item.ItemCode,
-              `BOM "${item.ItemCode}" already exists, so it was opened in Update Mode.`
-            );
-            return;
-          } catch {
-            // No BOM exists yet, continue with create flow.
-          }
-        }
+  const handleLookupSelect = useCallback(
+    async (row) => {
+      const current = lookup;
+      setLookup(null);
+      if (!current) return;
+      const { kind, target } = current;
 
-        const details = await getItemDetails(item.ItemCode);
+      if (kind === "resource") {
+        patchLine(target, {
+          ItemCode: row.Code,
+          ItemName: row.Name || "",
+          Warehouse: row.DefaultWarehouse || "",
+          InventoryUOM: "",
+        });
+        return;
+      }
+      if (kind === "stage") {
+        patchLine(target, { StageEntry: row.InternalNumber, ItemCode: row.Code || "", ItemName: row.Description || "" });
+        return;
+      }
 
-        if (target === "header") {
-          setHeader((prev) => ({
-            ...prev,
-            TreeCode: details.ItemCode,
-            ProductDescription: details.ItemName,
-            Warehouse: details.DefaultWarehouse || prev.Warehouse,
-          }));
-        } else {
-          setLines((prev) =>
-            prev.map((line) =>
-              line._id === target
-                ? {
-                    ...line,
-                    ItemCode: details.ItemCode,
-                    ItemName: details.ItemName,
-                    InventoryUOM: details.UoMName || details.InventoryUOM || "",
-                    Warehouse: details.DefaultWarehouse || line.Warehouse,
-                    IssueMethod: details.IssuePrimarilyBy || line.IssueMethod,
-                    DistributionRule: details.DistributionRule || line.DistributionRule,
-                    Project: details.Project || line.Project,
-                  }
-                : line
-            )
-          );
-        }
-      } catch {
-        if (target === "header") {
-          setHeader((prev) => ({
-            ...prev,
-            TreeCode: item.ItemCode,
-            ProductDescription: item.ItemName,
-          }));
-        } else {
-          setLines((prev) =>
-            prev.map((line) =>
-              line._id === target
-                ? {
-                    ...line,
-                    ItemCode: item.ItemCode,
-                    ItemName: item.ItemName,
-                    InventoryUOM: item.UoMName || item.InventoryUOM || "",
-                  }
-                : line
-            )
-          );
+      if (kind === "header" && mode === MODES.ADD) {
+        try {
+          await loadExistingBOM(row.ItemCode, `BOM "${row.ItemCode}" already exists, so it was opened in Update Mode.`);
+          return;
+        } catch {
+          // No BOM exists yet, continue with create flow.
         }
       }
+
+      let details = null;
+      try {
+        details = await getItemDetails(row.ItemCode);
+      } catch {
+        // Fall back to the lookup row.
+      }
+      const item = details || row;
+      if (kind === "header") {
+        setHeader((prev) => ({
+          ...prev,
+          TreeCode: item.ItemCode,
+          ProductDescription: item.ItemName || "",
+          Warehouse: details?.DefaultWarehouse || prev.Warehouse,
+        }));
+        return;
+      }
+      setLines((prev) =>
+        prev.map((line) =>
+          line._id === target
+            ? {
+                ...line,
+                ItemCode: item.ItemCode,
+                ItemName: item.ItemName || "",
+                InventoryUOM: item.UoMName || item.InventoryUOM || "",
+                Warehouse: details?.DefaultWarehouse || line.Warehouse,
+                IssueMethod: details?.IssuePrimarilyBy || line.IssueMethod,
+                DistributionRule: details?.DistributionRule || line.DistributionRule,
+                Project: details?.Project || line.Project,
+                // Shown right away; the backend recomputes both on save.
+                ProductionStdCost: details?.ProductionStdCost ?? line.ProductionStdCost,
+                ...priceFromDetails(details, line.PriceList || header.PriceList),
+              }
+            : line
+        )
+      );
     },
-    [itemModal, loadExistingBOM, mode]
+    [header.PriceList, loadExistingBOM, lookup, mode, patchLine]
   );
 
   const handleLineChange = useCallback((id, field, value) => {
     setLines((prev) =>
       prev.map((line) => {
         if (line._id !== id) return line;
-
-        const updated = { ...line, [field]: value };
-        const qty = Number(field === "Quantity" ? value : updated.Quantity) || 0;
-        const stdCost =
-          Number(field === "ProductionStdCost" ? value : updated.ProductionStdCost) || 0;
-        const price = Number(field === "Price" ? value : updated.Price) || 0;
-
-        updated.TotalStdCost = qty * stdCost;
-        updated.Total = qty * price;
-        return updated;
+        // A new row type starts from a blank row (codes are not shared between types).
+        if (field === "ItemType") return { ...EMPTY_LINE(), _id: line._id, ItemType: value };
+        return { ...line, [field]: value };
       })
     );
   }, []);
@@ -261,10 +361,7 @@ export default function BOMModule() {
     const newLine = EMPTY_LINE();
     setLines((prev) => {
       const selectedIndex = prev.findIndex((line) => line._id === selectedLineId);
-      if (selectedIndex === -1) {
-        return [...prev, newLine];
-      }
-
+      if (selectedIndex === -1) return [...prev, newLine];
       const next = [...prev];
       next.splice(selectedIndex + 1, 0, newLine);
       return next;
@@ -279,53 +376,35 @@ export default function BOMModule() {
         setSelectedLineId(replacement._id);
         return [replacement];
       }
-
       const index = prev.findIndex((line) => line._id === id);
       if (index === -1) return prev;
-
       const next = prev.filter((line) => line._id !== id);
-      const fallbackIndex = Math.min(index, next.length - 1);
-      setSelectedLineId(next[fallbackIndex]?._id ?? null);
+      setSelectedLineId(next[Math.min(index, next.length - 1)]?._id ?? null);
       return next;
     });
   }, []);
 
-  const totalStdCost = lines.reduce((sum, line) => sum + (Number(line.TotalStdCost) || 0), 0);
-  const totalPrice = lines.reduce((sum, line) => sum + (Number(line.Total) || 0), 0);
+  const priced = lines.filter((line) => line.ItemType === "pit_Item" || line.ItemType === "pit_Resource");
+  const totalStdCost = priced.reduce((sum, l) => sum + (Number(l.Quantity) || 0) * (Number(l.ProductionStdCost) || 0), 0);
+  const totalPrice = priced.reduce((sum, l) => sum + (Number(l.Quantity) || 0) * (Number(l.Price) || 0), 0);
 
+  // Returns { ok, warning }. Duplicate components are allowed in SAP B1, so they only warn.
   const validate = useCallback(() => {
-    if (!header.TreeCode.trim()) {
-      showAlert("error", "Product No. is required.");
-      return false;
+    if (!String(header.TreeCode || "").trim()) return { ok: false, error: "Product No. is required." };
+    if (Number(header.Quantity) <= 0) return { ok: false, error: "Quantity must be > 0." };
+    if (lines.some((line) => line.ItemType === STAGE_TYPE && (line.StageEntry === "" || line.StageEntry == null))) {
+      return { ok: false, error: "Select a route stage for every Route Stage row." };
     }
-    if (Number(header.Quantity) <= 0) {
-      showAlert("error", "Quantity must be > 0.");
-      return false;
-    }
-
-    const validLines = lines.filter((line) =>
-      line.ItemType === "pit_Text"
-        ? Boolean(String(line.Comment || "").trim())
-        : Boolean(String(line.ItemCode || "").trim())
-    );
-    if (validLines.length === 0) {
-      showAlert("error", "At least one component required.");
-      return false;
-    }
-
-    const codes = validLines.filter((line) => line.ItemType !== "pit_Text").map((line) => line.ItemCode);
-    if (new Set(codes).size !== codes.length) {
-      showAlert("error", "Duplicate item codes.");
-      return false;
-    }
-
-    return true;
-  }, [header.Quantity, header.TreeCode, lines, showAlert]);
+    const filled = lines.filter((line) => line.ItemType !== STAGE_TYPE && isComponentFilled(line));
+    if (!filled.length) return { ok: false, error: "At least one component required." };
+    const codes = filled.filter((line) => line.ItemType !== "pit_Text").map((line) => `${line.ItemType}:${line.ItemCode}`);
+    const warning = new Set(codes).size !== codes.length ? "Note: the BOM contains duplicate components." : "";
+    return { ok: true, warning };
+  }, [header.Quantity, header.TreeCode, lines]);
 
   const buildPayload = useCallback(() => {
     const opt = (value) => value !== "" && value != null;
-    const validStageId = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
-
+    const { stages, components } = splitStageRows(lines);
     return {
       TreeCode: header.TreeCode,
       TreeType: header.TreeType,
@@ -338,56 +417,69 @@ export default function BOMModule() {
       }),
       ...(opt(header.DistributionRule) && { DistributionRule: header.DistributionRule }),
       ...(opt(header.Project) && { Project: header.Project }),
-      ProductTreeLines: lines
-        .filter((line) => line.ItemType === "pit_Text"
-          ? Boolean(String(line.Comment || "").trim())
-          : Boolean(String(line.ItemCode || "").trim()))
-        .map((line) => ({
-          ItemCode: line.ItemCode,
+      ProductTreeStages: stages,
+      ProductTreeLines: components.filter(isComponentFilled).map((line) => {
+        const isText = line.ItemType === "pit_Text";
+        return {
           ItemType: line.ItemType || "pit_Item",
-          Quantity: Number(line.Quantity) || 1,
-          IssueMethod: line.IssueMethod || "im_Manual",
-          ...(opt(line.Warehouse) && { Warehouse: line.Warehouse }),
-          ...(opt(line.PriceList) && { PriceList: Number(line.PriceList) }),
-          ...(opt(line.Comment) && { Comment: line.Comment }),
-          ...(line.ItemType === "pit_Text" && { LineText: line.Comment }),
-          ...(opt(line.WipAccount) && { WipAccount: line.WipAccount }),
-          ...(opt(line.DistributionRule) && { DistributionRule: line.DistributionRule }),
-          ...(opt(line.Project) && { Project: line.Project }),
-          ...(validStageId(line.RouteSequence) && { RouteSequence: Number(line.RouteSequence) }),
-        })),
+          ...(isText ? { LineText: line.Comment, Comment: line.Comment } : {
+            ItemCode: line.ItemCode,
+            Quantity: Number(line.Quantity) || 1,
+            AdditionalQuantity: Number(line.AdditionalQuantity) || 0,
+            IssueMethod: line.IssueMethod || "im_Manual",
+            ...(opt(line.Warehouse) && { Warehouse: line.Warehouse }),
+            ...(opt(line.PriceList) && { PriceList: Number(line.PriceList) }),
+            ...(opt(line.Comment) && { Comment: line.Comment }),
+            ...(opt(line.WipAccount) && { WipAccount: line.WipAccount }),
+            ...(opt(line.DistributionRule) && { DistributionRule: line.DistributionRule }),
+            ...(opt(line.Project) && { Project: line.Project }),
+          }),
+          ...(line.StageID && { StageID: line.StageID }),
+        };
+      }),
     };
   }, [header, lines]);
+
+  const handleFind = useCallback(async () => {
+    const code = String(header.TreeCode || "").trim();
+    if (!code) {
+      setLookup({ kind: "header", target: "header" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await loadExistingBOM(code);
+      showAlert("success", `BOM "${data.TreeCode}" loaded.`);
+    } catch (err) {
+      showAlert("error", errorMessage(err, "BOM search failed."));
+    } finally {
+      setLoading(false);
+    }
+  }, [header.TreeCode, loadExistingBOM, showAlert]);
 
   const handleSave = useCallback(async () => {
     if (mode === MODES.FIND) {
       await handleFind();
       return;
     }
-
-    if (!validate()) return;
+    const check = validate();
+    if (!check.ok) {
+      showAlert("error", check.error);
+      return;
+    }
 
     setLoading(true);
+    const code = header.TreeCode;
     try {
       const payload = buildPayload();
-
-      if (mode === MODES.ADD) {
-        await createBOM(payload);
-        showAlert("success", `BOM "${header.TreeCode}" created.`);
-        setMode(MODES.UPDATE);
-      } else {
-        const updated = await updateBOM(header.TreeCode, payload);
-        loadBOM(updated);
-        showAlert("success", `BOM "${header.TreeCode}" updated.`);
-      }
+      const saved = mode === MODES.ADD ? await createBOM(payload) : await updateBOM(code, payload);
+      applyBOM(saved?.TreeCode ? saved : await getBOM(code));
+      showAlert("success", `BOM "${code}" ${mode === MODES.ADD ? "created" : "updated"}.${check.warning ? ` ${check.warning}` : ""}`);
     } catch (err) {
-      const message = err.response?.data?.message || err.message || "Save failed.";
+      const message = errorMessage(err, "Save failed.");
       if (mode === MODES.ADD && /already exists|ODBC -2035/i.test(message)) {
         try {
-          await loadExistingBOM(
-            header.TreeCode,
-            `BOM "${header.TreeCode}" already exists, so it was opened in Update Mode.`
-          );
+          await loadExistingBOM(code, `BOM "${code}" already exists, so it was opened in Update Mode.`);
           return;
         } catch {
           // Fall back to the original error.
@@ -397,66 +489,100 @@ export default function BOMModule() {
     } finally {
       setLoading(false);
     }
-  }, [buildPayload, header.TreeCode, loadExistingBOM, mode, showAlert, validate]);
+  }, [applyBOM, buildPayload, handleFind, header.TreeCode, loadExistingBOM, mode, showAlert, validate]);
 
-  const handleFind = useCallback(
-    async (treeCode = null) => {
-      const code = treeCode || header.TreeCode.trim();
-      const query = code || header.ProductDescription.trim();
-      if (!query) {
-        setItemModal({ open: true, target: "header" });
-        return;
-      }
+  const handleRemove = useCallback(async () => {
+    if (!savedTreeCode || !window.confirm(`Remove Bill of Materials "${savedTreeCode}"?`)) return;
+    setLoading(true);
+    try {
+      await deleteBOM(savedTreeCode);
+      startAddMode();
+      showAlert("success", `BOM "${savedTreeCode}" removed.`);
+    } catch (err) {
+      showAlert("error", errorMessage(err, "Remove failed."));
+    } finally {
+      setLoading(false);
+    }
+  }, [savedTreeCode, showAlert, startAddMode]);
 
-      setLoading(true);
-      try {
-        if (code) {
-          const data = await getBOM(code);
-          loadBOM(data);
-          setMode(MODES.UPDATE);
-          showAlert("success", `BOM "${data.TreeCode}" loaded.`);
-          return;
-        }
+  // Duplicate: same header and rows in Add mode; choose a new Product No.
+  const handleDuplicate = useCallback(() => {
+    startAddMode({
+      header: { ...header, TreeCode: "", ProductDescription: "", ProductionStdCost: 0, ProductPrice: 0 },
+      lines: lines.map((line) => ({ ...line, _id: Date.now() + Math.random() })),
+    });
+  }, [header, lines, startAddMode]);
 
-        navigate("/bom/find");
-      } catch (err) {
-        showAlert("error", err.response?.data?.message || err.message || "BOM search failed.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [header.TreeCode, header.ProductDescription, loadExistingBOM, navigate, showAlert]
-  );
+  const handleBrowse = useCallback(async (direction) => {
+    setLoading(true);
+    try {
+      applyBOM(await navigateBOM(direction, savedTreeCode));
+      setAlert(null);
+    } catch (err) {
+      if (err?.response?.status === 404) showAlert("info", "No more records.");
+      else showAlert("error", errorMessage(err, "Could not load BOM."));
+    } finally {
+      setLoading(false);
+    }
+  }, [applyBOM, savedTreeCode, showAlert]);
+
+  // Attachments (server-side per company and BOM; only once the BOM is saved).
+  const refreshAttachments = useCallback(async () => {
+    setAttachments(await fetchBOMAttachments(savedTreeCode));
+  }, [savedTreeCode]);
+
+  const handleAttachmentFiles = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length || !savedTreeCode) return;
+    try {
+      for (const file of files) await uploadBOMAttachment(savedTreeCode, file);
+      await refreshAttachments();
+    } catch (err) {
+      showAlert("error", errorMessage(err, "Upload failed."));
+    }
+  };
+
+  const handleDisplayAttachment = async (row) => {
+    try {
+      const url = URL.createObjectURL(await downloadBOMAttachment(savedTreeCode, row.id));
+      Object.assign(document.createElement("a"), { href: url, download: row.name || row.fileName }).click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      showAlert("error", errorMessage(err, "Download failed."));
+    }
+  };
+
+  const handleDeleteAttachment = async (row) => {
+    try {
+      await deleteBOMAttachment(savedTreeCode, row.id);
+      await refreshAttachments();
+    } catch (err) {
+      showAlert("error", errorMessage(err, "Delete failed."));
+    }
+  };
 
   useEffect(() => {
     const stateTreeCode = location.state?.bomTreeCode || location.state?.treeCode;
     const queryTreeCode = new URLSearchParams(location.search).get("treeCode");
     const treeCodeToLoad = String(stateTreeCode || queryTreeCode || "").trim();
-
     if (!treeCodeToLoad) return;
 
     let ignore = false;
     setLoading(true);
     loadExistingBOM(treeCodeToLoad)
       .then((data) => {
-        if (!ignore) {
-          showAlert("success", `BOM "${data.TreeCode || treeCodeToLoad}" loaded.`);
-          if (stateTreeCode) {
-            navigate(location.pathname, {
-              replace: true,
-              state: {
-                ...(location.state || {}),
-                bomTreeCode: undefined,
-                treeCode: undefined,
-              },
-            });
-          }
+        if (ignore) return;
+        showAlert("success", `BOM "${data.TreeCode || treeCodeToLoad}" loaded.`);
+        if (stateTreeCode) {
+          navigate(location.pathname, {
+            replace: true,
+            state: { ...(location.state || {}), bomTreeCode: undefined, treeCode: undefined },
+          });
         }
       })
       .catch((err) => {
-        if (!ignore) {
-          showAlert("error", err.response?.data?.message || err.message || `Could not load BOM "${treeCodeToLoad}".`);
-        }
+        if (!ignore) showAlert("error", errorMessage(err, `Could not load BOM "${treeCodeToLoad}".`));
       })
       .finally(() => {
         if (!ignore) setLoading(false);
@@ -467,57 +593,55 @@ export default function BOMModule() {
     };
   }, [loadExistingBOM, location.pathname, location.search, location.state, navigate, showAlert]);
 
-  const loadBOM = useCallback((data) => {
-    setHeader({
-      TreeCode: data.TreeCode || "",
-      ProductDescription: data.ProductDescription || "",
-      TreeType: data.TreeType || "iProductionTree",
-      Quantity: data.Quantity ?? 1,
-      ProductionStdCost: 0,
-      PlanAvgProdSize: data.PlanAvgProdSize ?? 1,
-      HideBOMComponentsInPrintout: data.HideBOMComponentsInPrintout || "tNO",
-      Warehouse: data.TreeType === "iProductionTree" ? data.Warehouse || "" : "",
-      PriceList: data.PriceList != null ? String(data.PriceList) : "",
-      DistributionRule: data.DistributionRule || "",
-      Project: data.Project || "",
-    });
-
-    const loadedLines = (data.ProductTreeLines || []).map((line) => {
-        const qty = line.Quantity ?? 1;
-        const stdCost = line.ProductionStdCost ?? line.StdCost ?? 0;
-        const price = line.Price ?? 0;
-
-        return {
-          _id: Date.now() + Math.random(),
-          ItemType: line.ItemType || "pit_Item",
-          ItemCode: line.ItemCode || "",
-          ItemName: line.ItemName || line.ItemDescription || "",
-          Quantity: qty,
-          InventoryUOM: line.UoMName || line.InventoryUOM || line.UomCode || "",
-          Warehouse: line.Warehouse || "",
-          IssueMethod: line.IssueMethod || "im_Manual",
-          ProductionStdCost: stdCost,
-          TotalStdCost: qty * stdCost,
-          PriceList: line.PriceList != null ? String(line.PriceList) : "",
-          Price: price,
-          Total: qty * price,
-          Comment: line.Comment || "",
-          DistributionRule: line.DistributionRule || "",
-          WipAccount: line.WipAccount || "",
-          RouteSequence: line.RouteSequence ?? line.StageID ?? line.StageId ?? "",
-          Project: line.Project || "",
-        };
-      });
-    setLines(loadedLines.length ? loadedLines : [EMPTY_LINE()]);
-    setSelectedLineId(loadedLines[0]?._id || null);
-  }, [priceLists, warehouses]);
-
   useEffect(() => {
     if (!lines.length) return;
     if (!selectedLineId || !lines.some((line) => line._id === selectedLineId)) {
       setSelectedLineId(lines[0]._id);
     }
   }, [lines, selectedLineId]);
+
+  const openRowLookup = (lineId) => {
+    const line = lines.find((l) => l._id === lineId);
+    const kind = line?.ItemType === "pit_Resource" ? "resource" : line?.ItemType === STAGE_TYPE ? "stage" : "item";
+    setLookup({ kind, target: lineId });
+  };
+
+  const money = (value) => `${Number(value || 0).toFixed(2)}${header.Currency ? ` ${header.Currency}` : ""}`;
+
+  const lookupProps = {
+    resource: {
+      title: "List of Resources",
+      fetchItems: fetchBOMResources,
+      columns: [
+        { key: "Code", label: "Resource Code" },
+        { key: "Name", label: "Resource Name" },
+        { key: "DefaultWarehouse", label: "Default Warehouse" },
+      ],
+      emptyMessage: "No resources found.",
+    },
+    stage: {
+      title: "List of Route Stages",
+      fetchItems: fetchProdOrderRouteStages,
+      columns: [
+        { key: "Code", label: "Code" },
+        { key: "Description", label: "Description" },
+      ],
+      emptyMessage: "No route stages found.",
+    },
+    item: {
+      title: "List of Items",
+      fetchItems: (query) =>
+        fetchBOMItems(query).then((items) => items.filter((item) => item.ItemCode !== header.TreeCode)),
+      columns: [
+        { key: "ItemCode", label: "Item Code" },
+        { key: "ItemName", label: "Item Description" },
+        { key: "QuantityOnStock", label: "In Stock", align: "right", render: (value) => Number(value || 0).toFixed(3) },
+        { key: "ItemsGroupCode", label: "Item Group" },
+        { key: "WTaxLiable", label: "WTax Liable", render: (value) => (value === "tNO" || value === "No" ? "No" : "Yes") },
+      ],
+    },
+  };
+  const activeLookup = lookup && lookupProps[lookup.kind === "header" ? "item" : lookup.kind];
 
   return (
     <div className="im-page bom-page">
@@ -527,28 +651,33 @@ export default function BOMModule() {
           {mode === MODES.ADD ? "Add Mode" : mode === MODES.FIND ? "Find Mode" : "Update Mode"}
         </span>
         <button type="button" className="im-btn im-btn--primary" onClick={handleSave} disabled={loading}>
-          {loading ? "..." : mode === MODES.FIND ? "Find" : "OK"}
+          {loading ? "..." : mode === MODES.ADD ? "Add" : mode === MODES.FIND ? "Find" : "Update"}
         </button>
-        <button type="button" className="im-btn" onClick={() => { setMode(MODES.ADD); resetForm(); }}>
-          New
-        </button>
-        <button type="button" className="im-btn" onClick={enterFindMode}>
-          Find
-        </button>
-        <button type="button" className="im-btn" onClick={resetForm}>
-          Cancel
-        </button>
+        <button type="button" className="im-btn" onClick={() => startAddMode()}>Cancel</button>
+        <button type="button" className="im-btn" onClick={() => navigate("/bom/find")}>Find</button>
+        <button type="button" className="im-btn" onClick={() => startAddMode()}>New</button>
+        <button type="button" className="im-btn" onClick={handleDuplicate}>Duplicate</button>
+        <button type="button" className="im-btn" onClick={handleRemove} disabled={!savedTreeCode || loading}>Remove</button>
+        <button type="button" className="im-btn" onClick={() => handleBrowse("first")} disabled={loading}>First</button>
+        <button type="button" className="im-btn" onClick={() => handleBrowse("prev")} disabled={loading}>Previous</button>
+        <button type="button" className="im-btn" onClick={() => handleBrowse("next")} disabled={loading}>Next</button>
+        <button type="button" className="im-btn" onClick={() => handleBrowse("last")} disabled={loading}>Last</button>
       </div>
 
-      {alert && <div className={`im-alert im-alert--${alert.type}`}>{alert.msg}</div>}
+      {alert && (
+        <div className={`im-alert im-alert--${alert.type}`} role={alert.type === "error" ? "alert" : "status"}>
+          {alert.msg}
+        </div>
+      )}
 
       <div className="im-header-card bom-header-card">
         <div className="bom-header-layout">
           <div className="bom-header-left">
             <div className="im-field">
-              <label className="im-field__label bom-lbl">Product No.</label>
+              <label className="im-field__label bom-lbl" htmlFor="bom-tree-code">Product No.</label>
               <div className="im-lookup-wrap">
                 <input
+                  id="bom-tree-code"
                   className="im-field__input bom-code-input"
                   name="TreeCode"
                   value={header.TreeCode}
@@ -560,14 +689,16 @@ export default function BOMModule() {
                   <button
                     type="button"
                     className="im-lookup-btn"
-                    onClick={() => setItemModal({ open: true, target: "header" })}
+                    aria-label="Choose product"
+                    onClick={() => setLookup({ kind: "header", target: "header" })}
                   >
                     ...
                   </button>
                 )}
               </div>
-              <span className="bom-field__hint">X Quantity</span>
+              <label className="bom-field__hint" htmlFor="bom-quantity">X Quantity</label>
               <input
+                id="bom-quantity"
                 className="im-field__input bom-qty-input"
                 name="Quantity"
                 type="number"
@@ -579,43 +710,44 @@ export default function BOMModule() {
             </div>
 
             <div className="im-field">
-              <label className="im-field__label bom-lbl">Product Description</label>
+              <label className="im-field__label bom-lbl" htmlFor="bom-description">Product Description</label>
               <input
-                className="im-field__input bom-field__input--grow"
-                name="ProductDescription"
+                id="bom-description"
+                className="im-field__input bom-readonly bom-field__input--grow"
                 value={header.ProductDescription}
-                onChange={handleHeaderChange}
+                readOnly
               />
             </div>
 
             <div className="im-field">
-              <label className="im-field__label bom-lbl">BOM Type</label>
+              <label className="im-field__label bom-lbl" htmlFor="bom-type">BOM Type</label>
               <select
+                id="bom-type"
                 className="im-field__select bom-field__select"
                 name="TreeType"
                 value={header.TreeType}
                 onChange={handleHeaderChange}
               >
                 {BOM_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
+                  <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
               </select>
             </div>
 
             <div className="im-field">
-              <label className="im-field__label bom-lbl">Production Std Cost</label>
+              <label className="im-field__label bom-lbl" htmlFor="bom-std-cost">Production Std Cost</label>
               <input
+                id="bom-std-cost"
                 className="im-field__input bom-readonly bom-field__input--compact"
-                value={totalStdCost.toFixed(2)}
+                value={money(header.ProductionStdCost)}
                 readOnly
               />
             </div>
 
             <div className="im-field">
-              <label className="im-field__label bom-lbl">Planned Avg Production Size</label>
+              <label className="im-field__label bom-lbl" htmlFor="bom-plan-size">Planned Avg Production Size</label>
               <input
+                id="bom-plan-size"
                 className="im-field__input bom-field__input--compact"
                 name="PlanAvgProdSize"
                 type="number"
@@ -643,8 +775,9 @@ export default function BOMModule() {
           <div className="bom-header-right">
             {isProductionBOM && (
               <div className="im-field">
-                <label className="im-field__label bom-lbl-r">Warehouse</label>
+                <label className="im-field__label bom-lbl-r" htmlFor="bom-warehouse">Warehouse</label>
                 <select
+                  id="bom-warehouse"
                   className="im-field__select bom-field__select"
                   name="Warehouse"
                   value={header.Warehouse}
@@ -652,17 +785,16 @@ export default function BOMModule() {
                 >
                   <option value="">--</option>
                   {warehouses.map((warehouse) => (
-                    <option key={warehouse.WarehouseCode} value={warehouse.WarehouseCode}>
-                      {warehouse.WarehouseCode}
-                    </option>
+                    <option key={warehouse.WarehouseCode} value={warehouse.WarehouseCode}>{warehouse.WarehouseCode}</option>
                   ))}
                 </select>
               </div>
             )}
 
             <div className="im-field">
-              <label className="im-field__label bom-lbl-r">Price List</label>
+              <label className="im-field__label bom-lbl-r" htmlFor="bom-price-list">Price List</label>
               <select
+                id="bom-price-list"
                 className="im-field__select bom-field__select"
                 name="PriceList"
                 value={header.PriceList}
@@ -670,16 +802,15 @@ export default function BOMModule() {
               >
                 <option value="">--</option>
                 {priceLists.map((priceList) => (
-                  <option key={priceList.PriceListNo} value={priceList.PriceListNo}>
-                    {priceList.PriceListName}
-                  </option>
+                  <option key={priceList.PriceListNo} value={priceList.PriceListNo}>{priceList.PriceListName}</option>
                 ))}
               </select>
             </div>
 
             <div className="im-field">
-              <label className="im-field__label bom-lbl-r">Distr. Rule</label>
+              <label className="im-field__label bom-lbl-r" htmlFor="bom-distr-rule">Distr. Rule</label>
               <select
+                id="bom-distr-rule"
                 className="im-field__select bom-field__select"
                 name="DistributionRule"
                 value={header.DistributionRule}
@@ -687,16 +818,15 @@ export default function BOMModule() {
               >
                 <option value="">--</option>
                 {distRules.map((rule) => (
-                  <option key={rule.FactorCode} value={rule.FactorCode}>
-                    {rule.FactorCode} - {rule.FactorDescription}
-                  </option>
+                  <option key={rule.FactorCode} value={rule.FactorCode}>{rule.FactorCode} - {rule.FactorDescription}</option>
                 ))}
               </select>
             </div>
 
             <div className="im-field">
-              <label className="im-field__label bom-lbl-r">Project</label>
+              <label className="im-field__label bom-lbl-r" htmlFor="bom-project">Project</label>
               <select
+                id="bom-project"
                 className="im-field__select bom-field__select"
                 name="Project"
                 value={header.Project}
@@ -704,9 +834,7 @@ export default function BOMModule() {
               >
                 <option value="">--</option>
                 {projects.map((project) => (
-                  <option key={project.Code} value={project.Code}>
-                    {project.Code} - {project.Name}
-                  </option>
+                  <option key={project.Code} value={project.Code}>{project.Code} - {project.Name}</option>
                 ))}
               </select>
             </div>
@@ -731,6 +859,7 @@ export default function BOMModule() {
         {tab === 0 && (
           <BOMLines
             lines={lines}
+            treeType={header.TreeType}
             selectedLineId={selectedLineId}
             warehouses={warehouses}
             priceLists={priceLists}
@@ -742,41 +871,45 @@ export default function BOMModule() {
             onAdd={addLine}
             onDelete={deleteLine}
             onSelectLine={setSelectedLineId}
-            onItemSearch={(lineId) => setItemModal({ open: true, target: lineId })}
+            onItemSearch={openRowLookup}
           />
         )}
-        {tab === 1 && <BOMAttachments attachments={attachments} onChange={setAttachments} />}
+        {tab === 1 && (
+          <>
+            {!savedTreeCode && <div className="im-alert">Add the Bill of Materials first, then attach files.</div>}
+            <input ref={fileInputRef} type="file" multiple hidden aria-label="Attachment file" onChange={handleAttachmentFiles} />
+            <DocumentAttachmentsTab
+              attachments={attachments}
+              isEditable={Boolean(savedTreeCode)}
+              onBrowseAttachment={() => fileInputRef.current?.click()}
+              onDisplayAttachment={handleDisplayAttachment}
+              onDeleteAttachment={handleDeleteAttachment}
+            />
+          </>
+        )}
       </div>
 
-      {itemModal.open && (itemModal.target !== "header" || mode !== MODES.FIND) && (
+      <div className="bom-bottom-bar">
+        <label className="im-field">
+          <span className="im-field__label">Product Price</span>
+          <input className="im-field__input bom-readonly bom-field__input--compact" value={money(header.ProductPrice)} readOnly />
+        </label>
+        <label className="im-field">
+          <span className="im-field__label">Total</span>
+          <input className="im-field__input bom-readonly bom-field__input--compact" value={money(totalPrice)} readOnly />
+        </label>
+      </div>
+
+      {activeLookup && (lookup.kind !== "header" || mode !== MODES.FIND) && (
         <ItemSearchModal
-          onSelect={handleItemSelect}
-          onClose={() => setItemModal({ open: false, target: null })}
-          fetchItems={(query) =>
-            fetchBOMItems(query).then((items) =>
-              items.filter((item) => item.ItemCode !== header.TreeCode)
-            )
-          }
-          columns={[
-            { key: "ItemCode", label: "Item Code" },
-            { key: "ItemName", label: "Item Description" },
-            {
-              key: "QuantityOnStock",
-              label: "In Stock",
-              className: "im-lookup-table__num",
-              render: (value) => Number(value || 0).toFixed(3),
-            },
-            { key: "ItemsGroupCode", label: "Item Group" },
-            {
-              key: "WTaxLiable",
-              label: "WTax Liable",
-              render: (value) => (value === "tNO" || value === "No" ? "No" : "Yes"),
-            },
-          ]}
-          title="List of Items"
+          onSelect={handleLookupSelect}
+          onClose={() => setLookup(null)}
+          fetchItems={activeLookup.fetchItems}
+          columns={activeLookup.columns}
+          title={activeLookup.title}
+          emptyMessage={activeLookup.emptyMessage}
         />
       )}
-
     </div>
   );
 }

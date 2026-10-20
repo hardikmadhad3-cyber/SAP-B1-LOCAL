@@ -17,260 +17,27 @@
 const sapService = require('./sapService');
 const productionDbService = require('./productionDbService');
 
-const escapeOData = (v) => String(v || '').replace(/'/g, "''");
-const formatDate  = (v) => (v ? String(v).split('T')[0] : '');
 const opt         = (v) => v !== '' && v != null;
-const LIVE_LOOKUP_TIMEOUT_MS = 6000;
-
-const withTimeout = (promise, timeoutMs, message) => new Promise((resolve, reject) => {
-  const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
-  promise.then(
-    (value) => {
-      clearTimeout(timer);
-      resolve(value);
-    },
-    (error) => {
-      clearTimeout(timer);
-      reject(error);
-    },
-  );
-});
-
-const PO_STATUS_LABEL = {
-  boposReleased:  'Released',
-  boposPlanned:   'Planned',
-  boposClosed:    'Closed',
-  boposCancelled: 'Cancelled',
-};
-
-const getProductionOrderLineIssueMethod = (line = {}) =>
-  line.ProductionOrderIssueType || line.IssueMethod || 'im_Manual';
-
-const isOpenManualIssueLine = (line = {}) =>
-  Boolean(line.ItemNo) &&
-  getProductionOrderLineIssueMethod(line) !== 'im_Backflush' &&
-  Number(line.PlannedQuantity || 0) - Number(line.IssuedQuantity || 0) > 0;
-
-// ── Map a single InventoryGenExit document to our form shape ─────────────────
-const mapToForm = (doc) => ({
-  doc_entry:      doc.DocEntry,
-  doc_num:        doc.DocNum,
-  series:         doc.Series != null ? String(doc.Series) : '',
-  posting_date:   formatDate(doc.DocDate),
-  document_date:  formatDate(doc.TaxDate),
-  ref_2:          doc.Reference2 || '',
-  remarks:        doc.Comments || '',
-  journal_remark: doc.JournalMemo || '',
-  prod_order_entry: doc.BaseEntry ?? null,   // linked production order DocEntry
-  lines: (doc.DocumentLines || []).map((l) => ({
-    _id:            l.LineNum ?? Math.random(),
-    line_num:       l.LineNum ?? 0,
-    order_no:       l.BaseRef || '',
-    series_no:      '',
-    line_type:      'Item',
-    item_code:      l.ItemCode || '',
-    item_name:      l.ItemDescription || '',
-    issue_qty:      l.Quantity ?? 0,
-    uom:            l.UoMCode || l.MeasureUnit || '',
-    uom_name:       l.MeasureUnit || l.UoMCode || '',
-    warehouse:      l.WarehouseCode || '',
-    item_cost:      l.Price || '',
-    available_qty:  '',
-    location:       l.LocationCode || '',
-    sauda_node_ref: '',
-    ap_inv_doc_key: '',
-    base_entry:     l.BaseEntry ?? null,      // production order DocEntry
-    base_line:      l.BaseLine ?? null,       // production order line number
-    base_type:      l.BaseType ?? 202,        // 202 = Production Order
-    distribution_rule: l.DistributionRule || '',
-    project:        l.Project || '',
-    account_code:   l.AccountCode || '',
-  })),
-});
-
-const mapSummary = (doc) => ({
-  doc_entry:    doc.DocEntry,
-  doc_num:      doc.DocNum,
-  posting_date: formatDate(doc.DocDate),
-  document_date: formatDate(doc.TaxDate),
-  ref_2:        doc.Reference2 || '',
-  journal_remark: doc.JournalMemo || '',
-  production_order_no:
-    doc.DocumentLines?.find((l) => Number(l.BaseType) === 202)?.BaseRef || '',
-  remarks:      doc.Comments || '',
-  total_lines:  Array.isArray(doc.DocumentLines) ? doc.DocumentLines.length : 0,
-});
-
-// ── Get production order with MANUAL lines only ───────────────────────────────
-const getProductionOrderForIssue = async (docEntry) => {
-  const n = Number(docEntry);
-  if (!Number.isInteger(n) || n <= 0) throw new Error('Invalid production order DocEntry.');
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/ProductionOrders(${n})`,
-  });
-
-  const po = resp.data;
-
-  // Support both property naming conventions
-  const poDocEntry = po.AbsoluteEntry || po.DocEntry;
-  const poDocNum = po.DocumentNumber || po.DocNum;
-
-  if (!poDocEntry) throw new Error('Production order not found.');
-
-  // SAP B1 Logic: Only Released production orders can be issued
-  if (po.ProductionOrderStatus !== 'boposReleased') {
-    throw new Error(
-      `Production order must be Released before issuing components. Current status: ${PO_STATUS_LABEL[po.ProductionOrderStatus] || po.ProductionOrderStatus}`
-    );
-  }
-
-  // Filter: only im_Manual lines — backflush lines are excluded per SAP logic
-  const manualLines = (po.ProductionOrderLines || []).filter(isOpenManualIssueLine);
-
-  // Fetch item details to get batch/serial management info and auto-select batches
-  const itemCodes = [...new Set(manualLines.map(l => l.ItemNo).filter(Boolean))];
-  const itemDetailsMap = {};
-  
-  if (itemCodes.length > 0) {
-    try {
-      const itemFilter = itemCodes.map(code => `ItemCode eq '${escapeOData(code)}'`).join(' or ');
-      const itemResp = await sapService.request({
-        method: 'GET',
-        url: `/Items?$select=ItemCode,ManageSerialNumbers,ManageBatchNumbers&$filter=${encodeURIComponent(itemFilter)}`,
-      });
-      (itemResp.data?.value || []).forEach(item => {
-        itemDetailsMap[item.ItemCode] = {
-          manage_serial: item.ManageSerialNumbers === 'tYES',
-          manage_batch: item.ManageBatchNumbers === 'tYES',
-        };
-      });
-    } catch (err) {
-      console.warn('[IssueForProd] Failed to fetch item batch/serial info:', err.message);
-    }
-  }
-
-  // For each line, fetch available batches if item is batch-managed
-  const linesWithBatches = await Promise.all(manualLines.map(async (l) => {
-    const itemDetails = itemDetailsMap[l.ItemNo] || {};
-    const issueQty = Math.max(0, (l.PlannedQuantity ?? 1) - (l.IssuedQuantity ?? 0));
-    
-    let batchNumbers = [];
-    
-    // Auto-fetch available batches for batch-managed items
-    if (itemDetails.manage_batch && issueQty > 0) {
-      try {
-        const warehouse = l.Warehouse || po.Warehouse || '';
-        if (warehouse) {
-          const batchResp = await sapService.request({
-            method: 'GET',
-            url: `/BatchNumberDetails?$filter=ItemCode eq '${escapeOData(l.ItemNo)}' and WhsCode eq '${escapeOData(warehouse)}' and Quantity gt 0&$orderby=ExpDate asc&$top=50`,
-          });
-          
-          const availableBatches = batchResp.data?.value || [];
-          let remainingQty = issueQty;
-          
-          // Auto-select batches (FIFO by expiry date)
-          for (const batch of availableBatches) {
-            if (remainingQty <= 0) break;
-            const batchQty = Math.min(batch.Quantity || 0, remainingQty);
-            if (batchQty > 0) {
-              batchNumbers.push({
-                batch_number: batch.BatchNumber,
-                quantity: batchQty,
-              });
-              remainingQty -= batchQty;
-            }
-          }
-        }
-      } catch (err) {
-        console.warn(`[IssueForProd] Failed to fetch batches for ${l.ItemNo}:`, err.message);
-      }
-    }
-    
-    return {
-      _id:            l.LineNumber ?? Math.random(),
-      line_num:       l.LineNumber ?? 0,
-      item_code:      l.ItemNo || '',
-      item_name:      l.ItemDescription || '',
-      planned_qty:    l.PlannedQuantity ?? 1,
-      issued_qty:     l.IssuedQuantity ?? 0,
-      remaining_qty:  issueQty,
-      issue_qty:      issueQty,
-      uom:            l.UoMCode || l.MeasureUnit || '',
-      warehouse:      l.Warehouse || po.Warehouse || '',
-      issue_method:   getProductionOrderLineIssueMethod(l),
-      distribution_rule: l.DistributionRule || '',
-      project:        l.Project || '',
-      base_entry:     poDocEntry,
-      base_line:      l.LineNumber ?? 0,
-      base_type:      202,
-      manage_serial:  itemDetails.manage_serial || false,
-      manage_batch:   itemDetails.manage_batch || false,
-      batch_numbers:  batchNumbers,
-      serial_numbers: [],
-    };
-  }));
-
-  return {
-    doc_entry:    poDocEntry,
-    doc_num:      poDocNum,
-    item_code:    po.ItemNo || '',
-    item_name:    po.ProductDescription || '',
-    planned_qty:  po.PlannedQuantity ?? 1,
-    completed_qty:po.CompletedQuantity ?? 0,
-    status:       po.ProductionOrderStatus || '',
-    warehouse:    po.Warehouse || '',
-    due_date:     formatDate(po.DueDate),
-    lines_total_count: (po.ProductionOrderLines || []).length,
-    lines:        linesWithBatches,
-  };
-};
-
-// ── List issues ───────────────────────────────────────────────────────────────
-const getIssueList = async ({ query = '', top = 50, skip = 0 } = {}) => {
-  // SAP B1 SL: filter by Comments only when query provided (cast() not supported)
-  const filterParts = [];
-  if (query) {
-    filterParts.push(`contains(Comments,'${escapeOData(query)}')`);
-  }
-  const filter = filterParts.length ? `&$filter=${filterParts.join(' and ')}` : '';
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/InventoryGenExits?$select=DocEntry,DocNum,DocDate,TaxDate,Reference2,JournalMemo,Comments,DocumentLines${filter}&$top=${top}&$skip=${skip}&$orderby=DocEntry desc`,
-  });
-
-  return { issues: (resp.data?.value || []).map(mapSummary) };
-};
-
-// ── Get single issue ──────────────────────────────────────────────────────────
-const getIssueByDocEntry = async (docEntry) => {
-  const n = Number(docEntry);
-  if (!Number.isInteger(n) || n <= 0) throw new Error('Invalid DocEntry.');
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/InventoryGenExits(${n})`,
-  });
-
-  return { issue: mapToForm(resp.data || {}) };
-};
-
 // ── Create issue (posts to SAP) ───────────────────────────────────────────────
 const createIssue = async (body) => {
-  const currentOrder = await productionDbService.getProductionOrderForIssue(body.prod_order_entry);
-  if (!currentOrder) {
-    const error = new Error('Production order not found.');
-    error.statusCode = 404;
-    throw error;
-  }
-  const allowedLines = new Map((currentOrder.lines || []).map((line) => [Number(line.base_line), line]));
+  // SAP: one issue can cover rows of several released production orders.
   const submittedLines = Array.isArray(body.lines) ? body.lines : [];
+  const orderEntries = [...new Set(submittedLines.map((line) => Number(line.base_entry ?? body.prod_order_entry)).filter((entry) => entry > 0))];
+  if (!orderEntries.length && body.prod_order_entry) orderEntries.push(Number(body.prod_order_entry));
+  const orders = new Map();
+  for (const entry of orderEntries) {
+    const order = await productionDbService.getProductionOrderForIssue(entry);
+    if (!order) {
+      const error = new Error(`Production order ${entry} not found.`);
+      error.statusCode = 404;
+      throw error;
+    }
+    orders.set(entry, { order, lines: new Map((order.lines || []).map((line) => [Number(line.base_line), line])) });
+  }
   const lines = [];
   for (const submitted of submittedLines) {
-    const current = allowedLines.get(Number(submitted.base_line));
+    const entry = Number(submitted.base_entry ?? body.prod_order_entry);
+    const current = orders.get(entry)?.lines.get(Number(submitted.base_line));
     if (!current || String(submitted.item_code || '') !== String(current.item_code || '')) {
       const error = new Error('Production order lines changed. Reload the production order before posting.');
       error.statusCode = 409;
@@ -282,17 +49,16 @@ const createIssue = async (body) => {
       error.statusCode = 422;
       throw error;
     }
-    const allocation = await productionDbService.getAllocationOptions(
-      current.item_code,
-      submitted.warehouse || current.warehouse,
-      'issue',
-    );
+    // Resources have no stock, batches or bins.
+    const allocation = current.component_type === 'pit_Resource'
+      ? { manageBatch: false, manageSerial: false, binEnabled: false }
+      : await productionDbService.getAllocationOptions(current.item_code, submitted.warehouse || current.warehouse, 'issue');
     lines.push({
       ...submitted,
       item_code: current.item_code,
       issue_qty: quantity,
       warehouse: submitted.warehouse || current.warehouse,
-      base_entry: currentOrder.doc_entry,
+      base_entry: entry,
       base_line: current.base_line,
       base_type: 202,
       manage_batch: allocation.manageBatch,
@@ -300,7 +66,7 @@ const createIssue = async (body) => {
       enable_bin_locations: allocation.binEnabled,
     });
   }
-  const trustedBody = { ...body, prod_order_entry: currentOrder.doc_entry, lines };
+  const trustedBody = { ...body, prod_order_entry: orderEntries[0], lines };
   await productionDbService.validateBranchWarehouses(body.branch, lines.map((line) => line.warehouse));
   _validate(trustedBody);
   const payload = _buildPayload(trustedBody);
@@ -318,66 +84,13 @@ const createIssue = async (body) => {
   };
 };
 
-// ── Reference data ────────────────────────────────────────────────────────────
-const getReferenceData = async () => {
-  const warnings = [];
-
-  const [whsRes, distRes, projRes, seriesRes] = await Promise.allSettled([
-    sapService.request({ method: 'GET', url: '/Warehouses?$select=WarehouseCode,WarehouseName' }),
-    sapService.request({ method: 'GET', url: '/DistributionRules?$select=FactorCode,FactorDescription&$top=200' }),
-    sapService.request({ method: 'GET', url: '/Projects?$select=Code,Name&$top=200' }),
-    sapService.request({ method: 'POST', url: '/SeriesService_GetDocumentSeries', data: { DocumentTypeParams: { Document: '60' } } }),
-  ]);
-
-  const settle = (r, fn, msg) => {
-    if (r.status === 'fulfilled') return fn(r.value.data?.value || r.value.data || []);
-    warnings.push(msg + ': ' + (r.reason?.message || 'failed'));
-    return [];
-  };
-
-  return {
-    warehouses:         settle(whsRes,  (d) => d, 'Warehouses'),
-    distribution_rules: settle(distRes, (d) => d, 'DistributionRules'),
-    projects:           settle(projRes, (d) => d, 'Projects'),
-    series:             settle(seriesRes, (d) => d, 'Series'),
-    warnings,
-  };
-};
-
-// ── Lookup production orders (Released only) ──────────────────────────────────
-const lookupProductionOrders = async (query = '') => {
-  // SAP B1 Logic: Issue for Production should only show Released production orders
-  // Planned orders cannot be issued until they are released
-  let filterStr = "ProductionOrderStatus eq 'boposReleased'";
-
-  // Only add text search when query is provided — and only on safe string fields
-  if (query && query.trim()) {
-    const q = escapeOData(query.trim());
-    if (/^\d+$/.test(query.trim())) {
-      filterStr += ` and (DocumentNumber eq ${query.trim()} or contains(ItemNo,'${q}') or contains(ProductDescription,'${q}'))`;
-    } else {
-      filterStr += ` and (contains(ItemNo,'${q}') or contains(ProductDescription,'${q}'))`;
-    }
-  }
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/ProductionOrders?$select=AbsoluteEntry,DocumentNumber,ItemNo,ProductDescription,PlannedQuantity,CompletedQuantity,ProductionOrderStatus,Warehouse&$filter=${encodeURIComponent(filterStr)}&$top=50&$orderby=AbsoluteEntry desc`,
-  });
-  
-  // Map to consistent property names
-  const orders = (resp.data?.value || []).map(o => ({
-    DocEntry: o.AbsoluteEntry,
-    DocNum: o.DocumentNumber,
-    ItemNo: o.ItemNo,
-    ProductDescription: o.ProductDescription,
-    PlannedQuantity: o.PlannedQuantity,
-    CompletedQuantity: o.CompletedQuantity,
-    ProductionOrderStatus: o.ProductionOrderStatus,
-    Warehouse: o.Warehouse,
-  }));
-  
-  return orders;
+// SAP: cancelling an issue posts a cancellation document and puts the
+// components back (only while the order is still released).
+const cancelIssue = async (docEntry) => {
+  const n = Number(docEntry);
+  if (!Number.isInteger(n) || n <= 0) throw new Error('Invalid DocEntry.');
+  await sapService.request({ method: 'POST', url: `/InventoryGenExits(${n})/Cancel` });
+  return { message: 'Issue for production cancelled.', ...(await productionDbService.getIssueByDocEntry(n)) };
 };
 
 // ── Validation ────────────────────────────────────────────────────────────────
@@ -470,7 +183,7 @@ function _buildPayload(body) {
           Quantity:      Number(l.issue_qty),
           WarehouseCode: l.warehouse || undefined,
           // Link back to production order line
-          BaseEntry: Number(body.prod_order_entry),
+          BaseEntry: Number(l.base_entry ?? body.prod_order_entry),
           BaseLine:  Number(l.base_line ?? idx),
           BaseType:  202,  // 202 = Production Order
         };
@@ -534,82 +247,14 @@ const getIssueByDocEntryByOdbc = async (docEntry) => {
   return data;
 };
 
-const lookupIssueableProductionOrders = async (query = '', type = '') => {
-  const filterParts = ["ProductionOrderStatus eq 'boposReleased'"];
-  const normalizedType = String(type || '').trim().toLowerCase();
-
-  if (normalizedType === 'disassembly') {
-    filterParts.push("ProductionOrderType eq 'bopotDisassemble'");
-  } else if (normalizedType === 'production') {
-    filterParts.push("ProductionOrderType ne 'bopotDisassemble'");
-  }
-
-  if (query && query.trim()) {
-    const q = escapeOData(query.trim());
-    filterParts.push(/^\d+$/.test(query.trim())
-      ? `(DocumentNumber eq ${query.trim()} or contains(ItemNo,'${q}') or contains(ProductDescription,'${q}'))`
-      : `(contains(ItemNo,'${q}') or contains(ProductDescription,'${q}'))`);
-  }
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/ProductionOrders?$filter=${encodeURIComponent(filterParts.join(' and '))}&$top=200&$orderby=DueDate asc,DocumentNumber asc`,
-  });
-
-  return (resp.data?.value || [])
-    .filter((order) => (order.ProductionOrderLines || []).some(isOpenManualIssueLine))
-    .slice(0, 50)
-    .map((order) => ({
-      DocEntry: order.AbsoluteEntry || order.DocEntry,
-      DocNum: order.DocumentNumber || order.DocNum,
-      Series: order.Series,
-      SeriesName: order.SeriesName || '',
-      Type: order.ProductionOrderType || '',
-      ItemNo: order.ItemNo || '',
-      ProductDescription: order.ProductDescription || '',
-      PlannedQuantity: order.PlannedQuantity ?? 0,
-      CompletedQuantity: order.CompletedQuantity ?? 0,
-      ProductionOrderStatus: order.ProductionOrderStatus || '',
-      Warehouse: order.Warehouse || '',
-      DueDate: formatDate(order.DueDate),
-      PostingDate: formatDate(order.PostingDate),
-      StartDate: formatDate(order.StartDate),
-    }));
-};
-
-const getProductionOrderForIssueWithFallback = async (docEntry) => {
-  try {
-    return await withTimeout(
-      getProductionOrderForIssue(docEntry),
-      LIVE_LOOKUP_TIMEOUT_MS,
-      'Live SAP order load timed out',
-    );
-  } catch (error) {
-    console.warn('[IssueForProd] Live SAP order load failed; using database fallback:', error.message);
-    return getProductionOrderForIssueByOdbc(docEntry);
-  }
-};
-
-const lookupProductionOrdersWithFallback = async (query = '', type = '') => {
-  try {
-    return await withTimeout(
-      lookupIssueableProductionOrders(query, type),
-      LIVE_LOOKUP_TIMEOUT_MS,
-      'Live SAP lookup timed out',
-    );
-  } catch (error) {
-    console.warn('[IssueForProd] Live SAP lookup failed; using database fallback:', error.message);
-    return productionDbService.lookupOpenProductionOrders(query, true, type, { issueableOnly: true });
-  }
-};
-
 module.exports = {
   getReferenceData: getReferenceDataByOdbc,
-  getProductionOrderForIssue: getProductionOrderForIssueWithFallback,
+  getProductionOrderForIssue: getProductionOrderForIssueByOdbc,
   getIssueList: getIssueListByOdbc,
   getIssueByDocEntry: getIssueByDocEntryByOdbc,
   createIssue,
-  lookupProductionOrders: lookupProductionOrdersWithFallback,
+  cancelIssue,
+  lookupProductionOrders: (query = '', type = '') => productionDbService.lookupOpenProductionOrders(query, true, type, { issueableOnly: true }),
   getSeries,
   getAllocationOptions,
   _private: { _validate, _buildPayload },

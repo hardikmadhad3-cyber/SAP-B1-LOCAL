@@ -13,7 +13,9 @@ router.get('/production-order/:docEntry', ctrl.getProductionOrderForReceipt);
 
 // Receipt document
 router.get('/list',       ctrl.getReceiptList);
+router.get('/navigate', ctrl.navigateDocument);
 router.get('/:docEntry',  ctrl.getReceiptByDocEntry);
 router.post('/',          ctrl.createReceipt);
+router.post('/:docEntry/cancel', ctrl.cancelDocument);
 
 module.exports = router;

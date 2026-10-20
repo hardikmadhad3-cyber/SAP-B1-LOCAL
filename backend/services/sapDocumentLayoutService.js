@@ -1460,7 +1460,6 @@ const getDocumentLayout = async (auth, input = {}) => {
         mapping,
         columns: rows.map(mapRowToColumn),
         source: 'imported-layout',
-        warning: `Live SAP Form Settings were unavailable; using the saved ${mapping.documentType} layout.`,
       });
     }
 
@@ -1474,14 +1473,11 @@ const getDocumentLayout = async (auth, input = {}) => {
           mapping,
           columns: sanitizedSavedLiveRows,
           source: LIVE_LAYOUT_SOURCE,
-          warning: `Live SAP Form Settings were unavailable; using the last synchronized ${mapping.documentType} layout.`,
         });
       }
     }
 
-    const warning = `No imported layout found for ${mapping.documentType} (${scope.companyDb}/${scope.userCode}). Using fallback layout.`;
-    console.warn(`[SAP_LAYOUT] ${warning}`);
-
+    // Local ERP: the built-in standard layout is the normal case, not a warning.
     return buildResponse({
       scope,
       mapping,
@@ -1492,7 +1488,6 @@ const getDocumentLayout = async (auth, input = {}) => {
         source: 'fallback',
       })),
       source: 'fallback',
-      warning,
     });
   })().finally(() => {
     liveLayoutBuilds.delete(layoutBuildKey);

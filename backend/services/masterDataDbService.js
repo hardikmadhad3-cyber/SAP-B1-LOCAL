@@ -444,6 +444,11 @@ const mapBOMHeader = (row) => ({
   DistributionRule: row.OcrCode || "",
   Project: row.Project || "",
   PlanAvgProdSize: row.PlAvgSize ?? 1,
+  HideBOMComponentsInPrintout: row.HideComp === "Y" ? "tYES" : "tNO",
+  ComponentTotal: row.Price ?? 0,
+  ProductPrice: row.ProductPrice ?? 0,
+  Currency: row.ProductCurrency || "",
+  ProductionStdCost: row.PrdStdCst ?? 0,
 });
 
 const mapBOMLine = (row) => {
@@ -466,7 +471,9 @@ const mapBOMLine = (row) => {
     AdditionalQuantity: row.AddQuant ?? row.AdditionalQuantity ?? 0,
     InventoryUOM: row.UoMName || row.InvntryUom || "",
     UoMName: row.UoMName || row.InvntryUom || "",
-    ProductionStdCost: row.ProdStdCost ?? row.StdCost ?? row.Price ?? 0,
+    // SAP shows each component's production standard cost (item master), else its average cost.
+    ProductionStdCost: Number(row.ComponentStdCost) > 0 ? Number(row.ComponentStdCost) : Number(row.ComponentAvgPrice || 0),
+    Currency: row.Currency || "",
     ChildNum: row.ChildNum ?? 0,
     VisualOrder: row.VisOrder ?? 0,
     StageID: row.StageId ?? row.StageID ?? "",
@@ -998,8 +1005,9 @@ const lookupCurrencies = async (query = "") => {
       OR CurrName LIKE @like
     ORDER BY CurrCode
   `, { query: trimmed, like: `%${trimmed}%` });
+  const company = await queryOne("SELECT MainCurncy FROM OADM").catch(() => null);
 
-  return rows.map((row) => ({ code: row.CurrCode, name: row.CurrName }));
+  return rows.map((row) => ({ code: row.CurrCode, name: row.CurrName, local: row.CurrCode === company?.MainCurncy }));
 };
 
 const getAccount = async (code) => {
@@ -1012,7 +1020,44 @@ const getAccount = async (code) => {
     WHERE A.AcctCode = @code
   `, { code });
 
-  return row ? mapAccount(row, row.FatherAccountName, row.TaxGroupName) : null;
+  if (!row) return null;
+  const account = mapAccount(row, row.FatherAccountName, row.TaxGroupName);
+  account.Balance = await getAccountBalance(row.AcctCode, row.Postable === "N");
+  const company = await queryOne("SELECT MainCurncy FROM OADM").catch(() => null);
+  account.BalanceCurrency = company?.MainCurncy || "";
+  return account;
+};
+
+// SAP B1 shows the posted balance (debit - credit, local currency). A title
+// account shows the sum of every account below it.
+const getAccountBalance = async (code, isTitle) => {
+  if (!isTitle) {
+    const row = await queryOne("SELECT SUM(Debit - Credit) AS Balance FROM JDT1 WHERE Account = @code", { code });
+    return Number(row?.Balance || 0);
+  }
+  // ponytail: loads the whole tree + per-account totals; fine for a chart of accounts, add a recursive CTE if it grows huge.
+  const [tree, totals] = await Promise.all([
+    queryRows("SELECT AcctCode, FatherNum FROM OACT"),
+    queryRows("SELECT Account, SUM(Debit - Credit) AS Balance FROM JDT1 GROUP BY Account"),
+  ]);
+  const children = new Map();
+  tree.forEach((acct) => {
+    if (!acct.FatherNum) return;
+    if (!children.has(acct.FatherNum)) children.set(acct.FatherNum, []);
+    children.get(acct.FatherNum).push(acct.AcctCode);
+  });
+  const balances = new Map(totals.map((t) => [t.Account, Number(t.Balance || 0)]));
+  let sum = 0;
+  const stack = [code];
+  const seen = new Set();
+  while (stack.length) {
+    const current = stack.pop();
+    if (seen.has(current)) continue;
+    seen.add(current);
+    sum += balances.get(current) || 0;
+    stack.push(...(children.get(current) || []));
+  }
+  return sum;
 };
 
 const searchAccounts = async (query = "", accountType = "", top = 50, skip = 0) => {
@@ -1055,7 +1100,7 @@ const searchAccounts = async (query = "", accountType = "", top = 50, skip = 0) 
 const lookupParentAccounts = async (query = "") => {
   const trimmed = String(query || "").trim();
   const rows = await queryRows(`
-    SELECT TOP 100 AcctCode, AcctName
+    SELECT TOP 100 AcctCode, AcctName, Levels
     FROM OACT
     WHERE FrozenFor <> 'Y'
       AND Postable = 'N'
@@ -1065,7 +1110,7 @@ const lookupParentAccounts = async (query = "") => {
     ORDER BY AcctCode
   `, { query: trimmed, like: `%${trimmed}%` });
 
-  return rows.map((row) => ({ code: row.AcctCode, name: `${row.AcctCode} - ${row.AcctName}` }));
+  return rows.map((row) => ({ code: row.AcctCode, name: `${row.AcctCode} - ${row.AcctName}`, level: Number(row.Levels) || 1 }));
 };
 
 const lookupTaxCodes = async (query = "") => {
@@ -1562,11 +1607,23 @@ const listBOMs = async (query = "", top = 50, skip = 0) => {
   }));
 };
 
+const stagesOf = async (table, parentColumn, key) => {
+  const rows = await queryRows(`
+    SELECT S.StageId, S.SeqNum, S.StgEntry, S.Name, R.Code AS StageCode
+    FROM ${table} S LEFT JOIN ORST R ON R.AbsEntry = S.StgEntry
+    WHERE S.${parentColumn} = @key ORDER BY S.SeqNum`, { key });
+  return rows.map((stage) => ({
+    StageID: stage.StageId, SequenceNumber: stage.SeqNum, StageEntry: stage.StgEntry, Name: stage.Name || "", StageCode: stage.StageCode || "",
+  }));
+};
+
 const getBOM = async (treeCode) => {
   const row = await queryOne(`
-    SELECT *
-    FROM OITT
-    WHERE Code = @treeCode
+    SELECT T.*, I.PrdStdCst, P.Price AS ProductPrice, P.Currency AS ProductCurrency
+    FROM OITT T
+    LEFT JOIN OITM I ON I.ItemCode = T.Code
+    LEFT JOIN ITM1 P ON P.ItemCode = T.Code AND P.PriceList = T.PriceList
+    WHERE T.Code = @treeCode
   `, { treeCode });
 
   if (!row) return null;
@@ -1574,7 +1631,7 @@ const getBOM = async (treeCode) => {
   const lines = await queryRows(`
     SELECT L.*,
            COALESCE(NULLIF(I.ItemName, ''), NULLIF(R.ResName, '')) AS ItemMasterName,
-           I.InvntryUom,
+           I.InvntryUom, I.PrdStdCst AS ComponentStdCost, I.AvgPrice AS ComponentAvgPrice,
            COALESCE(NULLIF(I.InvntryUom, ''), NULLIF(U.UomCode, ''), NULLIF(U.UomName, '')) AS UoMName
     FROM ITT1 L
     LEFT JOIN OITM I ON I.ItemCode = L.Code
@@ -1587,6 +1644,7 @@ const getBOM = async (treeCode) => {
   return {
     ...mapBOMHeader(row),
     ProductTreeLines: lines.map(mapBOMLine),
+    ProductTreeStages: await stagesOf("ITT2", "Father", treeCode),
   };
 };
 
@@ -1654,12 +1712,14 @@ const lookupProjects = async () =>
 
 const getBOMItemDetails = async (itemCode) => {
   const row = await queryOne(`
-    SELECT TOP 1 ItemCode, ItemName, InvntryUom, DfltWH, ManSerNum, ManBtchNum, IssueMthd
+    SELECT TOP 1 ItemCode, ItemName, InvntryUom, DfltWH, ManSerNum, ManBtchNum, IssueMthd, PrdStdCst, AvgPrice
     FROM OITM
     WHERE ItemCode = @itemCode
   `, { itemCode });
 
   if (!row) return null;
+  // Prices per price list, so a new BOM row shows its unit price before saving.
+  const prices = await queryRows(`SELECT PriceList, Price, Currency FROM ITM1 WHERE ItemCode = @itemCode`, { itemCode });
 
   return {
     ItemCode: row.ItemCode,
@@ -1671,6 +1731,8 @@ const getBOMItemDetails = async (itemCode) => {
     ManageSerialNumbers: toYesNo(row.ManSerNum),
     ManageBatchNumbers: toYesNo(row.ManBtchNum),
     IssuePrimarilyBy: toIssueMethod(row.IssueMthd),
+    ProductionStdCost: Number(row.PrdStdCst) > 0 ? Number(row.PrdStdCst) : Number(row.AvgPrice || 0),
+    Prices: prices.map((price) => ({ PriceList: price.PriceList, Price: Number(price.Price || 0), Currency: price.Currency || "" })),
   };
 };
 
@@ -1724,6 +1786,7 @@ module.exports = {
   getBPSeriesNextNumber,
   listBOMs,
   getBOM,
+  stagesOf,
   lookupBOMItems,
   lookupBOMWarehouses,
   lookupBOMPriceLists,

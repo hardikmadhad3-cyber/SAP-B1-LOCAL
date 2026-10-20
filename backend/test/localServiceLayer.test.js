@@ -100,7 +100,8 @@ test('local Service Layer creates, reads, updates and closes marketing documents
     assert.deepEqual(await slMessage(sl('POST', '/Orders', { CardCode: 'C001', DocumentLines: [{ ItemCode: 'I001', TaxCode: 'BAD' }] })),
       [400, 'Tax code "BAD" does not exist.']);
     assert.equal((await sql('SELECT "NextNumber" FROM "NNM1" WHERE "ObjectCode" = \'17\'')).rows[0].NextNumber, before, 'failed posts roll back numbering');
-    assert.equal((await slMessage(sl('GET', '/ProductionOrders(1)')))[0], 501);
+    assert.equal((await slMessage(sl('GET', '/BlanketAgreements(1)')))[0], 501);
+    assert.equal((await slMessage(sl('GET', '/ProductionOrders(999)')))[0], 404);
     assert.equal((await slMessage(sl('GET', '/JournalEntries(999)')))[0], 404);
     assert.equal((await slMessage(sl('POST', `/Invoices(999)/Cancel`)))[0], 404);
 

@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import apiClient from "../../../api/client";
 import "../receiptFromProduction.css";
+import { autoBatchNumber } from "../receiptHelpers";
 
 const toQty = (value) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : 0;
 };
 
-const emptyBatch = () => ({ batch_number: "", quantity: 0 });
+const emptyBatch = () => ({ batch_number: "", quantity: 0, expiry_date: "", manufacturing_date: "", notes: "" });
 const emptySerial = () => ({ serial_number: "" });
 const emptyBin = () => ({ bin_abs: "", quantity: 0, serial_batch_base_line: "" });
 
@@ -18,6 +19,9 @@ export default function ReceiptAllocationModal({
   onClose,
   allocationEndpoint = "/receipt-from-production/allocation-options",
   title = "Receipt Allocations",
+  // Receipt creates new batches: show Expiry / Mfg Date / Notes and the auto-number helper.
+  createBatches = false,
+  postingDate = "",
 }) {
   const [loadingBins, setLoadingBins] = useState(false);
   const [binError, setBinError] = useState("");
@@ -87,6 +91,19 @@ export default function ReceiptAllocationModal({
     setter((prev) => prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)));
   };
 
+  const fillBatchNumbers = () => {
+    setBatchRows((prev) => {
+      const next = [...prev];
+      next.forEach((row, index) => {
+        if (!row.batch_number) {
+          next[index] = { ...row, batch_number: autoBatchNumber(line.item_code, postingDate, next.map((r) => r.batch_number)) };
+        }
+      });
+      if (next.length === 1 && !toQty(next[0].quantity)) next[0] = { ...next[0], quantity: requiredQty };
+      return next;
+    });
+  };
+
   const validate = () => {
     if (line.manage_batch) {
       if (validBatchRows.length === 0) {
@@ -153,7 +170,7 @@ export default function ReceiptAllocationModal({
               {line.item_code} - {line.item_name || "Item"}
             </div>
           </div>
-          <button type="button" className="rfp-alloc-modal__close" onClick={onClose}>
+          <button type="button" className="rfp-alloc-modal__close" onClick={onClose} aria-label="Close">
             x
           </button>
         </div>
@@ -174,9 +191,16 @@ export default function ReceiptAllocationModal({
               <div className="rfp-alloc-section__header">
                 <span>Batch Numbers</span>
                 {!readOnly && (
-                  <button type="button" className="im-btn im-btn--sm" onClick={() => setBatchRows((prev) => [...prev, emptyBatch()])}>
-                    Add
-                  </button>
+                  <span className="rfp-alloc-section__actions">
+                    {createBatches && (
+                      <button type="button" className="im-btn im-btn--sm" onClick={fillBatchNumbers}>
+                        Auto-generate
+                      </button>
+                    )}
+                    <button type="button" className="im-btn im-btn--sm" onClick={() => setBatchRows((prev) => [...prev, emptyBatch()])}>
+                      Add
+                    </button>
+                  </span>
                 )}
               </div>
               <table className="rfp-alloc-table">
@@ -184,6 +208,9 @@ export default function ReceiptAllocationModal({
                   <tr>
                     <th>Batch Number</th>
                     <th>Quantity</th>
+                    {createBatches && <th>Expiry Date</th>}
+                    {createBatches && <th>Mfg Date</th>}
+                    {createBatches && <th>Notes</th>}
                     {!readOnly && <th />}
                   </tr>
                 </thead>
@@ -193,7 +220,8 @@ export default function ReceiptAllocationModal({
                       <td>
                         <input
                           className="rfp-alloc-input"
-                          list="production-available-batches"
+                          aria-label={`Batch number ${index + 1}`}
+                          list={createBatches ? undefined : "production-available-batches"}
                           value={row.batch_number || ""}
                           readOnly={readOnly}
                           onChange={(e) => updateArrayRow(setBatchRows, index, "batch_number", e.target.value)}
@@ -205,11 +233,35 @@ export default function ReceiptAllocationModal({
                           type="number"
                           min="0"
                           step="any"
+                          aria-label={`Batch quantity ${index + 1}`}
                           value={row.quantity}
                           readOnly={readOnly}
                           onChange={(e) => updateArrayRow(setBatchRows, index, "quantity", e.target.value)}
                         />
                       </td>
+                      {createBatches && ["expiry_date", "manufacturing_date"].map((field) => (
+                        <td key={field}>
+                          <input
+                            className="rfp-alloc-input"
+                            type="date"
+                            aria-label={`${field === "expiry_date" ? "Expiry date" : "Manufacturing date"} ${index + 1}`}
+                            value={row[field] || ""}
+                            readOnly={readOnly}
+                            onChange={(e) => updateArrayRow(setBatchRows, index, field, e.target.value)}
+                          />
+                        </td>
+                      ))}
+                      {createBatches && (
+                        <td>
+                          <input
+                            className="rfp-alloc-input"
+                            aria-label={`Batch notes ${index + 1}`}
+                            value={row.notes || ""}
+                            readOnly={readOnly}
+                            onChange={(e) => updateArrayRow(setBatchRows, index, "notes", e.target.value)}
+                          />
+                        </td>
+                      )}
                       {!readOnly && (
                         <td>
                           <button type="button" className="rfp-alloc-remove" onClick={() => setBatchRows((prev) => prev.filter((_, i) => i !== index))}>

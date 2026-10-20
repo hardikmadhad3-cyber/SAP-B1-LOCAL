@@ -628,7 +628,7 @@ export default function Sidebar() {
             {!collapsed ? (
               <div>
                 <div className="sidebar__brand-title">SAP Client</div>
-                <div className="sidebar__brand-subtitle">{company?.dbName || 'Business One'}</div>
+                <div className="sidebar__brand-subtitle">Henny_Erp</div>
               </div>
             ) : null}
           </div>

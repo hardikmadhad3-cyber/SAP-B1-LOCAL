@@ -183,7 +183,7 @@ Limits: day-count cash discounts only; the chart is a local starter template, no
 ### Phase 4 — Posting engine (per document, sales first)
 - [x] **Copy-from** (marketing documents): `BaseType/BaseEntry/BaseLine`; base `OpenQty`/`OpenSum` recomputed from all non-cancelled copies; rows and documents auto-close; cancelling a copy reopens its base. Done 2026-10-12.
 - [x] **Stock for marketing documents:** `OITW/OITM.OnHand/IsCommited/OnOrder` + `OINM`, moving average (`OITM.AvgPrice`) for Delivery, A/R Invoice, A/R Credit Memo, GRPO, A/P Invoice, A/P Credit Memo. Done 2026-10-12.
-- [x] **Stock for inventory documents:** Goods Receipt/Issue, Inventory Transfer (+ Transfer Request). Done 2026-10-17; production remains.
+- [x] **Stock for inventory documents:** Goods Receipt/Issue, Inventory Transfer (+ Transfer Request). Done 2026-10-17. Production (BOM, production orders, issue/receipt for production) done 2026-10-19.
 - [x] **Journal entries for marketing documents:** `OJDT`/`JDT1` from account determination (`OITB`/`OWHS` by item G/L method → `OACP` defaults), GST component accounts (`OSTA`), freight (`OEXD`), rounding. Done 2026-10-12.
 - [x] **BP balances** (`OCRD.Balance` = debit − credit, so vendors are negative as in SAP). Payments and reconciliation remain.
 - [x] Cancel posting documents (SAP cancellation document reversing stock + JE) and payments — 2026-10-17.
@@ -453,4 +453,102 @@ Job Work and Gate Pass failed on local companies with "does not support GET /Use
 - Prepared the current project snapshot for the requested private SAP-LOCAL-ERP GitHub repository.
 - Checks: reviewed ignored environment/runtime files; scanned publishable files for common private-key/token patterns and files over 50 MB (none found).
 - Limits: application tests were not rerun for this repository-only task; existing functional limits above remain. Pattern scanning is not a full secret audit.
+
+
+### Handoff 2026-10-19 — Distribution Rule 2-5 columns removed
+- Removed `CostingCode2-5` ("Distribution Rule 2-5") from the item and service line schema in `backend/modules/newSalesOrder/newSalesOrderConstants.js` and from the service-document CPRF list in `backend/services/sapFormPreferenceUtils.js`. All sales, purchase and service document grids now show only the standard SAP B1 `Distribution Rule` column; dimensions 2-5 are still picked through its dimension-assignment dialog, and `OcrCode2-5` still save and load.
+- Check: `node --test test/newSalesOrderSchema.test.js` (new test). Full backend suite: the only failure is the HSN/OCHP test, which also fails on `main`.
+
+### Handoff 2026-10-19 — SAP layout fallback warnings removed
+- `backend/services/sapDocumentLayoutService.js`: when no layout has been imported, the built-in standard layout is now used without a warning. Removed the `[SAP_LAYOUT] No imported layout found ...` server log and the "Live SAP Form Settings were unavailable" warnings that every document page listed.
+- Check: `node --test test/sapLayoutLocalFallback.test.js`. Real query errors still log through `queryRowsSafe`.
+
+### Handoff 2026-10-19 — Chart of Accounts fixes
+- Balance: `masterDataDbService.getAccount` now calculates Balance from posted `JDT1` lines (debit - credit). A title account shows the total of every account below it. `BalanceCurrency` is the company's local currency (`OADM.MainCurncy`). The local service layer now refuses to turn an account with postings into a title account; before, it checked `OACT.CurrTotal`, which nothing ever updated.
+- Lookups: the currency lookup marks the local currency with `local`, and the parent-account lookup returns `level`. Both are extra fields, so other callers are unaffected.
+- Page (`modules/chart-of-accounts/ChartOfAccounts.jsx`): rebuilt on the shared `im-*` styles and deleted its private `chartOfAccounts.css`.
+  - Find with empty fields now lists all accounts.
+  - Level shows the parent's level + 1 (or 1 for a top-level account) until the account is saved.
+  - After a save, the account is reloaded and the parent list refreshed.
+  - Removed the Distribution Rule section (PRODUCT/DIVISION/BRANCH): its values were never saved and its labels came from one company.
+- Checks: `node --test test/localSetupMasters.test.js` (balance and postings rule added) and `react-scripts test src/modules/chart-of-accounts`. Full backend suite: the only failure is the HSN/OCHP test, which also fails on `main`.
+- Limits: Block Manual Posting and Cash Flow Relevant are still stored in `SlExtra` and not enforced on journal entries. Foreign-currency balance is not shown.
+
+### Handoff 2026-10-19 — Production pages on the local engine
+- Problem: the BOM page failed with "The local ERP does not support POST /ProductTrees yet". Production Order create, Release and Close, and posting Issue/Receipt for Production also could not save, because the local engine had no `ProductTrees` or `ProductionOrders` handler and refused rows based on a production order (BaseType 202).
+- `backend/services/localServiceLayer.js`:
+  - `ProductTrees` (OITT/ITT1) and `ProductionOrders` (OWOR/WOR1) added as masters.
+  - BOM rules: the product item must exist; components are items or resources and cannot be the product itself; quantity must be > 0; warehouses must exist; row prices come from the price list; `OITM.TreeType` is set on save and reset on delete.
+  - Production order rules: numbered from the object 202 series; a standard order needs a BOM, and its rows are scaled from the BOM when the page sends none; status goes Planned → Released → Closed, or Planned/Released → Cancelled only without issues or receipts; only planned orders can be edited; disassembly orders are refused as not supported.
+  - Issue/Receipt for Production (`loadProductionBase`, `refreshProductionOrders`): rows must be based on a released order. An issue takes the order row's item and warehouse. A receipt row is the product, valued at the issued component cost not yet received per open unit (component returns at their issue cost). The offset goes to the order warehouse's WIP account when one is set. `WOR1.IssuedQty` and `OWOR.CmpltQty/RjctQty` are recalculated after every posting and cancellation; a cancellation is refused once the order is closed.
+  - Framework: child rows support enums, header reads map enums back, and delete removes child rows (`afterDelete`, empty `usedBy`).
+- Migration `016_production.sql` (all `ADD COLUMN IF NOT EXISTS`): OITT/ITT1 BOM columns, `OWOR.Priority`, `ORSC.DfltWH`, `IGE1/IGN1.BaseRef`, `IGN1.TranType`, OWHS receiving-bin columns. This also fixes three readers that failed before: the BOM list, the Issue for Production list, and receipt order loading.
+- Check: `test/localProduction.test.js` (added to `npm run test:local-sl`) runs the pages' own services end to end: BOM → order → release → issue → two receipts → close, the cancel and edit rules, every production reader, the Bill of Materials report and the Open Items List. `localServiceLayer.test.js` now uses `BlanketAgreements` as its unsupported example. Full backend suite: the only failure is the HSN/OCHP test, which also fails on `main`.
+- Limits: no variance posting when an order closes; no backflush auto-issue; by-products and disassembly orders, and batch/serial items, are not supported. No browser check was done.
+
+### Handoff 2026-10-19 — Production limits closed; batch and serial numbers
+- Batch and serial numbers (whole engine, every stock document): migration `017_batches_serials_wip.sql` adds OBTN/OIBT/IBT1 and OSRN/OSRQ/OSRI/SRI1. Document lines keep their `BatchNumbers`/`SerialNumbers`; `postStock` calls `moveBatchesAndSerials`.
+  - Batch quantities must add up to the row's inventory quantity; a serial item needs one serial per unit.
+  - Receipts create batches and serials, issues take them from the warehouse, and transfers move them.
+  - A serial cannot be received while it is in stock, and an issue refuses a batch or serial that is not in that warehouse.
+  - Cancellation reverses the logged moves (`reverseBatchesAndSerials`).
+  - The engine's old "batch and serial numbers are not supported yet" refusal is gone.
+- WIP: production rows always post against the WIP account (order warehouse `WipAcct`, else G/L determination `OACP.WipAcct`); without one, posting stops with "Define the WIP inventory account…". Migration 017 adds `OACP.WipAcct/WipVarAcct`. On the starter chart it reuses an account named "Work in Process" / "Production Variances" or creates one at the first free code (125000…, 530000…). Demo Trading's 530000 is "Purchase Price Difference", so its variance account will be 535000.
+- Variance on close: closing a released order posts what is left in WIP (issued cost − received value) to the WIP variance account and links the entry on `OWOR.TransId`.
+- Backflush: receiving the product (completed or rejected) first posts an Issue for Production of the backflush rows in proportion (`backflushForReceipt`), so the product is valued with them. Batch or serial items cannot be backflush rows.
+- By-products: a negative planned quantity on an item row of a standard or special order. It uses the manual issue method, cannot be issued, and is received at the item's cost; its issued quantity goes negative, as in SAP. The receipt service matches a page-added by-product row by item code and sends the product without a base row.
+- Disassembly: the order is built from the BOM with every row on manual issue. Issue for Production issues the product (`CmpltQty`), and Receipt from Production receives the components at their item cost (row issued quantity = received). The receipt reader no longer refuses an order whose product was fully issued.
+- Frontend: the Production Order row quantity accepts negative values (by-products).
+- Checks: `test/localBatchSerial.test.js` (new) and `test/localProduction.test.js` (second test covering backflush, a batch component, a by-product, the variance entry including Demo Trading's taken 530000, and disassembly). Both are in `npm run test:local-sl` (23/23). `localMissingSetup.test.js` now expects 17 accounts. Full backend suite: the only failure is the HSN/OCHP test, which also fails on `main`.
+- Limits: bin locations are not tracked (bin allocations are accepted but not stored); serial and batch are not combined on one item; the variance entry is one amount (no price/quantity split); no browser check was done. Restart the backend so migrations 016/017 load (the runner reads the migration files at startup).
+
+### Handoff 2026-10-19 — Production module brought to SAP B1 parity
+An audit of the four production pages found wrong postings, lost data, fake figures and missing SAP functions. Fixed:
+
+**Postings and data**
+- Receipt from Production posted the product at price 0. Production rows are now valued by the engine: the product at open WIP cost, by-products and disassembly components at item cost.
+- Issue for Production loaded orders through the old Service Layer path, which lost batch/serial/bin flags and broke disassembly. Orders now load from the database.
+- Backflush counted by-product rows as product quantity.
+- Production order text rows came back as items after a reload, and base ratio was wrong after a reload.
+- Never saved before, now saved: the order user, the Sales Order / parent production order link (`OriginType/OriginAbs/OriginNum`), Pick and Pack Remarks, and the actual closing date. The variance entry is posted on the closing date.
+- Item codes in Service Layer keys are now URL-decoded.
+
+**New functions**
+- Cancel for production orders, issues and receipts (routes + buttons).
+- One issue can cover several production orders.
+- First/Previous/Next/Last browsing on all four pages (`productionDbService.navigateRecord`).
+- Production Order Summary tab with real actual and planned costs, WIP and variance (`getProductionOrderSummary`). It also has a Related Documents list with links to the issues, receipts and variance journal entry.
+- Production Order: Issue Components and Report Completion actions; filters by status, type and due date.
+- Attachments for BOMs and production orders, through the shared `controllers/attachmentController.js`; Item Master now uses it too.
+
+**BOM**
+- Row types Item, Resource, Text and Route Stage. Remove, Duplicate and browsing.
+- SAP BOM type rules (production = inventory item; sales/assembly = non-inventory sales item; resources only on production/template BOMs).
+- "Hide BOM components" is now saved.
+- Unit price and production std cost are shown, and the cost rolls up into the product's `OITM.PrdStdCst` (items + resources).
+- BOM report: a lone "From" means `>=`, extended quantities, route stage and currency on component rows.
+
+**Resources and route stages** (migration `019_resources_route_stages.sql`)
+- Setup pages under Production: Resources (`ORSC`: type, group, UoM, issue method, default warehouse, standard cost, resource account), Resource Groups (`ORSB`) and Route Stages (`ORST`). All three use the shared `/setup/:kind` page and `localSetupMasters`.
+- BOM stages are stored in `ITT2` and production order stages in `WOR4`; they are copied from the BOM when an order is created.
+- Issuing a resource posts quantity × standard cost from WIP against the resource account. It moves no stock, and backflush covers resources too.
+- G/L determination gains `ResAcct`; the starter chart gets "Resource Absorption" (540000, or the first free code). `IGE1` loses its item foreign key and gains `ItemType`.
+
+**Other migrations**
+- `018_production_order_header.sql` adds `OWOR.CloseDate` and `PickRmrk`.
+
+**Frontend**
+- The BOM, Production Order, Issue for Production and Receipt from Production pages are rebuilt for the above.
+- Their module CSS now uses only `--sap-*` tokens.
+- New pure-helper jest tests in each module (19 tests).
+
+**Checks**
+- `test/localProduction.test.js` third test: resources, stages, the sales order link, multi-order issue, resource journal, Summary, receipt cancel, closing date and variance, order cancel, text rows, browsing and the BOM report.
+- `npm run test:local-sl`: 24/24. The full backend suite with `--test-concurrency=1` has one failure, the HSN/OCHP test, which also fails on `main`. When test files run in parallel, `localMissingSetup` can fail on a HANA-client pipe error; this is environmental and it passes with concurrency 1.
+- Frontend: eslint clean; 19/19 tests across the production modules and setup; `npm run build` passes.
+
+**Limits**
+- Not done: resource capacity planning, MRP origin, the price/quantity split of variance, bin locations, and the "Update Parent Item Prices Globally" utility.
+- Dead Service Layer code removed (2026-10-19): the old `$filter`/`$select` readers, mappers and lookups in `productionOrderService.js`, `receiptFromProductionService.js` and `issueForProductionService.js` (about 930 lines). It was found by tracing what the exported values reach, not the export keys. The production tests and the full suite still pass.
+- No browser check was done. Restart the backend so migrations 016–019 load.
 

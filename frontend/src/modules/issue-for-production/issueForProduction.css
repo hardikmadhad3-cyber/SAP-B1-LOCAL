@@ -17,7 +17,7 @@
 .ifp-lbl   { flex: 0 0 150px !important; text-align: right; }
 .ifp-lbl-r { flex: 0 0 130px !important; text-align: right; }
 
-.ifp-readonly { background: #f0f2f5 !important; color: #555; }
+.ifp-readonly { background: var(--sap-surface-soft) !important; color: var(--sap-text-muted); }
 
 /* ── PO info banner ── */
 .ifp-po-banner {
@@ -25,27 +25,27 @@
   align-items: center;
   gap: 16px;
   padding: 7px 14px;
-  background: #eef6ff;
-  border: 1px solid #b3d4f5;
+  background: var(--sap-surface-soft);
+  border: 1px solid var(--sap-primary);
   border-radius: 4px;
   margin-bottom: 10px;
-  font-size: 12px;
+  font-size: var(--sap-small-font-size);
   flex-wrap: wrap;
 }
-.ifp-po-banner__label { color: #555; font-weight: 600; }
-.ifp-po-banner__value { color: #003366; font-weight: 700; margin-right: 12px; }
+.ifp-po-banner__label { color: var(--sap-text-muted); font-weight: var(--sap-font-weight-semibold); }
+.ifp-po-banner__value { color: var(--sap-link); font-weight: var(--sap-font-weight-bold); margin-right: 12px; }
 .ifp-po-banner__status {
   padding: 1px 7px;
   border-radius: 3px;
-  font-size: 11px;
-  font-weight: 700;
-  background: #e8f5e9;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-bold);
+  background: var(--sap-surface-soft);
+  color: var(--sap-success);
+  border: 1px solid var(--sap-success);
 }
 .ifp-po-banner__warn {
-  color: #365f8f;
-  font-size: 11px;
+  color: var(--sap-link);
+  font-size: var(--sap-small-font-size);
   font-style: italic;
 }
 
@@ -76,7 +76,7 @@
   width: max-content;
   min-width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--sap-small-font-size);
   table-layout: fixed;
 }
 
@@ -84,12 +84,12 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #e8edf2;
-  border: 1px solid #c8d0da;
+  background: var(--sap-grid-header-bg);
+  border: 1px solid var(--sap-border);
   padding: 4px 5px;
   text-align: left;
-  font-weight: 700;
-  color: #003366;
+  font-weight: var(--sap-font-weight-bold);
+  color: var(--sap-link);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -107,72 +107,72 @@
 .ifp-th--dr       { width: 100px; }
 .ifp-th--proj     { width: 90px;  }
 
-.ifp-grid__row:hover { background: #f5f8fc; }
-.ifp-grid__row:nth-child(even) { background: #fafbfc; }
-.ifp-grid__row:nth-child(even):hover { background: #f0f4f8; }
+.ifp-grid__row:hover { background: var(--sap-row-hover); }
+.ifp-grid__row:nth-child(even) { background: var(--sap-row-even); }
+.ifp-grid__row:nth-child(even):hover { background: var(--sap-row-hover); }
 .ifp-grid__row--empty { height: 22px; }
-.ifp-grid__row--fully-issued td { color: #aaa; background: #f9f9f9 !important; }
+.ifp-grid__row--fully-issued td { color: var(--sap-text-muted); background: var(--sap-surface-soft) !important; }
 
 .ifp-grid__cell {
-  border: 1px solid #e8ecf0;
+  border: 1px solid var(--sap-border);
   padding: 1px 3px;
   vertical-align: middle;
   height: 22px;
 }
-.ifp-grid__cell--empty    { background: #fafbfc; }
+.ifp-grid__cell--empty    { background: var(--sap-surface-soft); }
 .ifp-grid__cell--num      { text-align: right; font-variant-numeric: tabular-nums; }
-.ifp-grid__cell--readonly { background: #f5f7fa; color: #555; }
-.ifp-grid__cell--remain   { background: #eef6ff; color: #174a7c; font-weight: 600; text-align: right; }
-.ifp-grid__cell--zero     { background: #f0f0f0; color: #aaa; text-align: right; }
-.ifp-grid__cell--issue    { background: #f0fff4; }
+.ifp-grid__cell--readonly { background: var(--sap-surface-soft); color: var(--sap-text-muted); }
+.ifp-grid__cell--remain   { background: var(--sap-surface-soft); color: var(--sap-link); font-weight: var(--sap-font-weight-semibold); text-align: right; }
+.ifp-grid__cell--zero     { background: var(--sap-surface-soft); color: var(--sap-text-muted); text-align: right; }
+.ifp-grid__cell--issue    { background: var(--sap-surface-soft); }
 
 /* Issue qty input — highlighted */
 .ifp-issue-input {
   width: 100%;
   height: 20px;
   padding: 0 4px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid #a5d6a7;
-  background: #f0fff4;
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-bold);
+  border: 1px solid var(--sap-success);
+  background: var(--sap-surface-soft);
   border-radius: 2px;
   box-sizing: border-box;
   text-align: right;
-  color: #1a5c2a;
+  color: var(--sap-success);
 }
 .ifp-issue-input:focus {
   outline: none;
-  border-color: #2e7d32;
-  background: #e8f5e9;
+  border-color: var(--sap-success);
+  background: var(--sap-surface-soft);
 }
 .ifp-issue-input:disabled {
-  background: #f0f0f0;
-  color: #aaa;
-  border-color: #ddd;
+  background: var(--sap-surface-soft);
+  color: var(--sap-text-muted);
+  border-color: var(--sap-border);
 }
 
 .ifp-cell-input {
   width: 100%;
   height: 20px;
   padding: 0 3px;
-  font-size: 12px;
+  font-size: var(--sap-small-font-size);
   border: 1px solid transparent;
   background: transparent;
   border-radius: 1px;
   box-sizing: border-box;
-  color: #1a1a1a;
+  color: var(--sap-text);
 }
 .ifp-cell-input:focus {
   outline: none;
-  border-color: #0070c0;
-  background: #fff;
+  border-color: var(--sap-primary);
+  background: var(--sap-surface);
 }
 
 .ifp-cell-select {
   width: 100%;
   height: 22px;
   padding: 0 2px;
-  font-size: 12px;
+  font-size: var(--sap-small-font-size);
   border: 1px solid transparent;
   background: transparent;
   border-radius: 1px;
@@ -180,8 +180,8 @@
 }
 .ifp-cell-select:focus {
   outline: none;
-  border-color: #0070c0;
-  background: #fff;
+  border-color: var(--sap-primary);
+  background: var(--sap-surface);
 }
 
 /* ── Bottom bar ── */
@@ -190,19 +190,19 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 14px;
-  border-top: 1px solid #e0e6ed;
-  background: #f8fafc;
-  font-size: 12px;
+  border-top: 1px solid var(--sap-border);
+  background: var(--sap-surface-soft);
+  font-size: var(--sap-small-font-size);
   gap: 12px;
 }
 .ifp-bottom-bar__totals {
   display: flex;
   gap: 20px;
-  color: #555;
+  color: var(--sap-text-muted);
 }
 .ifp-bottom-bar__total-val {
-  font-weight: 700;
-  color: #003366;
+  font-weight: var(--sap-font-weight-bold);
+  color: var(--sap-link);
 }
 
 /* ── List view ── */
@@ -211,21 +211,21 @@
   align-items: center;
   gap: 8px;
   padding: 16px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e0e6ed;
+  background: var(--sap-surface);
+  border-bottom: 1px solid var(--sap-border);
 }
 
 .ifp-list-container {
   flex: 1;
   overflow: auto;
-  background: #fff;
+  background: var(--sap-surface);
   padding: 0;
 }
 
 .ifp-list-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--sap-control-font-size);
 }
 .ifp-list-table thead {
   position: sticky;
@@ -233,28 +233,28 @@
   z-index: 10;
 }
 .ifp-list-table th {
-  background: #e8edf2;
-  border: 1px solid #c8d0da;
+  background: var(--sap-grid-header-bg);
+  border: 1px solid var(--sap-border);
   padding: 8px 10px;
   text-align: left;
-  font-weight: 700;
-  color: #003366;
+  font-weight: var(--sap-font-weight-bold);
+  color: var(--sap-link);
   white-space: nowrap;
 }
 .ifp-list-table td {
-  border: 1px solid #e8ecf0;
+  border: 1px solid var(--sap-border);
   padding: 6px 10px;
   vertical-align: middle;
 }
 .ifp-list-table tbody tr:hover td { 
-  background: #f0f6fc; 
+  background: var(--sap-row-hover); 
   cursor: pointer; 
 }
 .ifp-list-table tbody tr:nth-child(even) td { 
-  background: #fafbfc; 
+  background: var(--sap-row-even); 
 }
 .ifp-list-table tbody tr:nth-child(even):hover td { 
-  background: #edf4fb; 
+  background: var(--sap-row-hover); 
 }
 
 .ifp-list-toolbar {
@@ -268,17 +268,17 @@
 .ifp-po-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.35);
+  background: var(--sap-overlay-bg);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .ifp-po-modal {
-  background: #fff;
-  border: 1px solid #a0aab4;
+  background: var(--sap-surface);
+  border: 1px solid var(--sap-primary);
   border-radius: 4px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  box-shadow: var(--sap-shadow-modal);
   width: 680px;
   max-width: 96vw;
   max-height: 80vh;
@@ -290,23 +290,23 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: #e8edf2;
-  border-bottom: 1px solid #c8d0da;
-  font-weight: 700;
-  color: #003366;
-  font-size: 13px;
+  background: var(--sap-grid-header-bg);
+  border-bottom: 1px solid var(--sap-border);
+  font-weight: var(--sap-font-weight-bold);
+  color: var(--sap-link);
+  font-size: var(--sap-control-font-size);
 }
 .ifp-po-modal__close {
   background: none;
   border: none;
-  font-size: 16px;
+  font-size: var(--sap-section-font-size);
   cursor: pointer;
-  color: #555;
+  color: var(--sap-text-muted);
   padding: 0 4px;
 }
 .ifp-po-modal__search {
   padding: 10px 14px;
-  border-bottom: 1px solid #e8ecf0;
+  border-bottom: 1px solid var(--sap-border);
   display: flex;
   gap: 8px;
 }
@@ -318,8 +318,8 @@
 .ifp-po-modal__empty {
   padding: 20px;
   text-align: center;
-  color: #888;
-  font-size: 13px;
+  color: var(--sap-text-muted);
+  font-size: var(--sap-control-font-size);
 }
 
 /* ── Batch/Serial Selection ── */
@@ -332,9 +332,9 @@
   width: 100%;
   height: 20px;
   padding: 0 6px;
-  font-size: 11px;
-  border: 1px solid #c8d0da;
-  background: #fff;
+  font-size: var(--sap-small-font-size);
+  border: 1px solid var(--sap-border);
+  background: var(--sap-surface);
   border-radius: 2px;
   cursor: pointer;
   display: flex;
@@ -344,32 +344,32 @@
 }
 
 .batch-serial-btn:hover:not(:disabled) {
-  background: #f0f6fc;
-  border-color: #0070c0;
+  background: var(--sap-surface-soft);
+  border-color: var(--sap-primary);
 }
 
 .batch-serial-btn:disabled {
-  background: #f5f5f5;
-  color: #aaa;
+  background: var(--sap-surface-soft);
+  color: var(--sap-text-muted);
   cursor: not-allowed;
-  border-color: #ddd;
+  border-color: var(--sap-border);
 }
 
 .batch-serial-btn--selected {
-  color: #2e7d32;
-  font-weight: 600;
+  color: var(--sap-success);
+  font-weight: var(--sap-font-weight-semibold);
 }
 
 .batch-serial-btn--empty {
-  color: #d32f2f;
-  font-weight: 500;
+  color: var(--sap-danger);
+  font-weight: var(--sap-font-weight-semibold);
 }
 
 /* ── Batch/Serial Modal ── */
 .batch-serial-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
+  background: var(--sap-overlay-bg);
   z-index: 2000;
   display: flex;
   align-items: center;
@@ -377,10 +377,10 @@
 }
 
 .batch-serial-modal {
-  background: #fff;
-  border: 1px solid #a0aab4;
+  background: var(--sap-surface);
+  border: 1px solid var(--sap-primary);
   border-radius: 4px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  box-shadow: var(--sap-shadow-modal);
   width: 700px;
   max-width: 96vw;
   max-height: 85vh;
@@ -393,46 +393,46 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #e8edf2;
-  border-bottom: 1px solid #c8d0da;
-  color: #003366;
+  background: var(--sap-grid-header-bg);
+  border-bottom: 1px solid var(--sap-border);
+  color: var(--sap-link);
 }
 
 .batch-serial-modal__close {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: var(--sap-title-font-size);
   cursor: pointer;
-  color: #555;
+  color: var(--sap-text-muted);
   padding: 0 6px;
   line-height: 1;
 }
 
 .batch-serial-modal__close:hover {
-  color: #d32f2f;
+  color: var(--sap-danger);
 }
 
 .batch-serial-modal__error {
   padding: 10px 16px;
-  background: #ffebee;
-  border-bottom: 1px solid #ef9a9a;
-  color: #c62828;
-  font-size: 12px;
+  background: color-mix(in srgb, var(--sap-danger) 10%, var(--sap-surface));
+  border-bottom: 1px solid var(--sap-danger);
+  color: var(--sap-danger);
+  font-size: var(--sap-small-font-size);
 }
 
 .batch-serial-modal__info {
   display: flex;
   gap: 20px;
   padding: 10px 16px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e0e6ed;
-  font-size: 12px;
-  color: #555;
+  background: var(--sap-surface-soft);
+  border-bottom: 1px solid var(--sap-border);
+  font-size: var(--sap-small-font-size);
+  color: var(--sap-text-muted);
 }
 
 .batch-serial-modal__info strong {
-  color: #003366;
-  font-weight: 700;
+  color: var(--sap-link);
+  font-weight: var(--sap-font-weight-bold);
 }
 
 .batch-serial-modal__body {
@@ -444,7 +444,7 @@
 .batch-serial-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--sap-small-font-size);
 }
 
 .batch-serial-table thead {
@@ -454,63 +454,63 @@
 }
 
 .batch-serial-table th {
-  background: #e8edf2;
-  border: 1px solid #c8d0da;
+  background: var(--sap-grid-header-bg);
+  border: 1px solid var(--sap-border);
   padding: 8px 10px;
   text-align: left;
-  font-weight: 700;
-  color: #003366;
+  font-weight: var(--sap-font-weight-bold);
+  color: var(--sap-link);
   white-space: nowrap;
 }
 
 .batch-serial-table td {
-  border: 1px solid #e8ecf0;
+  border: 1px solid var(--sap-border);
   padding: 6px 10px;
   vertical-align: middle;
 }
 
 .batch-serial-table tbody tr:hover {
-  background: #f5f8fc;
+  background: var(--sap-surface-soft);
 }
 
 .batch-serial-table tbody tr:nth-child(even) {
-  background: #fafbfc;
+  background: var(--sap-surface-soft);
 }
 
 .batch-serial-table tbody tr:nth-child(even):hover {
-  background: #f0f4f8;
+  background: var(--sap-surface-soft);
 }
 
 .batch-qty-input {
   width: 100%;
   max-width: 100px;
   padding: 4px 6px;
-  font-size: 12px;
-  border: 1px solid #c8d0da;
+  font-size: var(--sap-small-font-size);
+  border: 1px solid var(--sap-border);
   border-radius: 2px;
   text-align: right;
 }
 
 .batch-qty-input:focus {
   outline: none;
-  border-color: #0070c0;
-  background: #f0f6fc;
+  border-color: var(--sap-primary);
+  background: var(--sap-surface-soft);
 }
 
 .serial-input-area {
   width: 100%;
   padding: 8px;
-  font-size: 12px;
-  font-family: 'Courier New', monospace;
-  border: 1px solid #c8d0da;
+  font-size: var(--sap-small-font-size);
+  font-family: var(--sap-font-family);
+  border: 1px solid var(--sap-border);
   border-radius: 3px;
   resize: vertical;
 }
 
 .serial-input-area:focus {
   outline: none;
-  border-color: #0070c0;
-  background: #f0f6fc;
+  border-color: var(--sap-primary);
+  background: var(--sap-surface-soft);
 }
 
 .batch-serial-modal__footer {
@@ -518,13 +518,13 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid #e0e6ed;
-  background: #f8fafc;
+  border-top: 1px solid var(--sap-border);
+  background: var(--sap-surface-soft);
 }
 
 .im-btn--sm {
   padding: 4px 10px;
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
   height: auto;
 }
 
@@ -565,37 +565,38 @@
 }
 
 .ifp-tab-panel {
+  /* Sized by its content; the grid scrolls inside its own box (rows + scrollbar stay together). */
   min-height: 150px;
-  height: clamp(150px, 22vh, 230px);
-  background: #fff;
+  height: auto;
+  background: var(--sap-surface);
 }
 
 .ifp-empty-state {
   padding: 34px 20px;
   text-align: center;
-  color: #888;
-  font-size: 13px;
+  color: var(--sap-text-muted);
+  font-size: var(--sap-control-font-size);
 }
 
 .ifp-empty-state--warn {
-  color: #365f8f;
+  color: var(--sap-link);
 }
 
 .ifp-grid-scroll {
-  max-height: none;
-  height: 100%;
+  height: auto;
+  max-height: 260px;
 }
 
 .ifp-grid {
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
 }
 
 .ifp-th {
-  color: #111;
-  font-size: 11px;
-  font-weight: 600;
+  color: var(--sap-text);
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-semibold);
   padding: 3px 4px;
-  background: #edf0f3;
+  background: var(--sap-surface-soft);
 }
 
 .ifp-th--idx { width: 30px; }
@@ -628,7 +629,7 @@
 }
 
 .ifp-grid__cell--issue {
-  background: #fff;
+  background: var(--sap-surface);
 }
 
 .ifp-qty-cell {
@@ -642,51 +643,51 @@
   min-width: 0;
   border-color: transparent;
   background: transparent;
-  color: #111;
-  font-weight: 400;
+  color: var(--sap-text);
+  font-weight: var(--sap-font-weight-regular);
 }
 
 .ifp-issue-input:focus {
-  border-color: #0070c0;
-  background: #fff;
+  border-color: var(--sap-primary);
+  background: var(--sap-surface);
 }
 
 .ifp-allocation-btn {
   width: 21px;
   height: 18px;
-  border: 1px solid #9aa8b5;
-  background: #f4f4f4;
-  color: #111;
-  font-size: 11px;
+  border: 1px solid var(--sap-primary);
+  background: var(--sap-surface-soft);
+  color: var(--sap-text);
+  font-size: var(--sap-small-font-size);
   line-height: 1;
   padding: 0;
 }
 
 .ifp-allocation-btn.is-selected {
-  background: #e6f2ff;
-  border-color: #2375b8;
+  background: var(--sap-row-selected);
+  border-color: var(--sap-primary);
 }
 
 .ifp-allocation-btn:disabled {
-  color: #aaa;
-  border-color: #ddd;
+  color: var(--sap-text-muted);
+  border-color: var(--sap-border);
 }
 
 .ifp-cell-select {
   height: 18px;
-  font-size: 11px;
-  color: #111;
+  font-size: var(--sap-small-font-size);
+  color: var(--sap-text);
 }
 
 .ifp-form-footer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(330px, 1fr);
   gap: 28px;
-  margin: 0 12px 12px;
-  padding: 8px 10px 10px;
-  background: #f4f6f8;
-  border: 1px solid #b8c2cc;
-  border-top: 0;
+  margin: 10px 12px 12px;
+  padding: 10px 14px;
+  background: var(--sap-surface);
+  border: 1px solid var(--sap-border);
+  border-radius: var(--sap-radius-md);
   box-sizing: border-box;
 }
 
@@ -735,16 +736,13 @@
 }
 
 .ifp-footer-textarea {
-  height: 38px;
-  border: 1px solid #aeb8c2;
-  resize: none;
-  font-size: 12px;
-  padding: 3px;
-}
-
-.ifp-qr-input {
-  height: 38px !important;
-  background: #fff !important;
+  height: calc(var(--sap-control-height) * 2);
+  border: 1px solid var(--sap-border);
+  border-radius: var(--sap-radius-xs);
+  resize: vertical;
+  font: inherit;
+  font-size: var(--sap-control-font-size);
+  padding: 3px 6px;
 }
 
 .ifp-footer-udfs {
@@ -762,12 +760,12 @@
 .ifp-footer-udf > input:first-child {
   min-width: 122px;
   height: 22px;
-  border: 1px solid #004a80;
+  border: 1px solid var(--sap-primary);
   border-radius: 3px;
-  background: linear-gradient(180deg, #0070c0 0%, #005a9e 100%);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
+  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary) 100%);
+  color: var(--sap-surface);
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-semibold);
   padding: 0 9px;
   text-align: center;
 }
@@ -777,20 +775,20 @@
 }
 
 .ifp-footer-link-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, #0080d0 0%, #0060aa 100%);
-  border-color: #004a80;
+  background: linear-gradient(180deg, var(--sap-primary) 0%, var(--sap-primary) 100%);
+  border-color: var(--sap-primary);
 }
 
 .ifp-footer-link-btn:disabled {
-  background: linear-gradient(180deg, #dce5ed 0%, #c8d3dd 100%);
-  border-color: #a0aab4;
-  color: #6f7d89;
+  background: linear-gradient(180deg, var(--sap-border) 0%, var(--sap-row-selected) 100%);
+  border-color: var(--sap-primary);
+  color: var(--sap-link);
   cursor: not-allowed;
 }
 
 .ifp-po-status-line {
-  color: #555;
-  font-size: 11px;
+  color: var(--sap-text-muted);
+  font-size: var(--sap-small-font-size);
   max-width: 330px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -812,15 +810,15 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border-left: 1px solid #c8d0da;
-  background: #f4f6f8;
+  border-left: 1px solid var(--sap-border);
+  background: var(--sap-surface-soft);
 }
 
 .ifp-edoc-panel {
   width: 510px;
   margin: 0;
   padding: 3px 0 0;
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
 }
 
 .ifp-edoc-row {
@@ -832,7 +830,7 @@
 
 .ifp-edoc-title {
   display: block;
-  font-weight: 700;
+  font-weight: var(--sap-font-weight-bold);
   text-decoration: underline;
   padding-left: 3px;
 }
@@ -843,9 +841,9 @@
 
 .ifp-edoc-row input {
   height: 17px;
-  border: 1px solid #c8d0da;
-  background: #f2f2f2;
-  font-size: 11px;
+  border: 1px solid var(--sap-border);
+  background: var(--sap-surface-soft);
+  font-size: var(--sap-small-font-size);
   padding: 0 4px;
 }
 
@@ -856,13 +854,13 @@
 }
 
 .ifp-list-search-bar {
-  background: #f8fafc;
+  background: var(--sap-surface-soft);
   padding: 10px 14px;
 }
 
 .ifp-list-search-bar label {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-semibold);
 }
 
 .ifp-list-container {
@@ -871,12 +869,12 @@
 
 .ifp-list-table {
   min-width: 1120px;
-  font-size: 12px;
+  font-size: var(--sap-small-font-size);
 }
 
 .ifp-list-table th {
   padding: 5px 7px;
-  color: #111;
+  color: var(--sap-text);
 }
 
 .ifp-list-table td {
@@ -888,7 +886,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 2px;
-  background: #fff;
+  background: var(--sap-surface);
 }
 
 .ifp-grid__cell--lookup > span {
@@ -901,31 +899,31 @@
   width: 20px;
   height: 17px;
   padding: 0;
-  border: 1px solid #9aa8b5;
-  background: #f4f6f8;
-  color: #24384a;
-  font-size: 10px;
+  border: 1px solid var(--sap-primary);
+  background: var(--sap-surface-soft);
+  color: var(--sap-link);
+  font-size: var(--sap-small-font-size);
   line-height: 1;
   cursor: pointer;
   flex: 0 0 auto;
 }
 
 .ifp-cell-lookup-btn:hover {
-  border-color: #2375b8;
-  background: #e6f2ff;
+  border-color: var(--sap-primary);
+  background: var(--sap-row-selected);
 }
 
 .ifp-sap-modal {
   border-radius: 0;
-  border: 2px solid #c8d0da;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  border: 2px solid var(--sap-border);
+  box-shadow: var(--sap-shadow-modal);
 }
 
 .ifp-copy-modal {
   width: 820px;
   max-width: 96vw;
   max-height: 78vh;
-  background: #f4f6f8;
+  background: var(--sap-surface-soft);
   display: flex;
   flex-direction: column;
 }
@@ -934,7 +932,7 @@
   width: 460px;
   max-width: 92vw;
   max-height: 70vh;
-  background: #f4f6f8;
+  background: var(--sap-surface-soft);
   display: flex;
   flex-direction: column;
 }
@@ -945,11 +943,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 4px 0 9px;
-  background: #e8edf2;
-  border-bottom: 3px solid #2375b8;
-  color: #111;
-  font-size: 12px;
-  font-weight: 600;
+  background: var(--sap-grid-header-bg);
+  border-bottom: 3px solid var(--sap-primary);
+  color: var(--sap-text);
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-semibold);
 }
 
 .ifp-sap-modal__controls {
@@ -961,10 +959,10 @@
   width: 19px;
   height: 19px;
   padding: 0;
-  border: 1px solid #9aa8b5;
-  background: #f8fafc;
-  color: #334;
-  font-size: 11px;
+  border: 1px solid var(--sap-primary);
+  background: var(--sap-surface-soft);
+  color: var(--sap-text);
+  font-size: var(--sap-small-font-size);
   line-height: 1;
 }
 
@@ -973,7 +971,7 @@
   min-height: 0;
   flex: 1;
   overflow: hidden;
-  background: #f4f6f8;
+  background: var(--sap-surface-soft);
 }
 
 .ifp-sap-find-row {
@@ -986,23 +984,23 @@
 
 .ifp-sap-find-row label {
   width: 40px;
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
 }
 
 .ifp-sap-find-row input {
   width: 190px;
   height: 18px;
-  border: 1px solid #9aa8b5;
-  background: #fff;
-  font-size: 11px;
+  border: 1px solid var(--sap-primary);
+  background: var(--sap-surface);
+  font-size: var(--sap-small-font-size);
   padding: 0 4px;
 }
 
 .ifp-sap-list-wrap {
   height: 176px;
   overflow: auto;
-  border: 1px solid #b8c2cc;
-  background: #fff;
+  border: 1px solid var(--sap-primary);
+  background: var(--sap-surface);
 }
 
 .ifp-copy-list-wrap {
@@ -1013,17 +1011,17 @@
   border-collapse: collapse;
   width: max-content;
   min-width: 100%;
-  font-size: 11px;
+  font-size: var(--sap-small-font-size);
   table-layout: fixed;
 }
 
 .ifp-sap-list-table th {
   height: 19px;
-  border: 1px solid #c8d0da;
-  background: #edf0f3;
-  color: #111;
+  border: 1px solid var(--sap-border);
+  background: var(--sap-surface-soft);
+  color: var(--sap-text);
   text-align: left;
-  font-weight: 600;
+  font-weight: var(--sap-font-weight-semibold);
   padding: 2px 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -1032,7 +1030,7 @@
 
 .ifp-sap-list-table td {
   height: 18px;
-  border: 1px solid #e0e4e8;
+  border: 1px solid var(--sap-border);
   padding: 1px 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -1040,17 +1038,17 @@
 }
 
 .ifp-sap-list-table tr.is-selected td {
-  background: #dbeeff;
+  background: var(--sap-row-selected);
 }
 
 .ifp-sap-list-table tr:hover td {
-  background: #eef6ff;
+  background: var(--sap-row-hover);
   cursor: pointer;
 }
 
 .ifp-sap-empty-cell {
   text-align: center;
-  color: #667;
+  color: var(--sap-text-muted);
   padding: 24px !important;
 }
 
@@ -1058,13 +1056,13 @@
   display: flex;
   gap: 8px;
   padding: 8px;
-  background: #f4f6f8;
-  border-top: 1px solid #c8d0da;
+  background: var(--sap-surface-soft);
+  border-top: 1px solid var(--sap-border);
 }
 
 .ifp-copy-title {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-semibold);
   margin-bottom: 7px;
 }
 
@@ -1072,7 +1070,7 @@
   width: 575px;
   max-width: 94vw;
   height: 292px;
-  background: #f4f6f8;
+  background: var(--sap-surface-soft);
 }
 
 @media (max-width: 900px) {
@@ -1104,3 +1102,11 @@
     grid-template-columns: 140px minmax(0, 330px);
   }
 }
+
+/* Cancelled issue (SAP B1 CANCELED = Y) */
+.im-mode-badge.ifp-badge--cancelled {
+  background: color-mix(in srgb, var(--sap-danger) 10%, var(--sap-surface));
+  color: var(--sap-danger);
+  border-color: var(--sap-danger);
+}
+.ifp-status--cancelled { color: var(--sap-danger); }

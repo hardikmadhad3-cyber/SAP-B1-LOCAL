@@ -54,10 +54,11 @@ export default function ReceiptList({ onSelect, onNew }) {
       {error && <div className="im-alert im-alert--error">{error}</div>}
 
       {/* Search Bar Section */}
-      <div className="im-header-card" style={{ marginBottom: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="im-header-card">
+        <div className="rfp-list-toolbar">
           <input
             className="im-field__input"
+            aria-label="Search receipts"
             placeholder="Search by Doc No. or remarks..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -74,95 +75,49 @@ export default function ReceiptList({ onSelect, onNew }) {
         </div>
       </div>
 
-      {/* Results List */}
-      <div style={{ padding: "16px", background: "#fff" }}>
-        <div style={{ overflowX: "auto", border: "1px solid #ddd", borderRadius: 4 }}>
-          <table className="rfp-list-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f5f7fa", borderBottom: "2px solid #ddd" }}>
-                <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, fontSize: 13 }}>
-                  Doc No.
-                </th>
-                <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, fontSize: 13 }}>
-                  Posting Date
-                </th>
-                <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 600, fontSize: 13 }}>
-                  Lines
-                </th>
-                <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, fontSize: 13 }}>
-                  Remarks
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    style={{
-                      textAlign: "center",
-                      color: "#888",
-                      padding: "30px",
-                      fontSize: 13,
-                    }}
-                  >
-                    Loading...
-                  </td>
-                </tr>
-              )}
-              {!loading && receipts.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    style={{
-                      textAlign: "center",
-                      color: "#888",
-                      padding: "30px",
-                      fontSize: 13,
-                    }}
-                  >
-                    No receipt documents found.
-                  </td>
-                </tr>
-              )}
-              {!loading &&
-                receipts.map((doc) => (
-                  <tr
-                    key={doc.doc_entry}
-                    onClick={() => onSelect(doc.doc_entry)}
-                    style={{
-                      cursor: "pointer",
-                      borderBottom: "1px solid #eee",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f8f9fa")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 500 }}>
+      <div className="im-grid-wrap">
+        <table className="im-grid">
+          <thead>
+            <tr>
+              <th>Doc No.</th>
+              <th>Posting Date</th>
+              <th>Production Order</th>
+              <th>Lines</th>
+              <th>Status</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td colSpan={6} className="rfp-list-empty">Loading...</td></tr>
+            )}
+            {!loading && receipts.length === 0 && (
+              <tr><td colSpan={6} className="rfp-list-empty">No receipt documents found.</td></tr>
+            )}
+            {!loading &&
+              receipts.map((doc) => (
+                <tr key={doc.doc_entry} className="rfp-list-row" onClick={() => onSelect(doc.doc_entry)}>
+                  <td>
+                    <button type="button" className="rfp-link-btn" onClick={(e) => { e.stopPropagation(); onSelect(doc.doc_entry); }}>
                       {doc.doc_num}
-                    </td>
-                    <td style={{ padding: "10px 12px", fontSize: 13 }}>
-                      {doc.posting_date}
-                    </td>
-                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "center" }}>
-                      {doc.total_lines}
-                    </td>
-                    <td style={{ padding: "10px 12px", fontSize: 13, color: "#555" }}>
-                      {doc.remarks || "—"}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Results Count */}
-        {!loading && receipts.length > 0 && (
-          <div style={{ marginTop: 12, fontSize: 12, color: "#666", textAlign: "right" }}>
-            {receipts.length} record{receipts.length !== 1 ? "s" : ""} found
-          </div>
-        )}
+                    </button>
+                  </td>
+                  <td>{doc.posting_date}</td>
+                  <td>{doc.production_order_no || ""}</td>
+                  <td className="rfp-grid__cell--num">{doc.total_lines}</td>
+                  <td>{doc.cancelled ? "Cancelled" : "Open"}</td>
+                  <td>{doc.remarks || ""}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
       </div>
+
+      {!loading && receipts.length > 0 && (
+        <div className="rfp-list-count">
+          {receipts.length} record{receipts.length !== 1 ? "s" : ""} found
+        </div>
+      )}
     </div>
   );
 }

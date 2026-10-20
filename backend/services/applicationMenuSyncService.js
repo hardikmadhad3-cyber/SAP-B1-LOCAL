@@ -73,6 +73,9 @@ const APP_MENU_DEFINITIONS = [
   { key: 'production-order', parentKey: 'production', menuName: 'Production Order', menuPath: '/production-order', icon: 'production', sortOrder: 2 },
   { key: 'issue-for-production', parentKey: 'production', menuName: 'Issue For Production', menuPath: '/issue-for-production', icon: 'issue', sortOrder: 3 },
   { key: 'receipt-from-production', parentKey: 'production', menuName: 'Receipt From Production', menuPath: '/receipt-from-production', icon: 'receipt', sortOrder: 4 },
+  { key: 'setup-resources', parentKey: 'production', menuName: 'Resources', menuPath: '/setup/resources', icon: 'production', sortOrder: 5 },
+  { key: 'setup-resource-groups', parentKey: 'production', menuName: 'Resource Groups', menuPath: '/setup/resource-groups', icon: 'settings', sortOrder: 6 },
+  { key: 'setup-route-stages', parentKey: 'production', menuName: 'Route Stages', menuPath: '/setup/route-stages', icon: 'settings', sortOrder: 7 },
 
   { key: 'inventory', menuName: 'Inventory', icon: 'inventory', sortOrder: 6 },
   { key: 'goods-receipt', parentKey: 'inventory', menuName: 'Goods Receipt', menuPath: '/goods-receipt', icon: 'receipt', sortOrder: 1 },

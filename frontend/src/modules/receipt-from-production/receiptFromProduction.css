@@ -1,8 +1,6 @@
-/* ── Receipt from Production — SAP B1 style ── */
+/* Receipt from Production: layout only; colours and type come from --sap-* tokens (docs/UI_THEME.md). */
 
-.rfp-header-card {
-  min-height: 96px;
-}
+.rfp-header-card { min-height: 96px; }
 
 .rfp-header-layout {
   display: flex;
@@ -28,124 +26,41 @@
 .rfp-lbl   { flex: 0 0 70px !important; text-align: right; }
 .rfp-lbl-r { flex: 0 0 130px !important; text-align: right; }
 
-.rfp-readonly { background: #f0f2f5 !important; color: #555; }
+.rfp-readonly { background: var(--sap-field-readonly-bg) !important; color: var(--sap-text-muted); }
+.rfp-muted { color: var(--sap-text-muted); font-style: italic; }
 
-/* ── PO info banner ── */
-.rfp-po-banner {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 7px 14px;
-  background: #f0fff4;
-  border: 1px solid #a5d6a7;
-  border-radius: 4px;
-  margin-bottom: 10px;
-  font-size: 12px;
-  flex-wrap: wrap;
-}
-.rfp-po-banner__label { color: #555; font-weight: 600; }
-.rfp-po-banner__value { color: #003366; font-weight: 700; margin-right: 12px; }
-.rfp-po-banner__status {
-  padding: 1px 7px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 700;
-  background: #e8f5e9;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
-}
-.rfp-po-banner__remain {
-  padding: 1px 7px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 700;
-  background: #fff8e1;
-  color: #7c5c00;
-  border: 1px solid #ffe082;
-}
-.rfp-po-banner__warn {
-  color: #b45309;
-  font-size: 11px;
-  font-style: italic;
-}
+.rfp-browse { display: inline-flex; gap: 4px; margin-left: auto; }
+.rfp-cancelled-badge { color: var(--sap-danger); border-color: var(--sap-danger); }
 
-/* ── Receipt qty card ── */
-.rfp-receipt-card {
-  background: #f0fff4;
-  border: 1px solid #a5d6a7;
-  border-radius: 4px;
-  padding: 12px 16px;
-  margin-bottom: 10px;
-}
-.rfp-receipt-card__title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #1a5c2a;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Receipt qty input — prominent */
-.rfp-qty-input {
-  width: 130px;
-  height: 32px;
-  padding: 0 8px;
-  font-size: 16px;
-  font-weight: 700;
-  border: 2px solid #2e7d32;
-  background: #fff;
-  border-radius: 3px;
-  box-sizing: border-box;
-  text-align: right;
-  color: #1a5c2a;
-}
-.rfp-qty-input:focus {
-  outline: none;
-  border-color: #1b5e20;
-  background: #f1fff4;
-}
-.rfp-qty-input:disabled {
-  background: #f0f0f0;
-  color: #aaa;
-  border-color: #ddd;
-}
-
-/* ── Backflush preview panel ── */
-.rfp-backflush-panel {
-  margin-top: 10px;
-}
+/* Backflush preview */
+.rfp-backflush-panel { margin-top: 10px; }
 .rfp-backflush-panel__title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #003366;
-  padding: 5px 8px;
-  background: #e8edf2;
-  border: 1px solid #c8d0da;
-  border-bottom: none;
-  border-radius: 3px 3px 0 0;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 5px 8px;
+  font-size: var(--sap-section-font-size);
+  font-weight: var(--sap-font-weight-semibold);
+  color: var(--sap-heading);
+  background: var(--sap-grid-header-bg);
+  border: 1px solid var(--sap-border);
+  border-bottom: none;
 }
 .rfp-backflush-panel__badge {
-  background: #fff3cd;
-  color: #7c5c00;
-  border: 1px solid #ffe082;
-  border-radius: 3px;
   padding: 0 6px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--sap-small-font-size);
+  color: var(--sap-info);
+  border: 1px solid var(--sap-info);
+  border-radius: var(--sap-radius-xs);
 }
 .rfp-backflush-panel__note {
-  font-size: 11px;
-  color: #888;
-  font-weight: 400;
-  font-style: italic;
   margin-left: auto;
+  font-size: var(--sap-small-font-size);
+  font-weight: var(--sap-font-weight-regular);
+  color: var(--sap-text-muted);
 }
 
-/* ── Tab panel ── */
+/* Tab panel */
 .rfp-tab-panel {
   padding: 0 !important;
   min-height: 380px;
@@ -153,369 +68,121 @@
   flex-direction: column;
 }
 
-/* ── Grid ── */
+/* Grid */
+.rfp-lines-wrap { display: flex; flex-direction: column; height: 100%; }
+
 .rfp-grid-scroll {
-  overflow-x: auto;
-  overflow-y: auto;
+  overflow: auto;
   max-height: 360px;
+  flex: 1;
 }
 
 .rfp-grid {
   width: max-content;
   min-width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
   table-layout: fixed;
+  font-size: var(--sap-grid-font-size);
 }
 
 .rfp-th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #e8edf2;
-  border: 1px solid #c8d0da;
   padding: 4px 5px;
   text-align: left;
-  font-weight: 700;
-  color: #003366;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: var(--sap-font-weight-semibold);
+  color: var(--sap-text);
+  background: var(--sap-grid-header-bg);
+  border: 1px solid var(--sap-border);
 }
 
-.rfp-th--no      { width: 120px; }
-.rfp-th--desc    { width: 200px; }
-.rfp-th--bomqty  { width: 90px;  }
-.rfp-th--calcqty { width: 110px; }
-.rfp-th--issued  { width: 90px;  }
-.rfp-th--uom     { width: 60px;  }
-.rfp-th--wh      { width: 100px; }
+.rfp-th--no        { width: 120px; }
+.rfp-th--desc      { width: 200px; }
+.rfp-th--bomqty    { width: 90px; }
+.rfp-th--calcqty   { width: 110px; }
+.rfp-th--issued    { width: 90px; }
+.rfp-th--uom       { width: 60px; }
+.rfp-th--wh        { width: 100px; }
+.rfp-th--orderno   { width: 90px; }
+.rfp-th--seriesno  { width: 90px; }
+.rfp-th--itemno    { width: 120px; }
+.rfp-th--transtype { width: 100px; }
+.rfp-th--qty       { width: 90px; }
+.rfp-th--price     { width: 120px; }
+.rfp-th--value     { width: 100px; }
+.rfp-th--cost      { width: 90px; }
+.rfp-th--planned   { width: 90px; }
+.rfp-th--completed { width: 90px; }
+.rfp-th--invuom    { width: 80px; }
+.rfp-th--uomcode   { width: 80px; }
+.rfp-th--uomname   { width: 100px; }
+.rfp-th--itemsper  { width: 90px; }
+.rfp-th--dr        { width: 100px; }
+.rfp-th--location  { width: 100px; }
+.rfp-th--branch    { width: 120px; }
+.rfp-th--uomgroup  { width: 90px; }
+.rfp-th--byproduct { width: 100px; }
+.rfp-th--alloc     { width: 140px; }
 
-.rfp-grid__row:hover { background: #f5f8fc; }
-.rfp-grid__row:nth-child(even) { background: #fafbfc; }
+.rfp-grid__row:nth-child(even) { background: var(--sap-row-even); }
+.rfp-grid__row:hover { background: var(--sap-row-hover); }
+.rfp-grid__row--byproduct { background: var(--sap-surface-soft); }
 .rfp-grid__row--empty { height: 22px; }
 
 .rfp-grid__cell {
-  border: 1px solid #e8ecf0;
+  height: 22px;
   padding: 2px 5px;
   vertical-align: middle;
-  height: 22px;
-  font-size: 12px;
+  border: 1px solid var(--sap-border-soft);
 }
-.rfp-grid__cell--empty    { background: #fafbfc; }
+.rfp-grid__cell--empty    { background: var(--sap-row-even); }
 .rfp-grid__cell--num      { text-align: right; font-variant-numeric: tabular-nums; }
-.rfp-grid__cell--readonly { background: #f5f7fa; color: #555; }
-.rfp-grid__cell--calc     { background: #fff8e1; color: #7c5c00; font-weight: 600; text-align: right; }
-.rfp-grid__cell--badge    {
-  background: #fff3cd;
-  color: #7c5c00;
-  font-size: 10px;
-  font-weight: 700;
-  text-align: center;
-  letter-spacing: 0.3px;
-}
+.rfp-grid__cell--readonly { background: var(--sap-field-readonly-bg); color: var(--sap-text-muted); }
+.rfp-grid__cell--calc     { text-align: right; font-weight: var(--sap-font-weight-semibold); color: var(--sap-info); }
+.rfp-grid__cell--center   { text-align: center; }
 
-/* ── Bottom bar ── */
-.rfp-bottom-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 14px;
-  border-top: 1px solid #e0e6ed;
-  background: #f8fafc;
-  font-size: 12px;
-  gap: 12px;
-}
-.rfp-bottom-bar__totals {
-  display: flex;
-  gap: 20px;
-  color: #555;
-}
-.rfp-bottom-bar__total-val {
-  font-weight: 700;
-  color: #003366;
-}
+.rfp-byproduct-label { display: inline-flex; align-items: center; gap: 4px; }
 
-.rfp-footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.rfp-cell-lookup { display: flex; align-items: center; gap: 2px; }
 
-.rfp-form-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 8px 12px 10px;
-  background: #fff;
-  border-left: 1px solid #d0d7de;
-  border-right: 1px solid #d0d7de;
-}
-
-.rfp-footer-left,
-.rfp-footer-right {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.rfp-footer-field {
-  align-items: flex-start;
-}
-
-.rfp-footer-textarea {
-  width: 130px;
-  height: 40px;
-  resize: none;
-  border: 1px solid #c8d0da;
-  border-radius: 3px;
-  padding: 4px 6px;
-  font-size: 12px;
-  font-family: inherit;
-}
-
-.rfp-qr-input {
-  width: 130px;
-  height: 40px;
-}
-
-.rfp-attachment-panel {
-  display: grid;
-  grid-template-columns: 1fr 86px;
-  gap: 10px;
-  padding: 10px;
-  min-height: 360px;
-}
-
-.rfp-attachment-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: stretch;
-  padding-top: 12px;
-}
-
-.rfp-attachment-actions .im-btn:last-child {
-  margin-top: auto;
-}
-
-.rfp-edoc-panel {
-  padding: 18px 16px;
-  display: grid;
-  gap: 8px;
-  max-width: 620px;
-}
-
-.rfp-edoc-row {
-  display: grid;
-  grid-template-columns: 210px 1fr;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-}
-
-.rfp-edoc-title {
-  display: block;
-  font-weight: 700;
-  color: #003366;
-  margin-bottom: 4px;
-}
-
-.rfp-edoc-row input {
-  border: 1px solid #c8d0da;
-  height: 22px;
-  padding: 2px 6px;
-  font-size: 12px;
-}
-
-/* ── List view ── */
-.rfp-list-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.rfp-list-table th {
-  background: #e8edf2;
-  border: 1px solid #c8d0da;
-  padding: 6px 8px;
-  text-align: left;
-  font-weight: 700;
-  color: #003366;
-  white-space: nowrap;
-}
-.rfp-list-table td {
-  border: 1px solid #e8ecf0;
-  padding: 5px 8px;
-  vertical-align: middle;
-}
-.rfp-list-table tr:hover td { background: #f0f6fc; cursor: pointer; }
-.rfp-list-table tr:nth-child(even) td { background: #fafbfc; }
-.rfp-list-table tr:nth-child(even):hover td { background: #edf4fb; }
-
-.rfp-list-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0 12px;
-}
-
-/* ── PO search modal (reuse ifp modal styles with rfp prefix) ── */
-.rfp-po-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.35);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.rfp-po-modal {
-  background: #fff;
-  border: 1px solid #a0aab4;
-  border-radius: 4px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-  width: 720px;
-  max-width: 96vw;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-.rfp-po-modal__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: #e8edf2;
-  border-bottom: 1px solid #c8d0da;
-  font-weight: 700;
-  color: #003366;
-  font-size: 13px;
-}
-.rfp-po-modal__close {
-  background: none;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  color: #555;
-  padding: 0 4px;
-}
-.rfp-po-modal__search {
-  padding: 10px 14px;
-  border-bottom: 1px solid #e8ecf0;
-  display: flex;
-  gap: 8px;
-}
-.rfp-po-modal__body {
-  overflow-y: auto;
-  flex: 1;
-}
-.rfp-po-modal__empty {
-  padding: 20px;
-  text-align: center;
-  color: #888;
-  font-size: 13px;
-}
-
-/* ── Receipt Lines Grid ── */
-.rfp-lines-wrap {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.rfp-grid-scroll {
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: 360px;
-  flex: 1;
-}
-
-/* Column widths for 21 columns */
-.rfp-th--orderno    { width: 90px; }
-.rfp-th--seriesno   { width: 90px; }
-.rfp-th--itemno     { width: 120px; }
-.rfp-th--desc       { width: 200px; }
-.rfp-th--transtype  { width: 100px; }
-.rfp-th--qty        { width: 90px; }
-.rfp-th--price      { width: 90px; }
-.rfp-th--value      { width: 100px; }
-.rfp-th--cost       { width: 90px; }
-.rfp-th--planned    { width: 90px; }
-.rfp-th--completed  { width: 90px; }
-.rfp-th--invuom     { width: 80px; }
-.rfp-th--uomcode    { width: 80px; }
-.rfp-th--uomname    { width: 100px; }
-.rfp-th--itemsper   { width: 90px; }
-.rfp-th--dr         { width: 100px; }
-.rfp-th--location   { width: 100px; }
-.rfp-th--branch     { width: 120px; }
-.rfp-th--uomgroup   { width: 90px; }
-.rfp-th--byproduct  { width: 80px; }
-.rfp-th--alloc      { width: 140px; }
-
-.rfp-cell-lookup {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.rfp-cell-input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 2px 4px;
-  font-size: 12px;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-.rfp-cell-input:focus {
-  outline: 1px solid #4a90e2;
-  background: #fff;
-}
-.rfp-cell-input--num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
+.rfp-cell-input,
 .rfp-cell-select {
   width: 100%;
-  border: none;
-  background: transparent;
   padding: 2px 4px;
-  font-size: 12px;
-  font-family: inherit;
   box-sizing: border-box;
+  font: inherit;
+  color: var(--sap-text);
+  background: transparent;
+  border: none;
 }
+.rfp-cell-input:focus,
 .rfp-cell-select:focus {
-  outline: 1px solid #4a90e2;
-  background: #fff;
+  outline: 1px solid var(--sap-focus);
+  background: var(--sap-surface);
 }
-
-.rfp-grid__cell--center {
-  text-align: center;
-}
+.rfp-cell-input--num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .rfp-alloc-btn {
   min-width: 56px;
-  height: 24px;
-  border: 1px solid #c8d0da;
-  background: #fff;
-  border-radius: 3px;
+  height: var(--sap-button-height);
   cursor: pointer;
-  font-size: 11px;
-  color: #003366;
+  font-size: var(--sap-small-font-size);
+  color: var(--sap-button-text);
+  background: var(--sap-button-bg);
+  border: 1px solid var(--sap-button-border);
+  border-radius: var(--sap-radius-xs);
 }
-
-.rfp-alloc-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
+.rfp-alloc-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .rfp-alloc-summary {
   margin-top: 3px;
-  font-size: 10px;
-  color: #667085;
   line-height: 1.2;
+  font-size: var(--sap-small-font-size);
+  color: var(--sap-text-muted);
 }
 
 /* Row buttons */
@@ -523,193 +190,253 @@
   display: flex;
   gap: 4px;
   padding: 6px 8px;
-  border-top: 1px solid #e0e6ed;
-  background: #f8fafc;
+  background: var(--sap-surface-soft);
+  border-top: 1px solid var(--sap-border-soft);
 }
 .rfp-row-btn {
   width: 28px;
-  height: 24px;
-  border: 1px solid #c8d0da;
-  background: #fff;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 700;
-  color: #003366;
+  height: var(--sap-button-height);
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  font-size: var(--sap-section-font-size);
+  font-weight: var(--sap-font-weight-semibold);
+  color: var(--sap-button-text);
+  background: var(--sap-button-bg);
+  border: 1px solid var(--sap-button-border);
+  border-radius: var(--sap-radius-xs);
 }
-.rfp-row-btn:hover {
-  background: #e8edf2;
-  border-color: #a0aab4;
+.rfp-row-btn:hover { background: var(--sap-button-bg-hover); }
+.rfp-row-btn--del { color: var(--sap-danger); }
+
+/* Bottom bar / footer */
+.rfp-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px;
+  font-size: var(--sap-small-font-size);
+  background: var(--sap-surface-soft);
+  border-top: 1px solid var(--sap-border-soft);
 }
-.rfp-row-btn--del {
-  color: #c62828;
+.rfp-bottom-bar__totals { display: flex; gap: 20px; color: var(--sap-text-muted); }
+.rfp-bottom-bar__total-val { font-weight: var(--sap-font-weight-semibold); color: var(--sap-text); }
+
+.rfp-footer-actions { display: flex; align-items: center; gap: 8px; }
+
+.rfp-form-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 8px 12px 10px;
+  background: var(--sap-surface);
+  border-left: 1px solid var(--sap-border);
+  border-right: 1px solid var(--sap-border);
 }
-.rfp-row-btn--del:hover {
-  background: #ffebee;
-  border-color: #ef5350;
+.rfp-footer-left,
+.rfp-footer-right { display: flex; flex-direction: column; gap: 6px; }
+.rfp-footer-field { align-items: flex-start; }
+
+.rfp-footer-textarea {
+  width: 130px;
+  height: 40px;
+  resize: none;
+  padding: 4px 6px;
+  font: inherit;
+  color: var(--sap-text);
+  border: 1px solid var(--sap-border);
+  border-radius: var(--sap-radius-xs);
+}
+.rfp-qr-input { width: 130px; height: 40px; }
+
+/* Attachments / eDoc tabs */
+.rfp-attachment-panel {
+  display: grid;
+  grid-template-columns: 1fr 86px;
+  gap: 10px;
+  padding: 10px;
+  min-height: 360px;
+}
+.rfp-attachment-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  padding-top: 12px;
+}
+.rfp-attachment-actions .im-btn:last-child { margin-top: auto; }
+
+.rfp-edoc-panel { display: grid; gap: 8px; max-width: 620px; padding: 18px 16px; }
+.rfp-edoc-row {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.rfp-edoc-title {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--sap-section-font-size);
+  font-weight: var(--sap-font-weight-semibold);
+  color: var(--sap-heading);
+}
+.rfp-edoc-row input {
+  height: var(--sap-control-height);
+  padding: 2px 6px;
+  font: inherit;
+  border: 1px solid var(--sap-border);
 }
 
+/* Find list */
+.rfp-list-toolbar { display: flex; align-items: center; gap: 8px; }
+.rfp-list-row { cursor: pointer; }
+.rfp-list-empty { padding: 24px; text-align: center; color: var(--sap-text-muted); }
+.rfp-list-count {
+  margin-top: 8px;
+  text-align: right;
+  font-size: var(--sap-small-font-size);
+  color: var(--sap-text-muted);
+}
+.rfp-link-btn {
+  padding: 0;
+  font: inherit;
+  color: var(--sap-link);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* Allocation modal (shared with Issue for Production) */
 .rfp-alloc-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.35);
   z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--sap-overlay-bg);
 }
-
 .rfp-alloc-modal {
-  width: 880px;
+  width: 960px;
   max-width: 96vw;
   max-height: 88vh;
-  background: #fff;
-  border: 1px solid #c8d0da;
-  border-radius: 6px;
-  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.18);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--sap-surface);
+  border: 1px solid var(--sap-border);
+  border-radius: var(--sap-radius-sm);
+  box-shadow: var(--sap-shadow-modal);
 }
-
 .rfp-alloc-modal__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #e8edf2;
-  border-bottom: 1px solid #c8d0da;
+  border-bottom: 1px solid var(--sap-border);
 }
-
 .rfp-alloc-modal__title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #003366;
+  font-size: var(--sap-section-font-size);
+  font-weight: var(--sap-font-weight-semibold);
+  color: var(--sap-heading);
 }
-
 .rfp-alloc-modal__subtitle {
   margin-top: 2px;
-  font-size: 12px;
-  color: #475467;
+  font-size: var(--sap-small-font-size);
+  color: var(--sap-text-muted);
 }
-
 .rfp-alloc-modal__close {
-  border: none;
-  background: transparent;
-  color: #475467;
-  font-size: 14px;
   cursor: pointer;
+  font-size: var(--sap-section-font-size);
+  color: var(--sap-text-muted);
+  background: transparent;
+  border: none;
 }
-
 .rfp-alloc-modal__meta {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
   padding: 10px 16px;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 12px;
-  color: #475467;
+  font-size: var(--sap-small-font-size);
+  color: var(--sap-text-muted);
+  border-bottom: 1px solid var(--sap-border-soft);
 }
-
 .rfp-alloc-modal__error {
   margin: 12px 16px 0;
-  padding: 10px 12px;
-  border: 1px solid #ef9a9a;
-  background: #ffebee;
-  color: #b71c1c;
-  border-radius: 4px;
-  font-size: 12px;
+  padding: 8px 12px;
+  color: var(--sap-danger);
+  border: 1px solid var(--sap-danger);
+  border-radius: var(--sap-radius-xs);
 }
-
-.rfp-alloc-modal__body {
-  padding: 16px;
-  overflow: auto;
-  display: grid;
-  gap: 16px;
-}
+.rfp-alloc-modal__body { display: grid; gap: 16px; padding: 16px; overflow: auto; }
 
 .rfp-alloc-section {
-  border: 1px solid #d0d7de;
-  border-radius: 4px;
   overflow: hidden;
+  border: 1px solid var(--sap-border);
+  border-radius: var(--sap-radius-xs);
 }
-
 .rfp-alloc-section__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 12px;
-  font-weight: 700;
-  color: #003366;
+  padding: 6px 12px;
+  font-weight: var(--sap-font-weight-semibold);
+  color: var(--sap-heading);
+  background: var(--sap-grid-header-bg);
+  border-bottom: 1px solid var(--sap-border-soft);
 }
-
+.rfp-alloc-section__actions { display: inline-flex; gap: 6px; }
 .rfp-alloc-section__summary {
-  padding: 8px 12px;
-  font-size: 12px;
-  color: #475467;
-  border-top: 1px solid #e5e7eb;
-  background: #f8fafc;
+  padding: 6px 12px;
+  font-size: var(--sap-small-font-size);
+  color: var(--sap-text-muted);
+  background: var(--sap-surface-soft);
+  border-top: 1px solid var(--sap-border-soft);
 }
 
-.rfp-alloc-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
+.rfp-alloc-table { width: 100%; border-collapse: collapse; }
 .rfp-alloc-table th,
 .rfp-alloc-table td {
-  border: 1px solid #e5e7eb;
-  padding: 6px 8px;
+  padding: 3px 6px;
   text-align: left;
+  border: 1px solid var(--sap-border-soft);
 }
-
 .rfp-alloc-table th {
-  background: #f8fafc;
-  color: #003366;
-  font-weight: 700;
+  font-weight: var(--sap-font-weight-semibold);
+  color: var(--sap-text);
+  background: var(--sap-grid-header-bg);
 }
 
 .rfp-alloc-input {
   width: 100%;
-  border: 1px solid #c8d0da;
-  border-radius: 3px;
-  padding: 5px 6px;
-  font-size: 12px;
+  height: var(--sap-control-height);
+  padding: 0 6px;
   box-sizing: border-box;
+  font: inherit;
+  color: var(--sap-text);
+  border: 1px solid var(--sap-border);
+  border-radius: var(--sap-radius-xs);
 }
-
-.rfp-alloc-input--num {
-  text-align: right;
-}
+.rfp-alloc-input--num { text-align: right; }
 
 .rfp-alloc-remove {
   width: 24px;
-  height: 24px;
-  border: 1px solid #ef9a9a;
-  background: #fff5f5;
-  color: #c62828;
-  border-radius: 3px;
+  height: var(--sap-button-height);
   cursor: pointer;
+  color: var(--sap-danger);
+  background: var(--sap-button-bg);
+  border: 1px solid var(--sap-button-border);
+  border-radius: var(--sap-radius-xs);
 }
 
-.rfp-alloc-loading {
-  padding: 18px 12px;
-  color: #667085;
-  font-size: 12px;
-}
+.rfp-alloc-loading { padding: 18px 12px; color: var(--sap-text-muted); }
 
 .rfp-alloc-modal__footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid #e5e7eb;
-  background: #f8fafc;
+  padding: 10px 16px;
+  border-top: 1px solid var(--sap-border-soft);
 }

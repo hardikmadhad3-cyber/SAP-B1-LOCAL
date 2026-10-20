@@ -39,3 +39,31 @@ export const fetchBOMGLAccounts        = (query = "") =>
 
 export const getItemDetails = (itemCode) =>
   apiClient.get(`/bom/lookup/item-details/${encodeURIComponent(itemCode)}`, { params: { _: Date.now() } }).then((r) => r.data);
+
+// Browse: first | prev | next | last from the current product (404 when none).
+export const navigateBOM = (direction, from = "") =>
+  apiClient.get("/bom/navigate", { params: { direction, from, _: Date.now() } }).then((r) => r.data);
+
+export const fetchBOMResources = (query = "") =>
+  apiClient.get("/bom/lookup/resources", { params: { query, _: Date.now() } }).then((r) => r.data);
+
+// Attachments tab (stored on the server per company and BOM, like Item Master).
+const attachmentsPath = (treeCode) => `/bom/${encodeURIComponent(treeCode)}/attachments`;
+
+export const fetchBOMAttachments = (treeCode) =>
+  apiClient.get(attachmentsPath(treeCode), { params: { _: Date.now() } }).then((r) => r.data);
+
+export const uploadBOMAttachment = (treeCode, file) => {
+  const body = new FormData();
+  body.append("file", file);
+  return apiClient.post(attachmentsPath(treeCode), body, {
+    headers: { "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
+
+export const deleteBOMAttachment = (treeCode, id) =>
+  apiClient.delete(`${attachmentsPath(treeCode)}/${encodeURIComponent(id)}`).then((r) => r.data);
+
+// Through the API client (it carries the login token); a plain link would not.
+export const downloadBOMAttachment = (treeCode, id) =>
+  apiClient.get(`${attachmentsPath(treeCode)}/${encodeURIComponent(id)}`, { responseType: "blob" }).then((r) => r.data);

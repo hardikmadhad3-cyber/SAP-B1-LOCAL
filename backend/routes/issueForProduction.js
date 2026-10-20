@@ -13,7 +13,9 @@ router.get('/production-order/:docEntry', ctrl.getProductionOrderForIssue);
 
 // Issue document CRUD
 router.get('/list',        ctrl.getIssueList);
+router.get('/navigate', ctrl.navigateDocument);
 router.get('/:docEntry',   ctrl.getIssueByDocEntry);
 router.post('/',           ctrl.createIssue);
+router.post('/:docEntry/cancel', ctrl.cancelDocument);
 
 module.exports = router;

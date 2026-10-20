@@ -1,7 +1,5 @@
 const itemService = require("../services/itemService");
 const hsnCodeDbService = require("../services/hsnCodeDbService");
-const path = require("path");
-const fs   = require("fs");
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
@@ -541,81 +539,12 @@ const lookupItemCodePrefixes = async (req, res) => {
 };
 
 // ── Attachments ───────────────────────────────────────────────────────────────
-
-const UPLOAD_DIR = path.join(__dirname, "../uploads");
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-// Item attachments live per company and item (uploads/items/<companyId>/<item>/),
-// so the same item code in two companies never shares files. Names are reduced to
-// a plain file name: no folders, no "..", nothing outside that directory.
-const safeFileName = (value) => path.basename(String(value || ""))
-  .replace(/[^A-Za-z0-9._ ()-]/g, "_").replace(/^\.+/, "").trim().slice(0, 180);
-const attachmentDir = (req) => {
-  const companyId = Number(req.auth?.companyId);
-  const item = safeFileName(req.params.itemCode);
-  if (!(companyId > 0) || !item) {
-    const error = new Error("Select a company and a saved item first.");
-    error.status = 400;
-    throw error;
-  }
-  return path.join(UPLOAD_DIR, "items", String(companyId), item);
-};
-const attachmentPath = (req) => {
-  const name = safeFileName(req.params.attachmentId);
-  if (!name) {
-    const error = new Error("Invalid attachment name.");
-    error.status = 400;
-    throw error;
-  }
-  return path.join(attachmentDir(req), name);
-};
-const attachmentRow = (itemCode, dir, name) => {
-  const stat = fs.statSync(path.join(dir, name));
-  return {
-    id: name, name, size: stat.size, type: path.extname(name).slice(1).toUpperCase(),
-    url: `/items/${encodeURIComponent(itemCode)}/attachments/${encodeURIComponent(name)}`,
-  };
-};
-const attachmentError = (res, error) => res.status(error.status || 500).json({ message: error.message });
-
-const getAttachments = async (req, res) => {
-  try {
-    const dir = attachmentDir(req);
-    if (!fs.existsSync(dir)) return res.json([]);
-    res.json(fs.readdirSync(dir).map((name) => attachmentRow(req.params.itemCode, dir, name)));
-  } catch (error) { attachmentError(res, error); }
-};
-
-const uploadAttachment = async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ message: "No file uploaded." });
-    const dir = attachmentDir(req);
-    const name = safeFileName(req.file.originalname);
-    if (!name) throw Object.assign(new Error("Invalid attachment name."), { status: 400 });
-    fs.mkdirSync(dir, { recursive: true });
-    fs.renameSync(req.file.path, path.join(dir, name));
-    res.json(attachmentRow(req.params.itemCode, dir, name));
-  } catch (error) {
-    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    attachmentError(res, error);
-  }
-};
-
-const deleteAttachment = async (req, res) => {
-  try {
-    const filePath = attachmentPath(req);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    res.json({ success: true });
-  } catch (error) { attachmentError(res, error); }
-};
-
-const serveAttachment = (req, res) => {
-  try {
-    const filePath = attachmentPath(req);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found." });
-    res.download(filePath);
-  } catch (error) { attachmentError(res, error); }
-};
+// Per company and item (uploads/items/<companyId>/<item>/), shared with BOMs and production orders.
+const itemAttachments = require("./attachmentController").makeAttachmentHandlers({ kind: "items", param: "itemCode", baseUrl: "/items" });
+const getAttachments = itemAttachments.list;
+const uploadAttachment = itemAttachments.upload;
+const deleteAttachment = itemAttachments.remove;
+const serveAttachment = itemAttachments.serve;
 
 module.exports = {
   createItem, getItem, updateItem, searchItems, getRecentItemCodes,

@@ -81,7 +81,29 @@ const lookupProductionOrders = async (req, res) => {
   }
 };
 
+const cancelDocument = async (req, res) => {
+  try {
+    res.json(await svc.cancelIssue(req.params.docEntry));
+  } catch (e) {
+    console.error('[IssueForProd] cancel:', e.response?.data || e.message);
+    res.status(e.statusCode || e.response?.status || 500).json(errPayload(e));
+  }
+};
+
+// First / Previous / Next / Last document (SAP record browsing).
+const navigateDocument = async (req, res) => {
+  try {
+    const docEntry = await require('../services/productionDbService').navigateRecord('issue-for-production', req.query.direction, req.query.from);
+    if (!docEntry) return res.status(404).json({ detail: 'No more documents.' });
+    res.json(await svc.getIssueByDocEntry(docEntry));
+  } catch (e) {
+    res.status(e.statusCode || e.status || 500).json(errPayload(e));
+  }
+};
+
 module.exports = {
+  cancelDocument,
+  navigateDocument,
   getReferenceData,
   getSeries,
   getAllocationOptions,

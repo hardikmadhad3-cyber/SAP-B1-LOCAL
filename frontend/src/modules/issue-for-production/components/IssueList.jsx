@@ -32,8 +32,9 @@ export default function IssueList({ onSelect, onNew }) {
       {error && <div className="im-alert im-alert--error">{error}</div>}
 
       <div className="ifp-list-search-bar">
-        <label>Find</label>
+        <label htmlFor="ifp-find-query">Find</label>
         <input
+          id="ifp-find-query"
           className="im-field__input"
           placeholder="Document no., remarks, reference, or production order"
           value={query}
@@ -57,6 +58,7 @@ export default function IssueList({ onSelect, onNew }) {
               <th style={{ width: 120 }}>Document Date</th>
               <th style={{ width: 110 }}>Ref. 2</th>
               <th style={{ width: 140 }}>Production Order</th>
+              <th style={{ width: 90 }}>Status</th>
               <th style={{ width: 90, textAlign: "right" }}>Lines</th>
               <th style={{ minWidth: 180 }}>Journal Remark</th>
               <th style={{ minWidth: 220 }}>Remarks</th>
@@ -65,14 +67,14 @@ export default function IssueList({ onSelect, onNew }) {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} style={{ textAlign: "center", padding: "36px", color: "#888" }}>
+                <td colSpan={10} style={{ textAlign: "center", padding: "36px", color: "var(--sap-text-muted)" }}>
                   Loading issue documents...
                 </td>
               </tr>
             )}
             {!loading && issues.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ textAlign: "center", color: "#888", padding: "36px" }}>
+                <td colSpan={10} style={{ textAlign: "center", color: "var(--sap-text-muted)", padding: "36px" }}>
                   No issue documents found.
                 </td>
               </tr>
@@ -80,11 +82,12 @@ export default function IssueList({ onSelect, onNew }) {
             {!loading && issues.map((doc, index) => (
               <tr key={doc.doc_entry} onClick={() => onSelect(doc.doc_entry)}>
                 <td>{index + 1}</td>
-                <td style={{ fontWeight: 600, color: "#0070c0" }}>{doc.doc_num}</td>
+                <td style={{ fontWeight: "var(--sap-font-weight-semibold)", color: "var(--sap-link)" }}>{doc.doc_num}</td>
                 <td>{doc.posting_date}</td>
                 <td>{doc.document_date}</td>
                 <td>{doc.ref_2}</td>
                 <td>{doc.production_order_no}</td>
+                <td className={doc.cancelled ? "ifp-status--cancelled" : undefined}>{doc.cancelled ? "Cancelled" : "Posted"}</td>
                 <td style={{ textAlign: "right" }}>{doc.total_lines}</td>
                 <td>{doc.journal_remark}</td>
                 <td>{doc.remarks}</td>

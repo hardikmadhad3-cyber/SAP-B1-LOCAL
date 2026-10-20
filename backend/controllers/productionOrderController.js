@@ -70,10 +70,30 @@ const updateProductionOrder = async (req, res) => {
 
 const closeProductionOrder = async (req, res) => {
   try {
-    const result = await productionOrderService.closeProductionOrder(req.params.docEntry);
+    const result = await productionOrderService.closeProductionOrder(req.params.docEntry, req.body || {});
     res.json(result);
   } catch (error) {
     console.error('[ProdOrder] close:', error.response?.data || error.message);
+    res.status(getStatus(error)).json(getErrorPayload(error));
+  }
+};
+
+const cancelProductionOrder = async (req, res) => {
+  try {
+    res.json(await productionOrderService.cancelProductionOrder(req.params.docEntry));
+  } catch (error) {
+    console.error('[ProdOrder] cancel:', error.response?.data || error.message);
+    res.status(getStatus(error)).json(getErrorPayload(error));
+  }
+};
+
+// First / Previous / Next / Last order (SAP record browsing).
+const navigateProductionOrder = async (req, res) => {
+  try {
+    const docEntry = await productionDbService.navigateRecord('production-order', req.query.direction, req.query.from);
+    if (!docEntry) return res.status(404).json({ detail: 'No more production orders.' });
+    res.json(await productionDbService.getProductionOrderByDocEntry(docEntry));
+  } catch (error) {
     res.status(getStatus(error)).json(getErrorPayload(error));
   }
 };
@@ -219,6 +239,8 @@ const lookupLinkedOrders = async (req, res) => {
 };
 
 module.exports = {
+  cancelProductionOrder,
+  navigateProductionOrder,
   getReferenceData,
   getSeries,
   getProductionOrders,

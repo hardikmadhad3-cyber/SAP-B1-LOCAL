@@ -17,6 +17,9 @@ const SETUPS = {
   'posting-periods': { table: 'OFPR', key: 'AbsEntry', fields: ['Name','PeriodStat','F_DueDate','T_DueDate','F_TaxDate','T_TaxDate'] },
   'exchange-rates': { table: 'ORTT', key: 'Currency', fields: ['Currency','RateDate','Rate'] },
   'account-template': { table: 'OACT', key: 'AcctCode', fields: [] },
+  resources: { entity: 'Resources', fields: ['ResCode','ResName','ResType','ResGrpCod','UnitOfMsr','IssueMthd','DfltWH','StdCost','ResAcct','validFor','Remarks'] },
+  'resource-groups': { entity: 'ResourceGroups', fields: ['ResGrpNam','ResType'] },
+  'route-stages': { entity: 'RouteStages', fields: ['Code','Desc'] },
 };
 const fail = (message, statusCode = 400) => { const error = new Error(message); error.statusCode = statusCode; throw error; };
 const definition = (kind) => {
@@ -58,7 +61,9 @@ const list = (kind) => inCompany(async (client) => {
   const currencies = (await client.query('SELECT * FROM "OCRN" ORDER BY "CurrCode"')).rows;
   const countries = (await client.query('SELECT * FROM "OCRY" ORDER BY "Name"')).rows;
   const uomGroups = (await client.query('SELECT "UgpEntry", "UgpName" FROM "OUGP" ORDER BY "UgpName"')).rows;
-  return { rows, accounts, branches, periods, defaults, currencies, countries, uomGroups, template: kind === 'account-template' ? ACCOUNT_TEMPLATE : undefined };
+  const warehouses = (await client.query('SELECT "WhsCode", "WhsName" FROM "OWHS" ORDER BY "WhsCode"')).rows;
+  const resourceGroups = (await client.query('SELECT "ResGrpCod", "ResGrpNam" FROM "ORSB" ORDER BY "ResGrpNam"')).rows;
+  return { rows, accounts, branches, periods, defaults, currencies, countries, uomGroups, warehouses, resourceGroups, template: kind === 'account-template' ? ACCOUNT_TEMPLATE : undefined };
 });
 
 const save = async (kind, key, source) => {
@@ -70,6 +75,7 @@ const save = async (kind, key, source) => {
     if (kind === 'gl-determination' && key == null) fail('Create the fiscal year from Posting Periods first.');
     for (const field of setup.accounts || []) if (data[field] === '') data[field] = null;
     if (data.UgpEntry === '') data.UgpEntry = null;
+    for (const field of ['ResGrpCod', 'DfltWH']) if (data[field] === '') data[field] = null;
     const literal = key == null ? '' : setup.generatedKey ? integer(key, 'record number') : `'${String(key).replace(/'/g, "''")}'`;
     // The key literal is only used for updates; new numeric keys come from PostgreSQL.
     await sap.request({ method: key == null ? 'POST' : 'PATCH', url: `/${setup.entity}${key == null ? '' : `(${literal})`}`, data, preserveEmptyStrings: true });

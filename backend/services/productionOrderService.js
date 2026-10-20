@@ -1,20 +1,10 @@
 const sapService = require('./sapService');
 const productionDbService = require('./productionDbService');
 
-const escapeOData = (v) => String(v || '').replace(/'/g, "''");
 const formatDate  = (v) => (v ? String(v).split('T')[0] : '');
 
 // SAP B1 ProductionOrders fields to select
 // Note: Some fields may not exist in all SAP B1 versions, so we'll fetch without $select first
-const PROD_ORDER_SELECT = '*';
-// Note: ProductionOrders entity includes lines by default, no need to expand
-
-const toNum = (v) => {
-  if (v === '' || v == null) return undefined;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
-};
-
 const opt = (v) => v !== '' && v != null;
 const positiveInt = (v) => {
   if (v === '' || v == null) return undefined;
@@ -33,7 +23,7 @@ const getProductionOrderState = async (docEntry) => {
   };
 };
 
-const transitionProductionOrder = async (docEntry, fromStatuses, targetStatus) => {
+const transitionProductionOrder = async (docEntry, fromStatuses, targetStatus, extra = {}) => {
   const current = await getProductionOrderState(docEntry);
   const status = current.order.ProductionOrderStatus;
   if (!fromStatuses.includes(status)) {
@@ -43,7 +33,7 @@ const transitionProductionOrder = async (docEntry, fromStatuses, targetStatus) =
     method: 'PATCH',
     url: `/ProductionOrders(${docEntry})`,
     headers: current.etag ? { 'If-Match': current.etag } : {},
-    data: { ProductionOrderStatus: targetStatus },
+    data: { ProductionOrderStatus: targetStatus, ...extra },
   });
 };
 
@@ -60,247 +50,11 @@ const validateProductionOrderBody = async (body, { create = false } = {}) => {
   await productionDbService.validateBranchWarehouses(body.branch, [body.warehouse, ...lineWarehouses]);
 };
 
-const normalizeBranches = (rows = []) =>
-  (rows || [])
-    .map((row) => ({
-      BPLID: row.BPLID ?? row.Code ?? row.Branch ?? row.AbsEntry ?? '',
-      BPLName: row.BPLName ?? row.Name ?? row.Description ?? '',
-    }))
-    .filter((row) => row.BPLID !== '' && row.BPLID != null);
-
-const fetchBranches = async () => {
-  const [businessPlacesRes, branchesRes] = await Promise.allSettled([
-    sapService.request({ method: 'GET', url: '/BusinessPlaces?$select=BPLID,BPLName' }),
-    sapService.request({ method: 'GET', url: '/Branches?$select=Code,Name,Description' }),
-  ]);
-
-  const businessPlaces =
-    businessPlacesRes.status === 'fulfilled'
-      ? normalizeBranches(businessPlacesRes.value.data?.value || businessPlacesRes.value.data || [])
-      : [];
-
-  if (businessPlaces.length > 0) return businessPlaces;
-
-  return branchesRes.status === 'fulfilled'
-    ? normalizeBranches(branchesRes.value.data?.value || branchesRes.value.data || [])
-    : [];
-};
-
-// SAP B1 ProductionOrders enums (confirmed from Service Layer metadata)
 const STATUS_MAP = {
   boposReleased:  'Released',
   boposPlanned:   'Planned',
   boposClosed:    'Closed',
   boposCancelled: 'Cancelled',
-};
-
-const TYPE_MAP = {
-  bopotStandard:  'Standard',
-  bopotSpecial:   'Special',
-  bopotDisassemble: 'Disassemble',
-};
-
-const PRIORITY_MAP = {
-  boprLow:    'Low',
-  boprNormal: 'Normal',
-  boprHigh:   'High',
-};
-
-const mapSummary = (o) => ({
-  doc_entry:    o.AbsoluteEntry || o.DocEntry,
-  doc_num:      o.DocumentNumber || o.DocNum,
-  item_code:    o.ItemNo || '',
-  item_name:    o.ProductDescription || '',
-  planned_qty:  o.PlannedQuantity ?? 0,
-  completed_qty:o.CompletedQuantity ?? 0,
-  due_date:     formatDate(o.DueDate),
-  posting_date: formatDate(o.PostingDate),
-  status:       STATUS_MAP[o.ProductionOrderStatus] || o.ProductionOrderStatus || '',
-  type:         TYPE_MAP[o.ProductionOrderType]   || o.ProductionOrderType   || '',
-    warehouse:    o.Warehouse || '',
-});
-
-const mapToForm = (o) => {
-  // Log the response to see what SAP is actually returning
-  console.log('[ProductionOrder] Mapping SAP response:', JSON.stringify(o, null, 2));
-  
-  return {
-    doc_entry:    o.AbsoluteEntry || o.DocEntry,
-    doc_num:      o.DocumentNumber || o.DocNum,
-    item_code:    o.ItemNo || '',
-    item_name:    o.ProductDescription || '',
-    uom_name:     o.UoMName || o.UoMCode || o.MeasureUnit || '',
-    bom_qty:      o.BaseQuantity ?? 1,
-    planned_qty:  o.PlannedQuantity ?? 1,
-    completed_qty:o.CompletedQuantity ?? 0,
-    rejected_qty: o.RejectedQuantity ?? 0,
-    due_date:     formatDate(o.DueDate),
-    posting_date: formatDate(o.PostingDate),
-    start_date:   formatDate(o.StartDate),
-    order_date:   formatDate(o.CreationDate),
-    status:       o.ProductionOrderStatus || 'boposPlanned',
-    type:         o.ProductionOrderType   || 'bopotStandard',
-    warehouse:    o.Warehouse || '',
-    priority:     o.Priority ?? 100,
-    routing_date_calc: o.RoutingDateCalculation || 'start',
-    procure_items: o.ProcureItems === 'tYES' || o.ProcureItems === true,
-    distribution_rule: o.DistributionRule || '',
-    project:      o.Project || '',
-    journal_remark: o.JournalRemarks || o.JournalMemo || '',
-    remarks:      o.Remarks || '',
-    series:       o.Series != null ? String(o.Series) : '',
-    origin_num:   o.OriginNum != null ? String(o.OriginNum) : '',
-    origin:       o.OriginNumber != null ? String(o.OriginNumber) : '',
-    linked_to:    o.OriginType || '',
-    linked_order: o.OriginAbs != null ? String(o.OriginAbs) : '',
-    linked_order_entry: o.OriginAbs != null ? String(o.OriginAbs) : '',
-    user_id:      o.UserSignature != null ? String(o.UserSignature) : (o.UserSign != null ? String(o.UserSign) : ''),
-    user:         o.User || o.UserName || '',
-    branch:       o.BPL_IDAssignedToInvoice != null ? String(o.BPL_IDAssignedToInvoice) : (o.BPLId != null ? String(o.BPLId) : ''),
-    branch_name:  o.BPLName || '',
-    customer_code:o.CustomerCode || '',
-    customer_name:o.CustomerName || '',
-    lines: (o.ProductionOrderLines || o.ProductionOrder_Lines || []).map((l) => ({
-      _id:           l.LineNumber ?? Math.random(),
-      line_num:      l.LineNumber ?? 0,
-      item_code:     l.ItemNo || '',
-      item_name:     l.ItemName || l.ItemDescription || l.LineText || '',
-      line_text:     l.LineText || '',
-      base_qty:      l.BaseQuantity ?? 1,
-      base_ratio:    l.BaseRatio ?? l.BaseQuantity ?? 1,
-      planned_qty:   l.PlannedQuantity ?? 1,
-      issued_qty:    l.IssuedQuantity ?? 0,
-      available_qty: l.AvailableQuantity ?? 0,
-      uom:           l.UoMCode || l.MeasureUnit || '',
-      uom_code:      l.UoMCode || l.MeasureUnit || '',
-      uom_name:      l.UoMName || l.MeasureUnit || l.UoMCode || '',
-      warehouse:     l.Warehouse || '',
-      issue_method:  l.ProductionOrderIssueType || l.IssueMethod || 'im_Manual',
-      wip_account:   l.WipAccount || l.WIPAccount || '',
-      distribution_rule: l.DistributionRule || '',
-      project:       l.Project || '',
-      location:      l.Location || '',
-      additional_qty:l.AdditionalQuantity ?? 0,
-      stage_id:      l.StageID ?? '',
-      route_sequence:l.RouteSequence || l.StageID || '',
-      procurement_method: l.ProcurementMethod || '',
-      component_type:l.ItemType || 'pit_Item',
-    })),
-  };
-};
-
-// ── Reference data ────────────────────────────────────────────────────────────
-const getReferenceData = async () => {
-  const warnings = [];
-
-  const [whsRes, distRes, projRes, seriesRes, branchRes, routeStageRes] = await Promise.allSettled([
-    sapService.request({ method: 'GET', url: '/Warehouses?$select=WarehouseCode,WarehouseName' }),
-    sapService.request({ method: 'GET', url: '/DistributionRules?$select=FactorCode,FactorDescription&$top=200' }),
-    sapService.request({ method: 'GET', url: '/Projects?$select=Code,Name&$top=200' }),
-    sapService.request({ method: 'POST', url: '/SeriesService_GetDocumentSeries', data: { DocumentTypeParams: { Document: '202' } } }),
-    fetchBranches(),
-    sapService.request({ method: 'GET', url: '/RouteStages?$select=InternalNumber,Code,Description&$top=200' }),
-  ]);
-
-  const settle = (r, fn, msg) => {
-    if (r.status === 'fulfilled') return fn(r.value?.data?.value || r.value?.data || r.value || []);
-    warnings.push(msg + ': ' + (r.reason?.message || 'failed'));
-    return [];
-  };
-
-  const warehouses       = settle(whsRes,  (d) => d, 'Warehouses');
-  const distributionRules= settle(distRes, (d) => d, 'DistributionRules');
-  const projects         = settle(projRes, (d) => d, 'Projects');
-  const series           = settle(seriesRes, (d) => d, 'Series');
-  const branches         = settle(branchRes, (d) => d, 'Branches');
-  const routeStages      = settle(routeStageRes, (d) => d, 'RouteStages');
-
-  return {
-    warehouses,
-    distribution_rules: distributionRules,
-    projects,
-    series,
-    branches,
-    route_stages: routeStages,
-    production_order_statuses: Object.entries(STATUS_MAP).map(([value, label]) => ({ value, label })),
-    production_order_types:    Object.entries(TYPE_MAP).map(([value, label]) => ({ value, label })),
-    production_order_priorities: Object.entries(PRIORITY_MAP).map(([value, label]) => ({ value, label })),
-    warnings,
-  };
-};
-
-// ── List ──────────────────────────────────────────────────────────────────────
-const getProductionOrders = async ({ query = '', top = 50, skip = 0, status } = {}) => {
-  const parts = [];
-  if (query) {
-    const trimmed = String(query).trim();
-    const escaped = escapeOData(trimmed);
-    if (/^\d+$/.test(trimmed)) {
-      parts.push(`(DocumentNumber eq ${trimmed} or contains(ItemNo,'${escaped}') or contains(ProductDescription,'${escaped}'))`);
-    } else {
-      parts.push(`(contains(ItemNo,'${escaped}') or contains(ProductDescription,'${escaped}'))`);
-    }
-  }
-  if (status) parts.push(`ProductionOrderStatus eq '${escapeOData(status)}'`);
-  const filter = parts.length ? `&$filter=${encodeURIComponent(parts.join(' and '))}` : '';
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/ProductionOrders?$select=AbsoluteEntry,DocumentNumber,ItemNo,ProductDescription,PlannedQuantity,CompletedQuantity,DueDate,PostingDate,ProductionOrderStatus,ProductionOrderType,Warehouse${filter}&$top=${top}&$skip=${skip}`,
-  });
-
-  return { orders: (resp.data?.value || []).map(mapSummary) };
-};
-
-// ── Get single ────────────────────────────────────────────────────────────────
-const getProductionOrderByDocEntry = async (docEntry) => {
-  const n = Number(docEntry);
-  if (!Number.isInteger(n) || n <= 0) throw new Error('Invalid DocEntry.');
-
-  console.log('[ProductionOrder] Fetching order with DocEntry:', n);
-  const resp = await sapService.request({ 
-    method: 'GET', 
-    url: `/ProductionOrders(${n})` 
-  });
-  console.log('[ProductionOrder] SAP response received');
-  return { production_order: mapToForm(resp.data || {}) };
-};
-
-// ── BOM explosion ─────────────────────────────────────────────────────────────
-const explodeBOM = async (itemCode, qty = 1) => {
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/ProductTrees('${encodeURIComponent(itemCode)}')`,
-  });
-  const bom = resp.data;
-  const factor = Number(qty) / (bom.Quantity || 1);
-
-  const lines = (bom.ProductTreeLines || []).map((l, idx) => ({
-    _id:           Date.now() + idx + Math.random(),
-    line_num:      idx,
-    item_code:     l.ItemCode || '',
-    item_name:     l.ItemName || '',
-    base_qty:      l.Quantity ?? 1,
-    planned_qty:   parseFloat(((l.Quantity ?? 1) * factor).toFixed(6)),
-    issued_qty:    0,
-    uom:           l.InventoryUOM || '',
-    warehouse:     l.Warehouse || bom.Warehouse || '',
-    issue_method:  l.IssueMethod || 'im_Manual',
-    distribution_rule: l.DistributionRule || '',
-    project:       l.Project || '',
-    additional_qty:0,
-    stage_id:      l.StageID ?? '',
-    component_type:l.ItemType || 'pit_Item',
-    line_text:     l.LineText || '',
-  }));
-
-  return {
-    item_code:   bom.TreeCode,
-    item_name:   bom.ProductDescription || '',
-    bom_qty:     bom.Quantity,
-    warehouse:   bom.Warehouse || '',
-    lines,
-  };
 };
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -316,7 +70,7 @@ const createProductionOrder = async (body) => {
     try {
       const bomResp = await sapService.request({
         method: 'GET',
-        url: `/ProductTrees('${encodeURIComponent(body.item_code)}')`,
+        url: sapService.buildStringKeyPath('ProductTrees', body.item_code),
       });
       bomData = bomResp.data;
     } catch (err) {
@@ -500,110 +254,26 @@ const releaseProductionOrder = async (docEntry) => {
 };
 
 // ── Close ─────────────────────────────────────────────────────────────────────
-const closeProductionOrder = async (docEntry) => {
+// SAP closes on an actual closing date; what is left in WIP posts as variance on it.
+const closeProductionOrder = async (docEntry, { closing_date: closingDate } = {}) => {
   const n = Number(docEntry);
   if (!Number.isInteger(n) || n <= 0) throw new Error('Invalid DocEntry.');
 
-  await transitionProductionOrder(n, ['boposReleased'], 'boposClosed');
-  
+  await transitionProductionOrder(n, ['boposReleased'], 'boposClosed', opt(closingDate) ? { ClosingDate: formatDate(closingDate) } : {});
+
   const updated = await productionDbService.getProductionOrderByDocEntry(n);
   return { message: 'Production order closed.', production_order: updated?.production_order || null };
 };
 
-// ── Lookups ───────────────────────────────────────────────────────────────────
-const lookupItems = async (query = '') => {
-  // First, get all items that have BOMs (ProductTrees)
-  const bomFilter = query
-    ? `&$filter=contains(TreeCode,'${escapeOData(query)}') or contains(ProductDescription,'${escapeOData(query)}')`
-    : '';
-  
-  const bomResp = await sapService.request({
-    method: 'GET',
-    url: `/ProductTrees?$select=TreeCode,ProductDescription${bomFilter}&$top=500`,
-  });
-  
-  const bomsData = bomResp.data?.value || [];
-  
-  // Get full item details for each BOM item
-  const itemCodes = bomsData.map(bom => bom.TreeCode);
-  
-  if (itemCodes.length === 0) {
-    return [];
-  }
-  
-  // Fetch item details for items that have BOMs
-  const itemFilter = itemCodes.map(code => `ItemCode eq '${escapeOData(code)}'`).join(' or ');
-  const itemResp = await sapService.request({
-    method: 'GET',
-    url: `/Items?$select=ItemCode,ItemName,InventoryUOM,InventoryItem&$filter=${encodeURIComponent(itemFilter)}&$top=500`,
-  });
-  
-  return itemResp.data?.value || [];
-};
+// Planned or released orders without issues or receipts can be cancelled.
+const cancelProductionOrder = async (docEntry) => {
+  const n = Number(docEntry);
+  if (!Number.isInteger(n) || n <= 0) throw new Error('Invalid DocEntry.');
 
-const lookupComponentItems = async (query = '') => {
-  const filterParts = [`InventoryItem eq 'tYES'`];
-  if (query) {
-    const q = escapeOData(query);
-    filterParts.push(`(contains(ItemCode,'${q}') or contains(ItemName,'${q}'))`);
-  }
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/Items?$select=ItemCode,ItemName,InventoryUOM,DefaultWarehouse,ManageSerialNumbers,ManageBatchNumbers&$filter=${encodeURIComponent(filterParts.join(' and '))}&$top=500`,
-  });
-  return resp.data?.value || [];
-};
+  await transitionProductionOrder(n, ['boposPlanned', 'boposReleased'], 'boposCancelled');
 
-const lookupResources = async (query = '') => {
-  const filter = query
-    ? `&$filter=contains(Code,'${escapeOData(query)}') or contains(Name,'${escapeOData(query)}')`
-    : '';
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/Resources?$select=Code,Name,DefaultWarehouse,IssueMethod${filter}&$top=500`,
-  });
-  return resp.data?.value || [];
-};
-
-const lookupRouteStages = async (query = '') => {
-  const filter = query
-    ? `&$filter=contains(Code,'${escapeOData(query)}') or contains(Description,'${escapeOData(query)}')`
-    : '';
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/RouteStages?$select=InternalNumber,Code,Description${filter}&$top=100`,
-  });
-  return resp.data?.value || [];
-};
-
-const lookupWarehouses = async () => {
-  const resp = await sapService.request({ method: 'GET', url: '/Warehouses?$select=WarehouseCode,WarehouseName' });
-  return resp.data?.value || [];
-};
-
-const lookupDistributionRules = async () => {
-  const resp = await sapService.request({ method: 'GET', url: '/DistributionRules?$select=FactorCode,FactorDescription&$top=200' });
-  return resp.data?.value || [];
-};
-
-const lookupProjects = async () => {
-  const resp = await sapService.request({ method: 'GET', url: '/Projects?$select=Code,Name&$top=200' });
-  return resp.data?.value || [];
-};
-
-const lookupBranches = async () => {
-  return fetchBranches();
-};
-
-const lookupCustomers = async (query = '') => {
-  const filter = query
-    ? `&$filter=contains(CardCode,'${escapeOData(query)}') or contains(CardName,'${escapeOData(query)}')`
-    : '';
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/BusinessPartners?$select=CardCode,CardName&$filter=CardType eq 'cCustomer'${filter}&$top=50`,
-  });
-  return resp.data?.value || [];
+  const updated = await productionDbService.getProductionOrderByDocEntry(n);
+  return { message: 'Production order cancelled.', production_order: updated?.production_order || null };
 };
 
 // ── Payload builder ───────────────────────────────────────────────────────────
@@ -635,6 +305,17 @@ function _buildPayload(body, isCreate = false) {
   if (opt(body.project))      p.Project                  = body.project;
   if (opt(body.journal_remark)) p.JournalRemarks         = body.journal_remark;
   if (opt(body.remarks))      p.Remarks                  = body.remarks;
+  if (body.pick_remarks !== undefined) p.PickRemarks     = body.pick_remarks || null;
+  if (opt(body.user_id))      p.UserSignature            = Number(body.user_id);
+  // SAP "Linked To": a sales order or a parent production order; otherwise manual.
+  const originEntry = positiveInt(body.linked_order_entry ?? body.linked_order);
+  const originType = { sales_order: 'bopooSalesOrder', production_order: 'bopooProductionOrder' }[body.linked_to];
+  if (originType && originEntry) {
+    p.ProductionOrderOrigin = originType;
+    p.ProductionOrderOriginEntry = originEntry;
+  } else {
+    p.ProductionOrderOrigin = 'bopooManual';
+  }
   
   // Only include Series if explicitly provided and valid
   // SAP B1 will auto-assign series if not provided
@@ -642,6 +323,17 @@ function _buildPayload(body, isCreate = false) {
   const seriesNum = Number(body.series);
   if (body.series && body.series !== '' && Number.isInteger(seriesNum) && seriesNum > 0) {
     p.Series = seriesNum;
+  }
+
+  // Route stages of the order (rows refer to them by StageID).
+  if (Array.isArray(body.stages)) {
+    p.ProductionOrdersStages = body.stages
+      .filter((stage) => opt(stage.stage_entry ?? stage.StageEntry))
+      .map((stage) => ({
+        StageEntry: Number(stage.stage_entry ?? stage.StageEntry),
+        ...(positiveInt(stage.stage_id ?? stage.StageID) && { StageID: positiveInt(stage.stage_id ?? stage.StageID) }),
+        ...(opt(stage.name ?? stage.Name) && { Name: stage.name ?? stage.Name }),
+      }));
   }
 
   if (Array.isArray(body.lines) && body.lines.length > 0) {
@@ -681,6 +373,7 @@ module.exports = {
   updateProductionOrder,
   releaseProductionOrder,
   closeProductionOrder,
+  cancelProductionOrder,
   explodeBOM: productionDbService.explodeBOM,
   lookupItems: productionDbService.lookupProductionOrderItems,
   lookupComponentItems: productionDbService.lookupComponentItems,

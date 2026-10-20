@@ -105,6 +105,15 @@ test('setup masters save through their pages and follow SAP rules', { skip: !env
         'Parent account "130100" must be a title account.');
       assert.equal(failure(await call(accounts.updateAccount, { params: { code: '130000' }, body: { IsTitleAccount: 'tNO' } })),
         'A title account with child accounts cannot become an active account.');
+      // Balance comes from posted journal lines; a title account sums its children.
+      const trans = (await sql(`INSERT INTO "OJDT" ("RefDate") VALUES (CURRENT_DATE) RETURNING "TransId"`)).rows[0].TransId;
+      await sql(`INSERT INTO "JDT1" ("TransId", "Line_ID", "Account", "Debit", "Credit") VALUES ($1, 0, '130100', 250, 0), ($1, 1, '130100', 0, 40)`, [trans]);
+      assert.equal((await masters.getAccount('130100')).Balance, 210);
+      assert.equal((await masters.getAccount('130000')).Balance, 210);
+      ok(await call(accounts.createAccount, { body: { Code: '130300', Name: 'Spare', FatherAccountKey: '130000' } }));
+      await sql(`INSERT INTO "JDT1" ("TransId", "Line_ID", "Account", "Debit") VALUES ($1, 2, '130300', 5)`, [trans]);
+      assert.equal(failure(await call(accounts.updateAccount, { params: { code: '130300' }, body: { IsTitleAccount: 'tYES' } })),
+        'An account with postings cannot become a title account.');
       // Title accounts cannot be used on masters (warehouse rule from M1 still holds).
       const sl = require('../services/sapService');
       assert.equal(await sl.request({ method: 'POST', url: '/Warehouses', data: { WarehouseCode: 'W9', WarehouseName: 'x', StockAccount: '130000' } })

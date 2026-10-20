@@ -58,7 +58,7 @@ const LINE_FIELDS = {
   AccountCode: 'AcctCode', CostingCode: 'OcrCode', CostingCode2: 'OcrCode2', CostingCode3: 'OcrCode3',
   CostingCode4: 'OcrCode4', CostingCode5: 'OcrCode5', COGSCostingCode: 'CogsOcrCod', ProjectCode: 'Project',
   AgreementNo: 'AgrNo', GrossProfit: 'GrssProfit', LocationCode: 'LocCode', VisualOrder: 'VisOrder',
-  FromWarehouseCode: 'FromWhsCod',
+  FromWarehouseCode: 'FromWhsCod', TransactionType: 'TranType',
 };
 const EXPENSE_FIELDS = { ExpenseCode: 'ExpnsCode', TaxSum: 'VatSum', Remarks: 'Comments' };
 // Consumed by the engine itself, never stored as columns.
@@ -72,6 +72,7 @@ const ENUMS = {
   DocumentStatus: { bost_Open: 'O', bost_Close: 'C' },
   LineStatus: { bost_Open: 'O', bost_Close: 'C' },
   DocType: { dDocument_Items: 'I', dDocument_Service: 'S' },
+  TransactionType: { botrntComplete: 'C', botrntReject: 'R' },
 };
 
 const reverse = (map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]));
@@ -372,12 +373,14 @@ const applyMasterDefaults = async (client, entity, header, lines, company, previ
   }
 
   // Base-linked payloads can omit ItemCode; resolve it before master validation.
+  await loadProductionBase(client, { ...header, ObjType: definition.objType }, lines);
   await loadBaseLines(client, { ...header, ObjType: definition.objType }, lines, previousLines);
   const itemCodes = [...new Set(lines.map((line) => line.ItemCode).filter(hasValue))];
   const items = new Map((await client.query(
     'SELECT "ItemCode", "ItemName", "DfltWH", "validFor", "frozenFor" FROM "OITM" WHERE "ItemCode" = ANY($1)', [itemCodes],
   )).rows.map((item) => [item.ItemCode, item]));
   lines.forEach((line, index) => {
+    if (line.resource) return;
     if (!hasValue(line.ItemCode)) {
       if (header.DocType !== 'S') throw slError(400, `Row ${index + 1}: select an item.`);
       return;
@@ -426,7 +429,7 @@ const loadBaseLines = async (client, header, lines, previousLines = []) => {
   const known = new Set(previousLines.map((line) => baseOf(line) && `${line.LineNum}|${baseKey(baseOf(line))}`).filter(Boolean));
   for (const [index, line] of lines.entries()) {
     const base = baseOf(line);
-    if (!base) continue;
+    if (!base || base.type === '202') continue;
     const row = `Row ${index + 1}`;
     const consumes = (BASE_OBJECTS[header.ObjType] || []).includes(base.type);
     if (!consumes && !(REFERENCE_BASES[header.ObjType] || []).includes(base.type)) {
@@ -458,6 +461,178 @@ const loadBaseLines = async (client, header, lines, previousLines = []) => {
     }
     line.baseRow = { ...baseLine, BaseObject: base.type };
   }
+};
+
+// Issue / Receipt for Production: rows based on a released production order
+// (BaseType 202).
+// - Standard / special order: an issue row is a component row (item and warehouse
+//   from the order); a receipt row is the product (valued at the issued cost not yet
+//   received, per open unit) or a by-product row (planned quantity < 0).
+// - Disassembly order: the product is issued and the component rows are received.
+// Every row posts against the order warehouse's work-in-process account.
+const SAME_ROW = 1e-6;
+const productionAccount = async (client, warehouse, column) => {
+  const own = (await client.query(`SELECT ${quote(column)} AS "Account" FROM "OWHS" WHERE "WhsCode" = $1`, [warehouse])).rows[0]?.Account;
+  const account = own || (await client.query(`SELECT ${quote(column)} AS "Account" FROM "OACP" WHERE ${quote(column)} IS NOT NULL ORDER BY "FinancYear" DESC LIMIT 1`)).rows[0]?.Account;
+  if (!hasValue(account)) {
+    const label = column === 'WipAcct' ? 'WIP inventory' : 'WIP variance';
+    throw slError(400, `Define the ${label} account for warehouse ${warehouse} or in G/L Account Determination.`);
+  }
+  return account;
+};
+
+// Value still in WIP for an order: issued cost minus everything received.
+const productionWipBalance = async (client, entry) => toNumber((await client.query(`SELECT
+    COALESCE((SELECT SUM(l."LineTotal") FROM "IGE1" l JOIN "OIGE" h ON h."DocEntry" = l."DocEntry"
+      WHERE h."CANCELED" = 'N' AND l."BaseType" = 202 AND l."BaseEntry" = $1), 0)
+  - COALESCE((SELECT SUM(l."LineTotal") FROM "IGN1" l JOIN "OIGN" h ON h."DocEntry" = l."DocEntry"
+      WHERE h."CANCELED" = 'N' AND l."BaseType" = 202 AND l."BaseEntry" = $1), 0) AS "Value"`, [entry])).rows[0].Value);
+
+const loadProductionBase = async (client, header, lines) => {
+  const objType = String(header.ObjType);
+  for (const [index, line] of lines.entries()) {
+    const base = baseOf(line);
+    if (base?.type !== '202') continue;
+    const row = `Row ${index + 1}`;
+    if (!['59', '60'].includes(objType)) throw slError(400, `${row}: only issues and receipts can be based on a production order.`);
+    const order = (await client.query('SELECT * FROM "OWOR" WHERE "DocEntry" = $1 FOR UPDATE', [base.entry])).rows[0];
+    if (!order) throw slError(400, `${row}: production order ${base.entry} does not exist.`);
+    if (order.Status !== 'R') throw slError(400, `${row}: production order ${order.DocNum} is not released.`);
+    line.BaseRef = String(order.DocNum);
+    const disassembly = order.Type === 'D';
+    const component = Number.isInteger(base.line) && base.line >= 0
+      ? (await client.query('SELECT * FROM "WOR1" WHERE "DocEntry" = $1 AND "LineNum" = $2', [base.entry, base.line])).rows[0] : null;
+    // The product row: a disassembly issue, or a receipt that does not name a component
+    // and is not based on a by-product row (SAP sends the product without a base row).
+    const isProduct = disassembly
+      ? objType === '60' && (!hasValue(line.ItemCode) || line.ItemCode === order.ItemCode)
+      : objType === '59' && (hasValue(line.ItemCode) ? line.ItemCode === order.ItemCode : !(component && toNumber(component.PlannedQty) < 0));
+    if (isProduct) {
+      Object.assign(line, { ItemCode: order.ItemCode, BaseLine: -1 });
+      if (!hasValue(line.WhsCode)) line.WhsCode = order.Warehouse;
+      if (objType === '59') {
+        if (!hasValue(line.TranType)) line.TranType = 'C';
+        if (!hasValue(line.Price) && !hasValue(line.PriceBefDi)) {
+          // ponytail: product valued at unreceived WIP per open unit; the rest is posted as variance when the order closes.
+          const openQty = toNumber(order.PlannedQty) - toNumber(order.CmpltQty) - toNumber(order.RjctQty);
+          const unit = openQty > 0 ? Math.max(0, await productionWipBalance(client, base.entry)) / openQty : 0;
+          line.Price = unit > 0 ? unit : toNumber((await client.query('SELECT "AvgPrice" FROM "OITM" WHERE "ItemCode" = $1', [order.ItemCode])).rows[0]?.AvgPrice);
+        }
+      }
+    } else if (component && Number(component.ItemType) === 290) {
+      // A resource row: issued (hours, units) at its standard cost into WIP; no stock moves.
+      if (objType !== '60' || disassembly) throw slError(400, `${row}: a resource is issued to a production order, not received.`);
+      if (hasValue(line.ItemCode) && line.ItemCode !== component.ItemCode) throw slError(400, `${row}: the resource differs from the production order row.`);
+      const resource = (await client.query('SELECT "ResName", "StdCost", "DfltWH" FROM "ORSC" WHERE "ResCode" = $1', [component.ItemCode])).rows[0];
+      if (!resource) throw slError(400, `${row}: resource "${component.ItemCode}" does not exist.`);
+      Object.assign(line, { ItemCode: component.ItemCode, ItemType: 290, resource: true, Dscription: line.Dscription || resource.ResName });
+      if (!hasValue(line.WhsCode)) line.WhsCode = component.wareHouse || resource.DfltWH || order.Warehouse;
+      if (!hasValue(line.Price) && !hasValue(line.PriceBefDi)) line.Price = toNumber(resource.StdCost);
+    } else {
+      if (!component || Number(component.ItemType) !== 4) throw slError(400, `${row}: production order ${order.DocNum} has no item row ${base.line}.`);
+      if (hasValue(line.ItemCode) && line.ItemCode !== component.ItemCode) throw slError(400, `${row}: the item differs from the production order row.`);
+      line.ItemType = 4;
+      const byProduct = toNumber(component.PlannedQty) < 0;
+      if (objType === '60' && (disassembly || byProduct)) {
+        throw slError(400, `${row}: ${disassembly ? 'a disassembly order issues its product' : 'a by-product is received with Receipt from Production'}, not this row.`);
+      }
+      line.ItemCode = component.ItemCode;
+      if (!hasValue(line.WhsCode)) line.WhsCode = component.wareHouse;
+      if (!hasValue(line.UomCode) && hasValue(component.UomCode)) line.UomCode = component.UomCode;
+      if (objType === '59' && !hasValue(line.Price) && !hasValue(line.PriceBefDi)) {
+        if (disassembly || byProduct) {
+          // Components of a disassembly and by-products come in at the item's cost.
+          line.Price = toNumber((await client.query('SELECT "AvgPrice" FROM "OITM" WHERE "ItemCode" = $1', [component.ItemCode])).rows[0]?.AvgPrice);
+        } else {
+          // A component returned to stock comes back at the cost it was issued at.
+          const issued = (await client.query(`SELECT SUM(l."LineTotal") AS "Value", SUM(l."Quantity") AS "Qty" FROM "IGE1" l
+            JOIN "OIGE" h ON h."DocEntry" = l."DocEntry" WHERE h."CANCELED" = 'N' AND l."BaseType" = 202 AND l."BaseEntry" = $1 AND l."BaseLine" = $2`,
+          [base.entry, base.line])).rows[0];
+          if (!(toNumber(issued.Qty) > 0)) throw slError(400, `${row}: nothing was issued for production order ${order.DocNum} row ${base.line}.`);
+          line.Price = toNumber(issued.Value) / toNumber(issued.Qty);
+        }
+      }
+    }
+    line.AcctCode = await productionAccount(client, order.Warehouse, 'WipAcct');
+  }
+};
+
+// Production order quantities are recomputed from the non-cancelled issues and
+// receipts: issued per row (receipts of by-products and returns count negative;
+// a disassembly row counts what was received), completed / rejected on the header
+// (a disassembly completes the product quantity issued).
+const refreshProductionOrders = async (client, lines) => {
+  const entries = [...new Set(lines.map(baseOf).filter((base) => base?.type === '202').map((base) => base.entry))];
+  for (const entry of entries) {
+    const order = (await client.query('SELECT "DocNum", "Status", "ItemCode", "Type" FROM "OWOR" WHERE "DocEntry" = $1 FOR UPDATE', [entry])).rows[0];
+    if (order.Status !== 'R') throw slError(400, `Production order ${order.DocNum} is not released.`);
+    const posted = (table, header, extra) => `COALESCE((SELECT SUM(l."Quantity") FROM ${quote(table)} l JOIN ${quote(header)} h ON h."DocEntry" = l."DocEntry"
+      WHERE h."CANCELED" = 'N' AND l."BaseType" = 202 AND l."BaseEntry" = $1 ${extra}), 0)`;
+    const issuedRow = posted('IGE1', 'OIGE', 'AND l."BaseLine" = w."LineNum" AND l."ItemCode" <> $2');
+    const receivedRow = posted('IGN1', 'OIGN', 'AND l."BaseLine" = w."LineNum" AND l."ItemCode" <> $2');
+    await client.query(`UPDATE "WOR1" w SET "IssuedQty" = ${order.Type === 'D' ? `${receivedRow} - ${issuedRow}` : `${issuedRow} - ${receivedRow}`}
+      WHERE w."DocEntry" = $1`, [entry, order.ItemCode]);
+    if (order.Type === 'D') {
+      await client.query(`UPDATE "OWOR" SET "CmpltQty" = ${posted('IGE1', 'OIGE', 'AND l."ItemCode" = $2')}, "RjctQty" = 0 WHERE "DocEntry" = $1`, [entry, order.ItemCode]);
+    } else {
+      await client.query(`UPDATE "OWOR" SET
+        "CmpltQty" = ${posted('IGN1', 'OIGN', `AND l."ItemCode" = $2 AND COALESCE(l."TranType", 'C') <> 'R'`)},
+        "RjctQty" = ${posted('IGN1', 'OIGN', `AND l."ItemCode" = $2 AND l."TranType" = 'R'`)}
+        WHERE "DocEntry" = $1`, [entry, order.ItemCode]);
+    }
+  }
+};
+
+// SAP backflush: receiving the product (completed or rejected) issues the order's
+// backflush components in proportion, as a separate Issue for Production posted
+// first, so the product is valued with them.
+const backflushForReceipt = async (client, schema, data) => {
+  const received = new Map();
+  for (const line of data.DocumentLines || []) {
+    if (Number(line.BaseType) !== 202 || !hasValue(line.BaseEntry)) continue;
+    const order = (await client.query('SELECT "DocEntry", "DocNum", "ItemCode", "PlannedQty", "Type", "Status" FROM "OWOR" WHERE "DocEntry" = $1', [Number(line.BaseEntry)])).rows[0];
+    if (!order || order.Type === 'D' || (hasValue(line.ItemCode) && line.ItemCode !== order.ItemCode)) continue;
+    if (Number.isInteger(Number(line.BaseLine)) && Number(line.BaseLine) >= 0 && hasValue(line.BaseLine)) {
+      const row = (await client.query('SELECT "PlannedQty" FROM "WOR1" WHERE "DocEntry" = $1 AND "LineNum" = $2', [order.DocEntry, Number(line.BaseLine)])).rows[0];
+      if (row && toNumber(row.PlannedQty) < 0) continue;
+    }
+    const current = received.get(order.DocEntry) || { order, qty: 0 };
+    current.qty += toNumber(line.Quantity);
+    received.set(order.DocEntry, current);
+  }
+  for (const { order, qty } of received.values()) {
+    if (order.Status !== 'R' || !(qty > 0)) continue;
+    const components = (await client.query(
+      `SELECT "LineNum", "PlannedQty", "wareHouse" FROM "WOR1" WHERE "DocEntry" = $1 AND "IssueType" = 'B' AND "ItemType" IN (4, 290) AND "PlannedQty" > 0 ORDER BY "LineNum"`,
+      [order.DocEntry],
+    )).rows;
+    if (!components.length) continue;
+    await createDocumentIn(client, schema, 'InventoryGenExits', {
+      DocDate: data.DocDate, BPL_IDAssignedToInvoice: data.BPL_IDAssignedToInvoice, Comments: `Backflush - production order ${order.DocNum}`,
+      DocumentLines: components.map((component) => ({
+        BaseType: 202, BaseEntry: order.DocEntry, BaseLine: component.LineNum, WarehouseCode: component.wareHouse,
+        Quantity: toNumber(component.PlannedQty) * qty / toNumber(order.PlannedQty),
+      })),
+    });
+  }
+};
+
+// Closing an order clears what is left in WIP to the WIP variance account.
+const postProductionVariance = async (client, schema, entry) => {
+  const order = (await client.query('SELECT * FROM "OWOR" WHERE "DocEntry" = $1', [entry])).rows[0];
+  const company = await getCompany(client);
+  const balance = roundTo(await productionWipBalance(client, entry), toNumber(company.SumDec, 2));
+  if (balance === 0) return null;
+  const wip = await productionAccount(client, order.Warehouse, 'WipAcct');
+  const variance = await productionAccount(client, order.Warehouse, 'WipVarAcct');
+  const today = order.CloseDate ? localDay(order.CloseDate) : localToday();
+  const journal = await writeJournal(client, schema, {
+    rows: [{ account: variance, amount: balance, ProfitCode: order.OcrCode, Project: order.Project }, { account: wip, amount: -balance, ProfitCode: order.OcrCode, Project: order.Project }],
+    objType: '202', period: await getPostingPeriod(client, today), company, memo: `Production order ${order.DocNum} - variance`,
+    refDate: today, dueDate: today, taxDate: today, baseRef: String(order.DocNum), ref1: String(order.DocNum), createdBy: order.DocEntry, bplId: order.BPLId,
+  });
+  await client.query('UPDATE "OWOR" SET "TransId" = $2 WHERE "DocEntry" = $1', [entry, journal.TransId]);
+  return journal;
 };
 
 // Base rows' open quantity = quantity - everything copied from them by
@@ -504,6 +679,7 @@ const openOrderQty = (lines, header) => `COALESCE((SELECT SUM(l."OpenQty" * CASE
 const refreshOrdered = async (client, lines) => {
   const pairs = new Map();
   for (const line of lines) {
+    if (line.resource || Number(line.ItemType) === 290) continue; // resources have no stock
     for (const row of [line, line.baseRow].filter(Boolean)) {
       if (hasValue(row.ItemCode) && hasValue(row.WhsCode)) pairs.set(`${row.ItemCode}\u0000${row.WhsCode}`, [row.ItemCode, row.WhsCode]);
     }
@@ -549,6 +725,7 @@ const postStock = async (client, { header, lines, company }) => {
     const item = items.get(line.ItemCode);
     line.stockValue = 0;
     const row = `Row ${index + 1}`;
+    if (line.resource) continue;
     if (INVENTORY_POSTING.has(objType) && item?.InvntItem !== 'Y') throw slError(400, `${row}: item "${line.ItemCode}" is not an inventory item.`);
     if (!item || item.InvntItem !== 'Y' || header.DocType === 'S') continue;
     const qty = inventoryQty(line);
@@ -558,7 +735,6 @@ const postStock = async (client, { header, lines, company }) => {
       if (objType === '13') line.GrssProfit = roundTo(line.LineTotal * headerFactor - line.StockPrice * qty, sumDec);
       continue;
     }
-    if (item.ManBtchNum === 'Y' || item.ManSerNum === 'Y') throw slError(400, `${row}: batch and serial numbers are not supported yet (item "${item.ItemCode}").`);
     if (item.EvalSystem && item.EvalSystem !== 'A') throw slError(400, `${row}: only moving average valuation is supported (item "${item.ItemCode}").`);
     if (!(qty > 0)) throw slError(400, `${row}: enter a quantity greater than zero.`);
     // A transfer leaves the from warehouse and enters the to warehouse; everything else moves one warehouse.
@@ -573,6 +749,9 @@ const postStock = async (client, { header, lines, company }) => {
       if (delta < 0 && toNumber(stock.OnHand) < -delta) {
         throw slError(400, `${row}: quantity falls into negative inventory for item "${line.ItemCode}" in warehouse ${whsCode}.`);
       }
+    }
+    if (item.ManBtchNum === 'Y' || item.ManSerNum === 'Y') {
+      await moveBatchesAndSerials(client, { objType, header, line, item, qty, moves, row });
     }
     const onHand = toNumber(item.OnHand);
     const average = toNumber(item.AvgPrice);
@@ -614,6 +793,106 @@ const postStock = async (client, { header, lines, company }) => {
       await client.query('UPDATE "OITM" SET "LastPurPrc" = $2, "LastPurCur" = $3, "LastPurDat" = $4 WHERE "ItemCode" = $1',
         [line.ItemCode, toNumber(line.Price), header.DocCur, header.DocDate]);
     }
+  }
+};
+
+// ---- batch and serial numbers -----------------------------------------------------
+// SAP: every stock move of a batch item names its batches (quantities add up to the
+// row's inventory quantity); a serial item names one serial per unit. Receipts create
+// them, issues take them from the warehouse, transfers move them. Each move is logged
+// in IBT1 / SRI1 so a cancellation reverses exactly what was posted.
+
+const moveBatch = async (client, { itemCode, batch, whsCode, delta, objType, docEntry, lineNum, docDate, details = {}, row }) => {
+  let master = (await client.query('SELECT "SysNumber", "ExpDate" FROM "OBTN" WHERE "ItemCode" = $1 AND "DistNumber" = $2', [itemCode, batch])).rows[0];
+  if (!master) {
+    if (delta < 0) throw slError(400, `${row}: batch "${batch}" of item "${itemCode}" does not exist.`);
+    master = (await client.query(
+      `INSERT INTO "OBTN" ("ItemCode", "SysNumber", "DistNumber", "MnfSerial", "LotNumber", "ExpDate", "MnfDate", "InDate", "Notes")
+       VALUES ($1, (SELECT COALESCE(MAX("SysNumber"), 0) + 1 FROM "OBTN" WHERE "ItemCode" = $1), $2, $3, $4, $5, $6, $7, $8) RETURNING "SysNumber", "ExpDate"`,
+      [itemCode, batch, details.ManufacturerSerialNumber || null, details.InternalSerialNumber || null,
+        details.ExpiryDate || null, details.ManufacturingDate || null, details.AddmisionDate || docDate, details.Notes || null],
+    )).rows[0];
+  }
+  await client.query(`INSERT INTO "OIBT" ("ItemCode", "BatchNum", "WhsCode", "SysNumber", "ExpDate", "InDate")
+    VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`, [itemCode, batch, whsCode, master.SysNumber, master.ExpDate, docDate]);
+  const stock = (await client.query('SELECT "Quantity" FROM "OIBT" WHERE "ItemCode" = $1 AND "BatchNum" = $2 AND "WhsCode" = $3 FOR UPDATE', [itemCode, batch, whsCode])).rows[0];
+  if (delta < 0 && toNumber(stock.Quantity) + delta < -1e-6) {
+    throw slError(400, `${row}: batch "${batch}" of item "${itemCode}" has only ${toNumber(stock.Quantity)} in warehouse ${whsCode}.`);
+  }
+  await client.query('UPDATE "OIBT" SET "Quantity" = "Quantity" + $4 WHERE "ItemCode" = $1 AND "BatchNum" = $2 AND "WhsCode" = $3', [itemCode, batch, whsCode, delta]);
+  await client.query(`INSERT INTO "IBT1" ("ItemCode", "BatchNum", "WhsCode", "SysNumber", "BaseType", "BaseEntry", "BaseLinNum", "Quantity", "Direction", "DocDate")
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+  [itemCode, batch, whsCode, master.SysNumber, Number(objType), docEntry, lineNum, Math.abs(delta), delta > 0 ? 0 : 1, docDate]);
+};
+
+const moveSerial = async (client, { itemCode, serial, whsCode, delta, objType, docEntry, lineNum, docDate, details = {}, row }) => {
+  let master = (await client.query('SELECT "SysNumber" FROM "OSRN" WHERE "ItemCode" = $1 AND "DistNumber" = $2', [itemCode, serial])).rows[0];
+  if (delta > 0) {
+    if (master) {
+      const inStock = (await client.query('SELECT "WhsCode" FROM "OSRQ" WHERE "ItemCode" = $1 AND "SysNumber" = $2 AND "Quantity" > 0', [itemCode, master.SysNumber])).rows[0];
+      if (inStock) throw slError(400, `${row}: serial number "${serial}" of item "${itemCode}" is already in stock (warehouse ${inStock.WhsCode}).`);
+    } else {
+      master = (await client.query(
+        `INSERT INTO "OSRN" ("ItemCode", "SysNumber", "DistNumber", "MnfSerial", "LotNumber", "ExpDate", "MnfDate", "InDate", "Notes")
+         VALUES ($1, (SELECT COALESCE(MAX("SysNumber"), 0) + 1 FROM "OSRN" WHERE "ItemCode" = $1), $2, $3, $4, $5, $6, $7, $8) RETURNING "SysNumber"`,
+        [itemCode, serial, details.ManufacturerSerialNumber || null, details.BatchID || null,
+          details.ExpiryDate || null, details.ManufactureDate || null, docDate, details.Notes || null],
+      )).rows[0];
+    }
+  } else {
+    const inWarehouse = master && (await client.query(
+      'SELECT 1 FROM "OSRQ" WHERE "ItemCode" = $1 AND "SysNumber" = $2 AND "WhsCode" = $3 AND "Quantity" > 0 FOR UPDATE', [itemCode, master.SysNumber, whsCode],
+    )).rowCount;
+    if (!inWarehouse) throw slError(400, `${row}: serial number "${serial}" of item "${itemCode}" is not in stock in warehouse ${whsCode}.`);
+  }
+  const sign = delta > 0 ? 1 : -1;
+  await client.query(`INSERT INTO "OSRQ" ("ItemCode", "SysNumber", "WhsCode", "Quantity") VALUES ($1, $2, $3, $4)
+    ON CONFLICT ("ItemCode", "SysNumber", "WhsCode") DO UPDATE SET "Quantity" = "OSRQ"."Quantity" + EXCLUDED."Quantity"`, [itemCode, master.SysNumber, whsCode, sign]);
+  await client.query(`INSERT INTO "OSRI" ("ItemCode", "SysSerial", "IntrSerial", "SuppSerial", "WhsCode", "Status", "InDate")
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT ("ItemCode", "SysSerial") DO UPDATE SET "WhsCode" = EXCLUDED."WhsCode", "Status" = EXCLUDED."Status"`,
+  [itemCode, master.SysNumber, serial, details.ManufacturerSerialNumber || null, whsCode, sign > 0 ? 0 : 1, docDate]);
+  await client.query(`INSERT INTO "SRI1" ("ItemCode", "SysSerial", "IntrSerial", "WhsCode", "BaseType", "BaseEntry", "BaseLinNum", "Direction", "DocDate")
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [itemCode, master.SysNumber, serial, whsCode, Number(objType), docEntry, lineNum, sign > 0 ? 0 : 1, docDate]);
+};
+
+const moveBatchesAndSerials = async (client, { objType, header, line, item, qty, moves, row }) => {
+  const base = { itemCode: item.ItemCode, objType, docEntry: header.DocEntry, lineNum: line.LineNum, docDate: header.DocDate, row };
+  if (item.ManBtchNum === 'Y') {
+    const batches = (line.batches || []).filter((batch) => hasValue(batch.BatchNumber));
+    if (!batches.length) throw slError(400, `${row}: enter the batch numbers for item "${item.ItemCode}".`);
+    if (batches.some((batch) => !(toNumber(batch.Quantity) > 0))) throw slError(400, `${row}: each batch needs a quantity greater than zero.`);
+    const total = batches.reduce((sum, batch) => sum + toNumber(batch.Quantity), 0);
+    if (Math.abs(total - qty) > 1e-6) throw slError(400, `${row}: batch quantities (${total}) must equal the row quantity (${qty}).`);
+    for (const [whsCode, delta] of moves) {
+      for (const batch of batches) {
+        await moveBatch(client, { ...base, batch: String(batch.BatchNumber).trim(), whsCode, delta: Math.sign(delta) * toNumber(batch.Quantity), details: batch });
+      }
+    }
+    return;
+  }
+  const serials = (line.serials || [])
+    .map((serial) => ({ ...serial, number: String(serial.InternalSerialNumber ?? serial.ManufacturerSerialNumber ?? '').trim() }))
+    .filter((serial) => serial.number);
+  if (!Number.isInteger(qty)) throw slError(400, `${row}: a serial-managed item needs a whole quantity.`);
+  if (serials.length !== qty) throw slError(400, `${row}: enter ${qty} serial number(s) for item "${item.ItemCode}" (${serials.length} entered).`);
+  if (new Set(serials.map((serial) => serial.number)).size !== serials.length) throw slError(400, `${row}: a serial number is entered twice.`);
+  for (const [whsCode, delta] of moves) {
+    for (const serial of serials) await moveSerial(client, { ...base, serial: serial.number, whsCode, delta: Math.sign(delta), details: serial });
+  }
+};
+
+// Undoes a document's batch / serial moves (latest first) for its cancellation document.
+const reverseBatchesAndSerials = async (client, { objType, originalEntry, cancelEntry, docDate }) => {
+  const batches = (await client.query('SELECT * FROM "IBT1" WHERE "BaseType" = $1 AND "BaseEntry" = $2 ORDER BY "LogEntry" DESC', [Number(objType), originalEntry])).rows;
+  for (const move of batches) {
+    await moveBatch(client, { itemCode: move.ItemCode, batch: move.BatchNum, whsCode: move.WhsCode, delta: (move.Direction === 0 ? -1 : 1) * toNumber(move.Quantity),
+      objType, docEntry: cancelEntry, lineNum: move.BaseLinNum, docDate, row: 'Cannot cancel' });
+  }
+  const serials = (await client.query('SELECT * FROM "SRI1" WHERE "BaseType" = $1 AND "BaseEntry" = $2 ORDER BY "LogEntry" DESC', [Number(objType), originalEntry])).rows;
+  for (const move of serials) {
+    await moveSerial(client, { itemCode: move.ItemCode, serial: move.IntrSerial, whsCode: move.WhsCode, delta: move.Direction === 0 ? -1 : 1,
+      objType, docEntry: cancelEntry, lineNum: move.BaseLinNum, docDate, row: 'Cannot cancel' });
   }
 };
 
@@ -701,6 +980,11 @@ const postJournal = async (client, schema, { header, lines, expenses, company, p
       const offset = hasValue(line.AcctCode) ? line.AcctCode : await accounts.itemAccount(line, inward > 0 ? 'IncreasAc' : 'DecreasAc');
       add(inventory, inward * line.stockValue, rowSource(line));
       add(offset, -inward * line.stockValue, rowSource(line));
+    }
+    // Resources issued to production: WIP against the resource absorption account.
+    for (const line of lines.filter((l) => l.resource && toNumber(l.LineTotal))) {
+      add(line.AcctCode, toNumber(line.LineTotal), rowSource(line));
+      add(await resourceAccount(client, line.ItemCode), -toNumber(line.LineTotal), rowSource(line));
     }
   } else if (objType === '15' || objType === '20') {
     // Delivery: COGS against inventory. GRPO: inventory against allocation (tax posts with the A/P invoice).
@@ -907,6 +1191,11 @@ const mapCollections = async (client, schema, definition, data) => {
     const mapped = toRow(source, LINE_FIELDS, lineColumns);
     if (!hasValue(mapped.row.TaxCode) && hasValue(source.VatGroup)) mapped.row.TaxCode = source.VatGroup;
     delete mapped.unmapped.VatGroup;
+    // Batch / serial rows travel with the line to stock posting (not table columns).
+    if (Array.isArray(source.BatchNumbers)) mapped.row.batches = source.BatchNumbers;
+    if (Array.isArray(source.SerialNumbers)) mapped.row.serials = source.SerialNumbers;
+    delete mapped.unmapped.BatchNumbers;
+    delete mapped.unmapped.SerialNumbers;
     if (Object.keys(mapped.unmapped).length) unmapped[`${linesKey}[${index}]`] = mapped.unmapped;
     return mapped.row;
   });
@@ -928,6 +1217,11 @@ const writeCollections = async (client, definition, docEntry, lines, expenses, l
 };
 
 const createDocument = async (schema, entity, data = {}) => withTransaction(schema, async (client) => {
+  if (entity === 'InventoryGenEntries') await backflushForReceipt(client, schema, data);
+  return createDocumentIn(client, schema, entity, data);
+});
+
+const createDocumentIn = async (client, schema, entity, data = {}) => {
   const definition = DOCUMENTS[entity];
   const company = await getCompany(client);
   const headerColumns = await getColumns(client, schema, definition.header);
@@ -973,10 +1267,11 @@ const createDocument = async (schema, entity, data = {}) => withTransaction(sche
   }
   await writeCollections(client, definition, saved.DocEntry, lines, expenses, collections.lineColumns, collections.expenseColumns);
   await refreshBaseLines(client, definition.objType, lines);
+  await refreshProductionOrders(client, lines);
   await refreshOrdered(client, lines);
   await logWrite(client, { entity, objType: definition.objType, docEntry: saved.DocEntry, method: 'POST', payload: data, unmapped });
   return readDocument(client, schema, entity, saved.DocEntry);
-});
+};
 
 // SL PATCH semantics: header fields overwrite; a line with a LineNum updates that
 // line, a line without one is added; lines left out are kept.
@@ -1100,6 +1395,7 @@ const reverseStock = async (client, { objType, originalEntry, cancelEntry, heade
     'SELECT * FROM "OINM" WHERE "TransType" = $1 AND "CreatedBy" = $2 ORDER BY "TransNum"', [Number(objType), originalEntry],
   )).rows;
   if (!moves.length) return;
+  await reverseBatchesAndSerials(client, { objType, originalEntry, cancelEntry, docDate: header.DocDate });
   const codes = [...new Set(moves.map((move) => move.ItemCode))].sort();
   const items = new Map((await client.query(
     'SELECT "ItemCode", "OnHand", "AvgPrice" FROM "OITM" WHERE "ItemCode" = ANY($1) ORDER BY "ItemCode" FOR UPDATE', [codes],
@@ -1200,6 +1496,7 @@ const cancelDocument = async (schema, entity, docEntry) => withTransaction(schem
   await client.query(`UPDATE ${quote(definition.header)} SET "CANCELED" = 'Y', "DocStatus" = 'C', "UpdateDate" = CURRENT_DATE WHERE "DocEntry" = $1`, [docEntry]);
   await client.query(`UPDATE ${quote(definition.lines)} SET "LineStatus" = 'C' WHERE "DocEntry" = $1`, [docEntry]);
   await refreshBaseLines(client, definition.objType, lines);
+  await refreshProductionOrders(client, lines);
   await refreshOrdered(client, lines);
   await logWrite(client, { entity, objType: definition.objType, docEntry, method: 'POST Cancel', payload: { cancellation: saved.DocEntry }, unmapped: {} });
   return { DocEntry: saved.DocEntry, DocNum: header.DocNum };
@@ -1760,6 +2057,103 @@ const UGP1_FIELDS = { AlternateUoM: 'UomEntry', AlternateQuantity: 'AltQty', Bas
 
 // SL property -> column for master objects, from SAP B1 10.0 SDK table
 // references and the property names the existing pages already send.
+// ---- production helpers (BOMs, production orders) ---------------------------------
+const ISSUE_METHODS = { im_Manual: 'M', im_Backflush: 'B' };
+const PRODUCTION_ITEM_TYPES = { pit_Item: 4, pit_Resource: 290, pit_Text: -18 };
+const PRODUCTION_STATUS_LABEL = { P: 'Planned', R: 'Released', L: 'Closed', C: 'Cancelled' };
+
+const localDay = (value) => (value instanceof Date ? value.toLocaleDateString('en-CA') : String(value || '').slice(0, 10));
+
+// The signed-in user's company user (OUSR), through the SAP user code assigned
+// to them for this company (Admin Panel); null when none is assigned.
+const currentUserSign = async (client) => {
+  const auth = require('./requestContextService').getRequestContext()?.req?.auth;
+  if (!(Number(auth?.userId) > 0) || !(Number(auth?.companyId) > 0)) return null;
+  const link = await require('./authDbService').queryOne(
+    'SELECT SapUserCode FROM UserCompanies WHERE UserId = @userId AND CompanyId = @companyId', { userId: Number(auth.userId), companyId: Number(auth.companyId) },
+  );
+  if (!hasValue(link?.SapUserCode)) return null;
+  return (await client.query('SELECT "USERID" FROM "OUSR" WHERE "USER_CODE" = $1', [link.SapUserCode])).rows[0]?.USERID ?? null;
+};
+
+// Production order origin (SAP "Linked To"): a sales order (its number and
+// customer come with it) or a parent production order; otherwise manual.
+const applyProductionOrigin = async (client, row) => {
+  if (!['S', 'P'].includes(row.OriginType) || !hasValue(row.OriginAbs)) {
+    Object.assign(row, { OriginType: 'M', OriginAbs: null, OriginNum: null });
+    return;
+  }
+  const table = row.OriginType === 'S' ? 'ORDR' : 'OWOR';
+  const origin = (await client.query(`SELECT * FROM ${quote(table)} WHERE "DocEntry" = $1`, [row.OriginAbs])).rows[0];
+  const label = row.OriginType === 'S' ? 'Sales order' : 'Production order';
+  if (!origin) throw slError(400, `${label} ${row.OriginAbs} does not exist.`);
+  if (origin.CANCELED === 'Y' || ['C', 'L'].includes(origin.Status)) throw slError(400, `${label} ${origin.DocNum} is cancelled or closed.`);
+  if (row.OriginType === 'P' && Number(origin.DocEntry) === Number(row.DocEntry)) throw slError(400, 'A production order cannot be linked to itself.');
+  row.OriginNum = origin.DocNum;
+  if (row.OriginType === 'S' && !hasValue(row.CardCode)) row.CardCode = origin.CardCode;
+};
+
+const resourceAccount = async (client, code) => {
+  const own = (await client.query('SELECT "ResAcct" FROM "ORSC" WHERE "ResCode" = $1', [code])).rows[0]?.ResAcct;
+  const account = own || (await client.query('SELECT "ResAcct" FROM "OACP" WHERE "ResAcct" IS NOT NULL ORDER BY "FinancYear" DESC LIMIT 1')).rows[0]?.ResAcct;
+  if (!hasValue(account)) throw slError(400, `Define the resource account for resource "${code}" or in G/L Account Determination.`);
+  return account;
+};
+
+// Route stages of a BOM / production order: each points at a route stage (ORST);
+// rows refer to a stage by StageId. Sequence follows the list order.
+const validateStages = async (client, stages) => {
+  const ids = new Set();
+  for (const [index, stage] of stages.entries()) {
+    const master = (await client.query('SELECT "Code", "Desc" FROM "ORST" WHERE "AbsEntry" = $1', [stage.StgEntry])).rows[0];
+    if (!master) throw slError(400, `Stage ${index + 1}: route stage ${stage.StgEntry ?? ''} does not exist.`);
+    if (!hasValue(stage.StageId)) stage.StageId = index + 1;
+    if (!(Number.isInteger(Number(stage.StageId)) && Number(stage.StageId) > 0) || ids.has(Number(stage.StageId))) {
+      throw slError(400, `Stage ${index + 1}: the stage ID must be a unique positive number.`);
+    }
+    ids.add(Number(stage.StageId));
+    stage.SeqNum = index + 1;
+    if (!hasValue(stage.Name)) stage.Name = master.Desc || master.Code;
+  }
+  return ids;
+};
+const assertRowStages = (rows, stageIds, column) => {
+  // Older documents may carry a route sequence without stages; only check once stages exist.
+  if (!stageIds.size) return;
+  rows.forEach((line, index) => {
+    if (hasValue(line[column]) && !stageIds.has(Number(line[column]))) throw slError(400, `Row ${index + 1}: route stage ${line[column]} is not a stage of this document.`);
+  });
+};
+
+const assertWarehouses = async (client, codes) => {
+  for (const code of codes.filter(hasValue)) {
+    const warehouse = (await client.query('SELECT "Inactive" FROM "OWHS" WHERE "WhsCode" = $1', [code])).rows[0];
+    if (!warehouse) throw slError(400, `Warehouse "${code}" does not exist.`);
+    if (warehouse.Inactive === 'Y') throw slError(400, `Warehouse "${code}" is inactive.`);
+  }
+};
+
+// A BOM / production order row is an item (type 4) or a resource (type 290);
+// the type is taken from the master when the page does not send it.
+const productionComponent = async (client, line, row, productCode) => {
+  if (!hasValue(line.Code)) throw slError(400, `${row}: select a component.`);
+  if (line.Code === productCode) throw slError(400, `${row}: a product cannot be its own component.`);
+  if (Number(line.Type) !== 290) {
+    const item = (await client.query(
+      'SELECT "ItemName", "DfltWH", "IssueMthd", "InvntryUom", "InvntItem", "ManBtchNum", "ManSerNum", "validFor", "frozenFor" FROM "OITM" WHERE "ItemCode" = $1', [line.Code],
+    )).rows[0];
+    if (item) {
+      if (item.frozenFor === 'Y' || item.validFor === 'N') throw slError(400, `${row}: item "${line.Code}" is inactive.`);
+      line.Type = 4;
+      return { ...item, Type: 4 };
+    }
+  }
+  const resource = (await client.query('SELECT "ResName" FROM "ORSC" WHERE "ResCode" = $1', [line.Code])).rows[0];
+  if (!resource) throw slError(400, `${row}: item or resource "${line.Code}" does not exist.`);
+  line.Type = 290;
+  return { ItemName: resource.ResName, Type: 290 };
+};
+
 const MASTERS = {
   ...require('./localSetupMasters')({ slError }),
   Warehouses: {
@@ -2221,11 +2615,241 @@ const MASTERS = {
         throw slError(400, `Currency "${row.ActCurr}" does not exist.`);
       }
       if (existing && existing.Postable !== row.Postable) {
-        if (row.Postable === 'N' && toNumber(existing.CurrTotal) !== 0) throw slError(400, 'An account with a balance cannot become a title account.');
+        if (row.Postable === 'N' && (await client.query('SELECT 1 FROM "JDT1" WHERE "Account" = $1 LIMIT 1', [existing.AcctCode])).rowCount) {
+          throw slError(400, 'An account with postings cannot become a title account.');
+        }
         if (row.Postable === 'Y' && (await client.query('SELECT 1 FROM "OACT" WHERE "FatherNum" = $1', [existing.AcctCode])).rowCount) {
           throw slError(400, 'A title account with child accounts cannot become an active account.');
         }
       }
+    },
+  },
+  // Bill of materials: one per product item (OITT), component/resource/text rows (ITT1).
+  ProductTrees: {
+    table: 'OITT', key: 'Code', label: 'Bill of materials', usedBy: [],
+    required: { Code: 'product number' },
+    fields: {
+      TreeCode: 'Code', ProductDescription: 'Name', Quantity: 'Qauntity', Warehouse: 'ToWH', PlanAvgProdSize: 'PlAvgSize',
+      DistributionRule: 'OcrCode', HideBOMComponentsInPrintout: 'HideComp',
+    },
+    enums: {
+      TreeType: { iProductionTree: 'P', iSalesTree: 'S', iAssemblyTree: 'A', iTemplateTree: 'T' },
+      HideBOMComponentsInPrintout: { tYES: 'Y', tNO: 'N' },
+    },
+    children: {
+      ProductTreeLines: {
+        table: 'ITT1', parentKey: 'Father', lineKey: 'ChildNum',
+        fields: {
+          ItemCode: 'Code', IssueMethod: 'IssueMthd', ItemType: 'Type', WipAccount: 'WipActCode', DistributionRule: 'OcrCode',
+          AdditionalQuantity: 'AddQuant', StageID: 'StageId', VisualOrder: 'VisOrder',
+        },
+        enums: { IssueMethod: ISSUE_METHODS, ItemType: PRODUCTION_ITEM_TYPES },
+      },
+      ProductTreeStages: {
+        table: 'ITT2', parentKey: 'Father', orderBy: 'SeqNum',
+        fields: { StageID: 'StageId', SequenceNumber: 'SeqNum', StageEntry: 'StgEntry' },
+      },
+    },
+    validate: async (client, row, existing, children) => {
+      const stageIds = children.ProductTreeStages
+        ? await validateStages(client, children.ProductTreeStages)
+        : new Set((await client.query('SELECT "StageId" FROM "ITT2" WHERE "Father" = $1', [row.Code])).rows.map((stage) => Number(stage.StageId)));
+      if (children.ProductTreeLines) assertRowStages(children.ProductTreeLines, stageIds, 'StageId');
+      const product = (await client.query('SELECT "ItemName", "DfltWH", "InvntItem", "SellItem" FROM "OITM" WHERE "ItemCode" = $1', [row.Code])).rows[0];
+      if (!product) throw slError(400, `Item "${row.Code}" does not exist.`);
+      row.Name = product.ItemName;
+      if (!hasValue(row.TreeType)) row.TreeType = 'P';
+      // SAP BOM types: a production BOM makes an inventory item; sales and assembly
+      // BOMs sell a non-inventory sales item built from their components.
+      if (row.TreeType === 'P' && product.InvntItem !== 'Y') throw slError(400, `A production BOM needs an inventory item; "${row.Code}" is not one.`);
+      if (['S', 'A'].includes(row.TreeType) && (product.InvntItem === 'Y' || product.SellItem !== 'Y')) {
+        throw slError(400, `A ${row.TreeType === 'S' ? 'sales' : 'assembly'} BOM needs a sales item that is not an inventory item; "${row.Code}" is not one.`);
+      }
+      if (!(toNumber(row.Qauntity, 1) > 0)) throw slError(400, 'The BOM quantity must be greater than zero.');
+      if (!hasValue(row.ToWH)) row.ToWH = product.DfltWH || (await getCompany(client)).DfltWhs;
+      await assertWarehouses(client, [row.ToWH]);
+      if (hasValue(row.PriceList) && !(await client.query('SELECT 1 FROM "OPLN" WHERE "ListNum" = $1', [row.PriceList])).rowCount) {
+        throw slError(400, `Price list ${row.PriceList} does not exist.`);
+      }
+      const lines = children.ProductTreeLines;
+      if (!lines) {
+        if (!existing) throw slError(400, 'Add at least one component to the bill of materials.');
+        return;
+      }
+      if (!lines.some((line) => Number(line.Type) !== -18)) throw slError(400, 'Add at least one component to the bill of materials.');
+      let total = 0;
+      for (const [index, line] of lines.entries()) {
+        line.VisOrder = index;
+        if (Number(line.Type) === -18) {
+          Object.assign(line, { Code: null, Quantity: 0, LineText: line.LineText || line.Comment || '' });
+          continue;
+        }
+        const component = await productionComponent(client, line, `Row ${index + 1}`, row.Code);
+        if (component.Type === 290 && ['S', 'A'].includes(row.TreeType)) throw slError(400, `Row ${index + 1}: resources can only be used in production and template BOMs.`);
+        if (!(toNumber(line.Quantity) > 0)) throw slError(400, `Row ${index + 1}: enter a quantity greater than zero.`);
+        if (!hasValue(line.Warehouse)) line.Warehouse = component.DfltWH || row.ToWH;
+        await assertWarehouses(client, [line.Warehouse]);
+        // SAP prices each row from its price list (the row's, else the BOM's).
+        const priceList = hasValue(line.PriceList) ? line.PriceList : row.PriceList;
+        const price = hasValue(priceList) && Number(line.Type) === 4
+          ? (await client.query('SELECT "Price", "Currency" FROM "ITM1" WHERE "ItemCode" = $1 AND "PriceList" = $2', [line.Code, priceList])).rows[0]
+          : null;
+        line.Price = toNumber(price?.Price);
+        if (price?.Currency) line.Currency = price.Currency;
+        total += line.Price * toNumber(line.Quantity);
+      }
+      row.Price = total;
+    },
+    // The item carries its BOM type, as in SAP (OITM.TreeType).
+    // A production BOM rolls its components' standard cost (else average cost) up into
+    // the product's production standard cost, per unit (SAP "update production std cost").
+    afterSave: async (client, code) => {
+      await client.query('UPDATE "OITM" SET "TreeType" = (SELECT "TreeType" FROM "OITT" WHERE "Code" = $1) WHERE "ItemCode" = $1', [code]);
+      await client.query(`UPDATE "OITM" p SET "PrdStdCst" = (
+          SELECT SUM(l."Quantity" * COALESCE(NULLIF(i."PrdStdCst", 0), i."AvgPrice", r."StdCost", 0)) / NULLIF(t."Qauntity", 0)
+          FROM "OITT" t JOIN "ITT1" l ON l."Father" = t."Code"
+          LEFT JOIN "OITM" i ON i."ItemCode" = l."Code" LEFT JOIN "ORSC" r ON r."ResCode" = l."Code"
+          WHERE t."Code" = $1 GROUP BY t."Qauntity")
+        WHERE p."ItemCode" = $1 AND EXISTS (SELECT 1 FROM "OITT" WHERE "Code" = $1 AND "TreeType" = 'P')`, [code]);
+    },
+    afterDelete: async (client, code) => {
+      await client.query(`UPDATE "OITM" SET "TreeType" = 'N' WHERE "ItemCode" = $1`, [code]);
+    },
+  },
+  // Production orders (OWOR/WOR1). Status: Planned -> Released -> Closed; Planned or
+  // Released without postings -> Cancelled. Only planned orders can be edited.
+  ProductionOrders: {
+    table: 'OWOR', key: 'DocEntry', generatedKey: true, label: 'Production order',
+    required: { ItemCode: 'product number', PlannedQty: 'planned quantity', DueDate: 'due date', Warehouse: 'warehouse' },
+    fields: {
+      AbsoluteEntry: 'DocEntry', DocumentNumber: 'DocNum', ItemNo: 'ItemCode', ProductDescription: 'ProdName',
+      PlannedQuantity: 'PlannedQty', CompletedQuantity: 'CmpltQty', RejectedQuantity: 'RjctQty', PostingDate: 'PostDate',
+      ProductionOrderStatus: 'Status', ProductionOrderType: 'Type', DistributionRule: 'OcrCode', JournalRemarks: 'JrnlMemo',
+      Remarks: 'Comments', CustomerCode: 'CardCode', BPL_IDAssignedToInvoice: 'BPLId',
+      ProductionOrderOrigin: 'OriginType', ProductionOrderOriginEntry: 'OriginAbs', ProductionOrderOriginNumber: 'OriginNum',
+      UserSignature: 'UserSign', ClosingDate: 'CloseDate', PickRemarks: 'PickRmrk',
+    },
+    enums: {
+      ProductionOrderStatus: { boposPlanned: 'P', boposReleased: 'R', boposClosed: 'L', boposCancelled: 'C' },
+      ProductionOrderType: { bopotStandard: 'S', bopotSpecial: 'P', bopotDisassemble: 'D' },
+      ProductionOrderOrigin: { bopooManual: 'M', bopooSalesOrder: 'S', bopooProductionOrder: 'P' },
+    },
+    children: {
+      ProductionOrderLines: {
+        table: 'WOR1', parentKey: 'DocEntry', lineKey: 'LineNum',
+        fields: {
+          LineNumber: 'LineNum', ItemNo: 'ItemCode', BaseQuantity: 'BaseQty', PlannedQuantity: 'PlannedQty', IssuedQuantity: 'IssuedQty',
+          Warehouse: 'wareHouse', ProductionOrderIssueType: 'IssueType', DistributionRule: 'OcrCode', AdditionalQuantity: 'AdditQty',
+          StageID: 'StageId', UoMCode: 'UomCode', VisualOrder: 'VisOrder',
+        },
+        enums: { ProductionOrderIssueType: ISSUE_METHODS, ItemType: PRODUCTION_ITEM_TYPES },
+      },
+      ProductionOrdersStages: {
+        table: 'WOR4', parentKey: 'DocEntry', orderBy: 'SeqNum',
+        fields: { StageID: 'StageId', SequenceNumber: 'SeqNum', StageEntry: 'StgEntry' },
+      },
+    },
+    validate: async (client, row, existing, children) => {
+      const lines = children.ProductionOrderLines;
+      if (existing) {
+        // Numbering and posted quantities never come from the page.
+        for (const column of ['DocNum', 'Series', 'CmpltQty', 'RjctQty', 'PostDate']) row[column] = existing[column];
+        const edited = lines !== undefined || row.ItemCode !== existing.ItemCode || row.Warehouse !== existing.Warehouse
+          || row.Type !== existing.Type || toNumber(row.PlannedQty) !== toNumber(existing.PlannedQty);
+        if (edited && existing.Status !== 'P') throw slError(400, 'Only planned production orders can be changed.');
+        if (row.Status !== existing.Status) {
+          const allowed = { P: ['R', 'C'], R: ['L', 'C'] }[existing.Status] || [];
+          if (!allowed.includes(row.Status)) {
+            throw slError(400, `Production order ${existing.DocNum} cannot change from ${PRODUCTION_STATUS_LABEL[existing.Status]} to ${PRODUCTION_STATUS_LABEL[row.Status] || row.Status}.`);
+          }
+          const posted = toNumber(existing.CmpltQty) + toNumber(existing.RjctQty) > 0
+            || (await client.query('SELECT 1 FROM "WOR1" WHERE "DocEntry" = $1 AND "IssuedQty" <> 0', [existing.DocEntry])).rowCount > 0;
+          if (row.Status === 'C' && posted) throw slError(400, `Production order ${existing.DocNum} has issues or receipts; close it instead of cancelling.`);
+        }
+        // Closing stamps the actual closing date (the variance entry is posted on it).
+        if (row.Status === 'L' && existing.Status !== 'L') {
+          if (!hasValue(row.CloseDate)) row.CloseDate = localToday();
+          if (String(row.CloseDate).slice(0, 10) < localDay(existing.PostDate)) throw slError(400, 'The closing date cannot be before the order date.');
+        } else if (row.Status !== 'L') {
+          row.CloseDate = existing.CloseDate ?? null;
+        }
+        if (!edited) return;
+      } else {
+        if (!hasValue(row.Status)) row.Status = 'P';
+        if (!['P', 'R'].includes(row.Status)) throw slError(400, 'A new production order can only be Planned or Released.');
+        if (!hasValue(row.PostDate)) row.PostDate = localToday();
+        Object.assign(row, { CmpltQty: 0, RjctQty: 0 },
+          await assignDocNum(client, { table: 'OWOR', objType: '202', subType: '--', series: row.Series, manualDocNum: null, period: await getPostingPeriod(client, row.PostDate) }));
+      }
+      if (!hasValue(row.Type)) row.Type = 'S';
+      if (!hasValue(row.StartDate)) row.StartDate = row.PostDate;
+      if (!(toNumber(row.PlannedQty) > 0)) throw slError(400, 'The planned quantity must be greater than zero.');
+      const product = (await client.query('SELECT "ItemName", "InvntItem" FROM "OITM" WHERE "ItemCode" = $1', [row.ItemCode])).rows[0];
+      if (!product) throw slError(400, `Item "${row.ItemCode}" does not exist.`);
+      if (product.InvntItem !== 'Y') throw slError(400, `Item "${row.ItemCode}" is not an inventory item.`);
+      row.ProdName = product.ItemName;
+      await applyProductionOrigin(client, row);
+      if (hasValue(row.UserSign)) {
+        if (!(await client.query('SELECT 1 FROM "OUSR" WHERE "USERID" = $1', [row.UserSign])).rowCount) throw slError(400, `User ${row.UserSign} does not exist.`);
+      } else if (!existing) {
+        row.UserSign = await currentUserSign(client);
+      }
+      await assertWarehouses(client, [row.Warehouse]);
+      const bom = (await client.query('SELECT * FROM "OITT" WHERE "Code" = $1', [row.ItemCode])).rows[0];
+      if (row.Type !== 'P' && !bom) throw slError(400, `Item "${row.ItemCode}" has no bill of materials; create one first.`);
+      // A standard order without rows takes its components from the BOM, scaled to the planned quantity.
+      if (!lines && bom && !existing) {
+        const factor = toNumber(row.PlannedQty) / (toNumber(bom.Qauntity, 1) || 1);
+        children.ProductionOrderLines = (await client.query('SELECT * FROM "ITT1" WHERE "Father" = $1 ORDER BY "ChildNum"', [bom.Code])).rows
+          .map((line) => ({
+            ItemCode: line.Code, LineText: line.LineText, ItemType: line.Type, BaseQty: line.Quantity, PlannedQty: toNumber(line.Quantity) * factor,
+            wareHouse: line.Warehouse, IssueType: line.IssueMthd, OcrCode: line.OcrCode, Project: line.Project, AdditQty: line.AddQuant, StageId: line.StageId,
+          }));
+      }
+      // Route stages come from the BOM when the page sends none.
+      if (!children.ProductionOrdersStages && bom && !existing) {
+        children.ProductionOrdersStages = (await client.query('SELECT "StageId", "StgEntry", "Name" FROM "ITT2" WHERE "Father" = $1 ORDER BY "SeqNum"', [bom.Code])).rows;
+      }
+      const stageIds = children.ProductionOrdersStages
+        ? await validateStages(client, children.ProductionOrdersStages)
+        : new Set((await client.query('SELECT "StageId" FROM "WOR4" WHERE "DocEntry" = $1', [existing?.DocEntry ?? 0])).rows.map((stage) => Number(stage.StageId)));
+      if (children.ProductionOrderLines) assertRowStages(children.ProductionOrderLines, stageIds, 'StageId');
+      if (existing && !children.ProductionOrderLines) return;
+      const rows = children.ProductionOrderLines || [];
+      if (!rows.some((line) => Number(line.ItemType) !== -18)) throw slError(400, 'Add at least one component to the production order.');
+      for (const [index, line] of rows.entries()) {
+        Object.assign(line, { VisOrder: index, IssuedQty: 0 });
+        if (Number(line.ItemType) === -18) {
+          Object.assign(line, { ItemCode: null, PlannedQty: 0 });
+          continue;
+        }
+        const component = await productionComponent(client, { ...line, Type: line.ItemType, Code: line.ItemCode }, `Row ${index + 1}`, row.ItemCode);
+        line.ItemType = component.Type;
+        line.ItemName = component.ItemName;
+        // A negative planned quantity is a by-product (standard / special orders, manual issue, items only).
+        const planned = toNumber(line.PlannedQty);
+        if (planned === 0) throw slError(400, `Row ${index + 1}: enter a planned quantity.`);
+        if (planned < 0 && (row.Type === 'D' || component.Type !== 4)) throw slError(400, `Row ${index + 1}: only item rows of a standard or special order can be by-products.`);
+        if (!hasValue(line.IssueType)) line.IssueType = planned < 0 ? 'M' : component.IssueMthd || 'M';
+        // Disassembly rows are received, never issued, so backflush does not apply.
+        if (row.Type === 'D') line.IssueType = 'M';
+        if (line.IssueType === 'B') {
+          if (planned < 0) throw slError(400, `Row ${index + 1}: a by-product uses the manual issue method.`);
+          if (component.ManBtchNum === 'Y' || component.ManSerNum === 'Y') {
+            throw slError(400, `Row ${index + 1}: item "${line.ItemCode}" is managed by batch or serial numbers and cannot be backflushed; use the manual issue method.`);
+          }
+        }
+        if (!hasValue(line.BaseQty)) line.BaseQty = toNumber(line.PlannedQty) / toNumber(row.PlannedQty);
+        if (!hasValue(line.wareHouse)) line.wareHouse = component.DfltWH || row.Warehouse;
+        if (!hasValue(line.UomCode)) line.UomCode = component.InvntryUom || null;
+        await assertWarehouses(client, [line.wareHouse]);
+      }
+    },
+    // Closing a released order posts what is left in WIP as variance.
+    afterSave: async (client, entry, { existing, schema }) => {
+      if (existing?.Status !== 'R') return;
+      const { Status } = (await client.query('SELECT "Status" FROM "OWOR" WHERE "DocEntry" = $1', [entry])).rows[0];
+      if (Status === 'L') await postProductionVariance(client, schema, entry);
     },
   },
   // Item master (OITM). Field map generated from the page's reader
@@ -2505,7 +3129,7 @@ const readMaster = async (client, entity, key) => {
       return [property, toSlValue(column, value)];
     }));
   };
-  const result = definition.read ? await definition.read(row, client, toSl) : toSl(row, definition.fields, definition.flags);
+  const result = definition.read ? await definition.read(row, client, toSl) : toSl(row, definition.fields, definition.flags, definition.enums);
   if (definition.extraColumn) {
     const extras = row[definition.extraColumn] || {};
     delete result[definition.extraColumn];
@@ -2515,7 +3139,7 @@ const readMaster = async (client, entity, key) => {
     const { rows } = await client.query(
       `SELECT * FROM ${quote(child.table)} WHERE ${quote(child.parentKey)} = $1 ORDER BY ${quote(child.lineKey || child.orderBy)}`, [key],
     );
-    result[property] = rows.map((childRow) => toSl(childRow, child.fields));
+    result[property] = rows.map((childRow) => toSl(childRow, child.fields, [], child.enums));
   }
   return result;
 };
@@ -2527,12 +3151,17 @@ const deleteMaster = async (schema, entity, key) => withTransaction(schema, asyn
     `SELECT 1 FROM ${quote(definition.table)} WHERE ${quote(definition.key)} = $1 FOR UPDATE`, [key],
   )).rowCount;
   if (!existing) throw slError(404, `No matching records found (${definition.label} "${key}").`);
-  const used = (await client.query(
+  const used = definition.usedBy.length > 0 && (await client.query(
     definition.usedBy.map(([table, column]) => `SELECT 1 FROM ${quote(table)} WHERE ${quote(column)} = $1`).join(' UNION ALL ') + ' LIMIT 1',
     [key],
   )).rowCount > 0;
   if (used) throw slError(400, `${definition.label} ${key} is in use and cannot be deleted.`);
+  for (const child of new Set(Object.values(definition.children || {}).map((c) => `${c.table}|${c.parentKey}`))) {
+    const [table, parentKey] = child.split('|');
+    await client.query(`DELETE FROM ${quote(table)} WHERE ${quote(parentKey)} = $1`, [key]);
+  }
   await client.query(`DELETE FROM ${quote(definition.table)} WHERE ${quote(definition.key)} = $1`, [key]);
+  await definition.afterDelete?.(client, key);
   await logWrite(client, { entity, objType: null, docEntry: null, method: `DELETE ${key}`, payload: {}, unmapped: {} });
 });
 
@@ -2582,7 +3211,7 @@ const saveMaster = async (schema, entity, key, data = {}) => withTransaction(sch
     if (!Array.isArray(data[property])) continue;
     const childColumns = await getColumns(client, schema, child.table);
     children[property] = data[property].map((source, index) => {
-      const mapped = toRow(source, child.fields, childColumns);
+      const mapped = toRow(source, child.fields, childColumns, child.enums || ENUMS);
       if (Object.keys(mapped.unmapped).length) unmapped[`${property}[${index}]`] = mapped.unmapped;
       return mapped.row;
     });
@@ -2620,7 +3249,7 @@ const saveMaster = async (schema, entity, key, data = {}) => withTransaction(sch
       });
     }
   }
-  await definition.afterSave?.(client, savedKey, { data, existing });
+  await definition.afterSave?.(client, savedKey, { data, existing, schema });
   await logWrite(client, {
     entity, objType: null, docEntry: null, method: `${existing ? 'PATCH' : 'POST'} ${savedKey}`, payload: data, unmapped,
   });
@@ -3184,7 +3813,8 @@ const parseUrl = (url = '') => {
   const match = path.match(/^\/?([A-Za-z_][A-Za-z0-9_]*)(?:\((.+)\))?(?:\/([A-Za-z_]+))?$/);
   if (!match) return null;
   const rawKey = match[2];
-  const key = rawKey === undefined ? undefined : (/^'.*'$/.test(rawKey) ? rawKey.slice(1, -1).replace(/''/g, "'") : Number(rawKey));
+  const decode = (value) => { try { return decodeURIComponent(value); } catch { return value; } };
+  const key = rawKey === undefined ? undefined : (/^'.*'$/.test(rawKey) ? decode(rawKey.slice(1, -1)).replace(/''/g, "'") : Number(rawKey));
   return { entity: match[1], key, action: match[3], hasQuery: String(url).includes('?') };
 };
 

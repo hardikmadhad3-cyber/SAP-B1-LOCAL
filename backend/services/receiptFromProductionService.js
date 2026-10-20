@@ -6,245 +6,12 @@
 const sapService = require('./sapService');
 const productionDbService = require('./productionDbService');
 
-const escapeOData = (v) => String(v || '').replace(/'/g, "''");
-const formatDate = (v) => (v ? String(v).split('T')[0] : '');
 const opt = (v) => v !== '' && v != null;
-const isYes = (v) => v === 'tYES' || v === true || v === 'Y';
 const EPSILON = 0.000001;
-
-const normalizeBranches = (rows = []) =>
-  (rows || [])
-    .map((row) => ({
-      BPLID: row.BPLID ?? row.Code ?? row.Branch ?? row.AbsEntry ?? '',
-      BPLName: row.BPLName ?? row.Name ?? row.Description ?? '',
-    }))
-    .filter((row) => row.BPLID !== '' && row.BPLID != null);
-
-const fetchBranches = async () => {
-  const [businessPlacesRes, branchesRes] = await Promise.allSettled([
-    sapService.request({ method: 'GET', url: '/BusinessPlaces?$select=BPLID,BPLName' }),
-    sapService.request({ method: 'GET', url: '/Branches?$select=Code,Name,Description' }),
-  ]);
-
-  const businessPlaces =
-    businessPlacesRes.status === 'fulfilled'
-      ? normalizeBranches(businessPlacesRes.value.data?.value || businessPlacesRes.value.data || [])
-      : [];
-
-  if (businessPlaces.length > 0) return businessPlaces;
-
-  return branchesRes.status === 'fulfilled'
-    ? normalizeBranches(branchesRes.value.data?.value || branchesRes.value.data || [])
-    : [];
-};
 
 const toQty = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
-};
-
-const mapBatchNumbers = (rows = []) =>
-  (rows || []).map((row, idx) => ({
-    batch_number: row.BatchNumber || '',
-    quantity: toQty(row.Quantity),
-    base_line_number: row.BaseLineNumber ?? idx,
-  }));
-
-const mapSerialNumbers = (rows = []) =>
-  (rows || []).map((row, idx) => ({
-    serial_number:
-      row.InternalSerialNumber ||
-      row.ManufacturerSerialNumber ||
-      row.SerialNumber ||
-      '',
-    system_number: row.SystemSerialNumber ?? row.SystemNumber ?? null,
-    base_line_number: row.BaseLineNumber ?? idx,
-  }));
-
-const mapBinAllocations = (rows = []) =>
-  (rows || []).map((row) => ({
-    bin_abs: row.BinAbsEntry ?? null,
-    quantity: toQty(row.Quantity),
-    serial_batch_base_line: row.SerialAndBatchNumbersBaseLine ?? null,
-    allow_negative_quantity: isYes(row.AllowNegativeQuantity),
-  }));
-
-const mapToForm = (doc) => ({
-  doc_entry: doc.DocEntry,
-  doc_num: doc.DocNum,
-  series: doc.Series != null ? String(doc.Series) : '',
-  posting_date: formatDate(doc.DocDate),
-  document_date: formatDate(doc.TaxDate),
-  ref_2: doc.Reference2 || '',
-  branch: doc.BPL_IDAssignedToInvoice != null ? String(doc.BPL_IDAssignedToInvoice) : '',
-  uop: '',
-  remarks: doc.Comments || '',
-  journal_remark: doc.JournalMemo || '',
-  prod_order_entry:
-    doc.BaseEntry ??
-    doc.DocumentLines?.find((line) => line.BaseEntry != null)?.BaseEntry ??
-    null,
-  lines: (doc.DocumentLines || []).map((line) => {
-    const batchNumbers = mapBatchNumbers(line.BatchNumbers);
-    const serialNumbers = mapSerialNumbers(line.SerialNumbers);
-    const binAllocations = mapBinAllocations(line.DocumentLinesBinAllocations);
-
-    return {
-      _id: line.LineNum ?? Math.random(),
-      line_num: line.LineNum ?? 0,
-      item_code: line.ItemCode || '',
-      item_name: line.ItemDescription || '',
-      trans_type: line.TransactionType === 'botrntReject' ? 'Reject' : 'Complete',
-      quantity: line.Quantity ?? 0,
-      unit_price: line.Price ?? 0,
-      value: line.LineTotal ?? 0,
-      item_cost: line.StockPrice ?? 0,
-      planned: 0,
-      completed: 0,
-      inventory_uom: line.InventoryUOM || '',
-      uom_code: line.UoMCode || line.MeasureUnit || '',
-      uom_name: line.MeasureUnit || '',
-      items_per_unit: line.NumPerMsr ?? 1,
-      warehouse: line.WarehouseCode || '',
-      location: '',
-      branch: '',
-      uom_group: line.UoMEntry || '',
-      by_product: false,
-      base_entry: line.BaseEntry ?? null,
-      base_line: line.BaseLine ?? null,
-      base_type: line.BaseType ?? 202,
-      distribution_rule: line.DistributionRule || '',
-      project: line.Project || '',
-      order_no: line.BaseReference || '',
-      series_no: '',
-      manage_batch: batchNumbers.length > 0,
-      manage_serial: serialNumbers.length > 0,
-      enable_bin_locations: binAllocations.length > 0,
-      batch_numbers: batchNumbers,
-      serial_numbers: serialNumbers,
-      bin_allocations: binAllocations,
-    };
-  }),
-});
-
-const mapSummary = (doc) => ({
-  doc_entry: doc.DocEntry,
-  doc_num: doc.DocNum,
-  posting_date: formatDate(doc.DocDate),
-  remarks: doc.Comments || '',
-  total_lines: Array.isArray(doc.DocumentLines) ? doc.DocumentLines.length : 0,
-});
-
-const getProductionOrderForReceipt = async (docEntry) => {
-  const n = Number(docEntry);
-  if (!Number.isInteger(n) || n <= 0) throw new Error('Invalid production order DocEntry.');
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/ProductionOrders(${n})`,
-  });
-
-  const po = resp.data;
-  if (!po.AbsoluteEntry && !po.DocEntry) throw new Error('Production order not found.');
-
-  if (po.ProductionOrderStatus !== 'boposReleased') {
-    throw new Error(
-      `Production order status is "${po.ProductionOrderStatus}". Only Released orders can be received. Please release the production order first.`
-    );
-  }
-
-  const plannedQty = po.PlannedQuantity ?? 1;
-  const completedQty = po.CompletedQuantity ?? 0;
-  const remainingQty = Math.max(0, plannedQty - completedQty);
-
-  if (remainingQty <= 0) {
-    throw new Error('Production order is fully completed. No remaining quantity to receive.');
-  }
-
-  const [itemRes, warehouseRes] = await Promise.allSettled([
-    po.ItemNo
-      ? sapService.request({
-          method: 'GET',
-          url: sapService.buildStringKeyPath('Items', po.ItemNo),
-        })
-      : Promise.resolve({ data: null }),
-    po.Warehouse
-      ? sapService.request({
-          method: 'GET',
-          url: `/Warehouses('${encodeURIComponent(po.Warehouse)}')?$select=WarehouseCode,WarehouseName,EnableBinLocations,EnableReceivingBinLocations,DefaultBin,AutoAllocOnReceipt`,
-        })
-      : Promise.resolve({ data: null }),
-  ]);
-
-  const item = itemRes.status === 'fulfilled' ? itemRes.value.data || {} : {};
-  const warehouseMeta = warehouseRes.status === 'fulfilled' ? warehouseRes.value.data || {} : {};
-
-  const allLines = po.ProductionOrderLines || [];
-  const getIssueMethod = (line) => line.ProductionOrderIssueType || line.IssueMethod || 'im_Manual';
-  const backflushLines = allLines.filter((line) => getIssueMethod(line) === 'im_Backflush');
-  const manualLines = allLines.filter((line) => getIssueMethod(line) !== 'im_Backflush');
-
-  return {
-    doc_entry: po.AbsoluteEntry || po.DocEntry,
-    doc_num: po.DocumentNumber || po.DocNum,
-    item_code: po.ItemNo || '',
-    item_name: po.ProductDescription || '',
-    planned_qty: plannedQty,
-    completed_qty: completedQty,
-    remaining_qty: remainingQty,
-    status: po.ProductionOrderStatus || '',
-    warehouse: po.Warehouse || '',
-    due_date: formatDate(po.DueDate),
-    inventory_uom: item.InventoryUOM || '',
-    uom_code: item.InventoryUOM || '',
-    uom_name: item.InventoryUOM || '',
-    manage_batch: isYes(item.ManageBatchNumbers),
-    manage_serial: isYes(item.ManageSerialNumbers),
-    issue_primarily_by: item.IssuePrimarilyBy || '',
-    enable_bin_locations: isYes(warehouseMeta.EnableBinLocations),
-    enable_receiving_bin_locations: isYes(warehouseMeta.EnableReceivingBinLocations),
-    default_bin: warehouseMeta.DefaultBin ?? null,
-    auto_alloc_on_receipt: isYes(warehouseMeta.AutoAllocOnReceipt),
-    backflush_lines: backflushLines.map((line) => ({
-      _id: line.LineNumber ?? Math.random(),
-      line_num: line.LineNumber ?? 0,
-      item_code: line.ItemNo || '',
-      item_name: line.ItemDescription || '',
-      bom_qty: line.PlannedQuantity ?? 1,
-      issued_qty: line.IssuedQuantity ?? 0,
-      uom: line.UoMCode || line.MeasureUnit || '',
-      warehouse: line.Warehouse || po.Warehouse || '',
-      issue_method: 'im_Backflush',
-    })),
-    manual_lines_count: manualLines.length,
-  };
-};
-
-const getReceiptList = async ({ query = '', top = 50, skip = 0 } = {}) => {
-  const filterParts = [];
-  if (query) {
-    filterParts.push(`contains(Comments,'${escapeOData(query)}')`);
-  }
-  const filter = filterParts.length ? `&$filter=${filterParts.join(' and ')}` : '';
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/InventoryGenEntries?$select=DocEntry,DocNum,DocDate,Comments,DocumentLines${filter}&$top=${top}&$skip=${skip}&$orderby=DocEntry desc`,
-  });
-
-  return { receipts: (resp.data?.value || []).map(mapSummary) };
-};
-
-const getReceiptByDocEntry = async (docEntry) => {
-  const n = Number(docEntry);
-  if (!Number.isInteger(n) || n <= 0) throw new Error('Invalid DocEntry.');
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/InventoryGenEntries(${n})`,
-  });
-
-  return { receipt: mapToForm(resp.data || {}) };
 };
 
 const createReceipt = async (body) => {
@@ -263,7 +30,12 @@ const createReceipt = async (body) => {
     const baseLine = Number(submitted.base_line ?? 0);
     const isParent = !isDisassembly && baseLine === 0
       && String(submitted.item_code || '') === String(currentOrder.item_code || '');
-    const component = allowedComponents.get(baseLine);
+    // A by-product row added on the page carries row 0; find its order row by item.
+    let component = allowedComponents.get(baseLine);
+    if (!isParent && (!component || String(component.item_code || '') !== String(submitted.item_code || ''))) {
+      component = componentLines.find((line) => String(line.item_code || '') === String(submitted.item_code || '')
+        && (isDisassembly || Number(line.planned_qty || 0) < 0));
+    }
     const isAllowedComponent = Boolean(component)
       && String(component.item_code || '') === String(submitted.item_code || '')
       && (isDisassembly || Number(component.planned_qty || 0) < 0);
@@ -275,7 +47,7 @@ const createReceipt = async (body) => {
     const quantity = toQty(submitted.quantity);
     const openQuantity = isParent
       ? Number(currentOrder.remaining_qty || 0)
-      : Math.max(0, Math.abs(Number(component.planned_qty || 0)) - Number(component.issued_qty || 0));
+      : Math.max(0, Math.abs(Number(component.planned_qty || 0)) - Math.abs(Number(component.issued_qty || 0)));
     if (quantity <= 0 || quantity > openQuantity + EPSILON) {
       const error = new Error(`Receipt quantity for "${submitted.item_code}" exceeds the current open quantity.`);
       error.statusCode = 422;
@@ -288,7 +60,7 @@ const createReceipt = async (body) => {
       quantity,
       warehouse,
       base_entry: currentOrder.doc_entry,
-      base_line: baseLine,
+      base_line: isParent ? baseLine : Number(component.base_line ?? component.line_num),
       base_type: 202,
       by_product: !isParent,
       manage_batch: allocation.manageBatch,
@@ -319,72 +91,6 @@ const createReceipt = async (body) => {
     doc_num: resp.data?.DocNum,
     doc_entry: resp.data?.DocEntry,
   };
-};
-
-const getReferenceData = async () => {
-  const warnings = [];
-
-  const [whsRes, distRes, projRes, branchRes, seriesRes] = await Promise.allSettled([
-    sapService.request({
-      method: 'GET',
-      url: '/Warehouses?$select=WarehouseCode,WarehouseName,EnableBinLocations,EnableReceivingBinLocations,DefaultBin,AutoAllocOnIssue,AutoAllocOnReceipt',
-    }),
-    sapService.request({ method: 'GET', url: '/DistributionRules?$select=FactorCode,FactorDescription&$top=200' }),
-    sapService.request({ method: 'GET', url: '/Projects?$select=Code,Name&$top=200' }),
-    fetchBranches(),
-    sapService.request({
-      method: 'POST',
-      url: '/SeriesService_GetDocumentSeries',
-      data: { DocumentTypeParams: { Document: '59' } },
-    }),
-  ]);
-
-  const settle = (result, mapper, label) => {
-    if (result.status === 'fulfilled') return mapper(result.value?.data?.value || result.value?.data || result.value || []);
-    warnings.push(`${label}: ${result.reason?.message || 'failed'}`);
-    return [];
-  };
-
-  return {
-    warehouses: settle(whsRes, (data) => data, 'Warehouses'),
-    distribution_rules: settle(distRes, (data) => data, 'DistributionRules'),
-    projects: settle(projRes, (data) => data, 'Projects'),
-    branches: settle(branchRes, (data) => data, 'Branches'),
-    series: settle(seriesRes, (data) => data, 'Series'),
-    warnings,
-  };
-};
-
-const lookupProductionOrders = async (query = '') => {
-  let filterStr = "ProductionOrderStatus eq 'boposReleased'";
-
-  if (query && query.trim()) {
-    const q = escapeOData(query.trim());
-    if (/^\d+$/.test(query.trim())) {
-      filterStr += ` and (DocumentNumber eq ${query.trim()} or contains(ItemNo,'${q}') or contains(ProductDescription,'${q}'))`;
-    } else {
-      filterStr += ` and (contains(ItemNo,'${q}') or contains(ProductDescription,'${q}'))`;
-    }
-  }
-
-  const resp = await sapService.request({
-    method: 'GET',
-    url: `/ProductionOrders?$select=AbsoluteEntry,DocumentNumber,ItemNo,ProductDescription,PlannedQuantity,CompletedQuantity,ProductionOrderStatus,Warehouse,DueDate&$filter=${encodeURIComponent(filterStr)}&$top=50&$orderby=AbsoluteEntry desc`,
-  });
-
-  const orders = (resp.data?.value || []).map((order) => ({
-    DocEntry: order.AbsoluteEntry,
-    DocNum: order.DocumentNumber,
-    ItemNo: order.ItemNo,
-    ProductDescription: order.ProductDescription,
-    PlannedQuantity: order.PlannedQuantity,
-    CompletedQuantity: order.CompletedQuantity,
-    ProductionOrderStatus: order.ProductionOrderStatus,
-    Warehouse: order.Warehouse,
-    DueDate: order.DueDate,
-  }));
-
-  return orders;
 };
 
 function _assertManagedBinBreakdown(line, kind, expectedRows, binAllocations) {
@@ -549,7 +255,8 @@ function _buildPayload(body) {
         const baseEntry = opt(line.base_entry) ? Number(line.base_entry) : Number(body.prod_order_entry);
         if (Number.isFinite(baseEntry) && baseEntry > 0) {
           docLine.BaseEntry = baseEntry;
-          docLine.BaseLine = opt(line.base_line) ? Number(line.base_line) : 0;
+          // SAP: the finished product has no base row; by-products and returned components do.
+          if (line.by_product || body.return_components) docLine.BaseLine = opt(line.base_line) ? Number(line.base_line) : 0;
           docLine.BaseType = opt(line.base_type) ? Number(line.base_type) : 202;
         } else {
           docLine.ItemCode = line.item_code;
@@ -558,7 +265,8 @@ function _buildPayload(body) {
         if (opt(line.uom_code)) docLine.UoMCode = line.uom_code;
         if (opt(line.distribution_rule)) docLine.DistributionRule = line.distribution_rule;
         if (opt(line.project)) docLine.Project = line.project;
-        if (opt(line.unit_price)) docLine.Price = Number(line.unit_price);
+        // SAP values production receipts itself (WIP cost / item cost); a price is only sent without a production base.
+        if (opt(line.unit_price) && !docLine.BaseEntry) docLine.Price = Number(line.unit_price);
         const transactionType = String(line.trans_type || 'Complete').toLowerCase();
         docLine.TransactionType = transactionType === 'reject' ? 'botrntReject' : 'botrntComplete';
 
@@ -566,6 +274,9 @@ function _buildPayload(body) {
           docLine.BatchNumbers = batchNumbers.map((row) => ({
             BatchNumber: row.batch_number,
             Quantity: toQty(row.quantity),
+            ...(opt(row.expiry_date) && { ExpiryDate: row.expiry_date }),
+            ...(opt(row.manufacturing_date) && { ManufacturingDate: row.manufacturing_date }),
+            ...(opt(row.notes) && { Notes: row.notes }),
           }));
         }
 
@@ -649,6 +360,13 @@ module.exports = {
   getReceiptList: getReceiptListByOdbc,
   getReceiptByDocEntry: getReceiptByDocEntryByOdbc,
   createReceipt,
+  cancelReceipt: async (docEntry) => {
+    const n = Number(docEntry);
+    if (!Number.isInteger(n) || n <= 0) throw new Error('Invalid DocEntry.');
+    // SAP: a cancellation document takes the products back out (only while the order is released).
+    await sapService.request({ method: 'POST', url: `/InventoryGenEntries(${n})/Cancel` });
+    return { message: 'Receipt from production cancelled.', ...(await productionDbService.getReceiptByDocEntry(n)) };
+  },
   lookupProductionOrders: lookupProductionOrdersByOdbc,
   getSeries,
   getAllocationOptions,

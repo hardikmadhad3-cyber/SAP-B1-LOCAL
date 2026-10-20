@@ -20,8 +20,29 @@ export const updateProductionOrder = (docEntry, data) =>
 export const releaseProductionOrder = (docEntry) =>
   apiClient.post(`/production-order/${encodeURIComponent(docEntry)}/release`).then((r) => r.data);
 
-export const closeProductionOrder = (docEntry) =>
-  apiClient.post(`/production-order/${encodeURIComponent(docEntry)}/close`).then((r) => r.data);
+export const closeProductionOrder = (docEntry, closingDate) =>
+  apiClient.post(`/production-order/${encodeURIComponent(docEntry)}/close`, { closing_date: closingDate }).then((r) => r.data);
+
+export const cancelProductionOrder = (docEntry) =>
+  apiClient.post(`/production-order/${encodeURIComponent(docEntry)}/cancel`).then((r) => r.data);
+
+// SAP record browsing: direction = first | prev | next | last, from = current DocEntry.
+export const navigateProductionOrder = (direction, from = '') =>
+  apiClient.get('/production-order/navigate', { params: { direction, from } }).then((r) => r.data);
+
+const attachmentsUrl = (docEntry) => `/production-order/${encodeURIComponent(docEntry)}/attachments`;
+export const fetchProductionOrderAttachments = (docEntry) =>
+  apiClient.get(attachmentsUrl(docEntry)).then((r) => r.data);
+export const uploadProductionOrderAttachment = (docEntry, file) => {
+  const body = new FormData();
+  body.append('file', file);
+  return apiClient.post(attachmentsUrl(docEntry), body, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
+};
+export const deleteProductionOrderAttachment = (docEntry, id) =>
+  apiClient.delete(`${attachmentsUrl(docEntry)}/${encodeURIComponent(id)}`).then((r) => r.data);
+// Through the API client (it carries the login token); a plain link would not.
+export const downloadProductionOrderAttachment = (docEntry, id) =>
+  apiClient.get(`${attachmentsUrl(docEntry)}/${encodeURIComponent(id)}`, { responseType: 'blob' }).then((r) => r.data);
 
 export const explodeBOM = (itemCode, qty = 1) =>
   apiClient.get(`/production-order/bom-explode/${encodeURIComponent(itemCode)}`, { params: { qty } }).then((r) => r.data);

@@ -6,7 +6,10 @@ import ProductionOrderLines from "./components/ProductionOrderLines";
 import ProductionOrderList  from "./components/ProductionOrderList";
 import ItemSearchModal       from "../bom/components/ItemSearchModal";
 import CustomerSearchModal   from "./components/CustomerSearchModal";
+import DocumentAttachmentsTab from "../../components/document/DocumentAttachmentsTab";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { applyLineEdit, buildProductionOrderPayload, recalcPlannedQty } from "./productionOrderHelpers";
 import {
   fetchProductionOrderReferenceData,
   fetchProductionOrderSeries,
@@ -15,6 +18,12 @@ import {
   updateProductionOrder,
   releaseProductionOrder,
   closeProductionOrder,
+  cancelProductionOrder,
+  navigateProductionOrder,
+  fetchProductionOrderAttachments,
+  uploadProductionOrderAttachment,
+  deleteProductionOrderAttachment,
+  downloadProductionOrderAttachment,
   explodeBOM,
   fetchProdOrderItems,
   fetchProdOrderFinishItems,
@@ -51,8 +60,6 @@ const createEmptyHeader = (defaultSeries = "") => ({
   type:              "bopotStandard",
   warehouse:         "",
   priority:          100,
-  routing_date_calc: "start",
-  procure_items:     false,
   distribution_rule: "",
   project:           "",
   branch:            "",
@@ -67,9 +74,10 @@ const createEmptyHeader = (defaultSeries = "") => ({
   user:              "",
   journal_remark:    "",
   remarks:           "",
-  pick_pack_remarks: "",
+  pick_remarks:      "",
   series:            defaultSeries,
   origin_num:        "",
+  closing_date:      "",
 });
 
 const EMPTY_HEADER = createEmptyHeader();
@@ -133,6 +141,7 @@ const TYPE_LABELS = {
 };
 
 const formatSummaryNumber = (value) => Number(value || 0).toFixed(2);
+const errorText = (err, fallback) => err.response?.data?.detail || err.response?.data?.message || err.message || fallback;
 const firstWarehouse = (...values) => (
   values.map((value) => String(value || "").trim()).find(Boolean) || ""
 );
@@ -257,6 +266,7 @@ function UserPicker({ users, value, displayValue, disabled, onSelect, onRefresh 
 
 export default function ProductionOrderModule() {
   const { user: authUser } = useAuth();
+  const navigate = useNavigate();
   const [mode,    setMode]    = useState(MODES.ADD);
   const [tab,     setTab]     = useState(0);
   const [header,  setHeader]  = useState(EMPTY_HEADER);
@@ -265,6 +275,12 @@ export default function ProductionOrderModule() {
   const [loading, setLoading] = useState(false);
   const [docEntry, setDocEntry] = useState(null);
   const [listQuery, setListQuery] = useState("");
+  const [stages, setStages] = useState([]);
+  const [summary, setSummary] = useState({});
+  const [relatedDocuments, setRelatedDocuments] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [closeDate, setCloseDate] = useState(null); // null = closing-date bar hidden
+  const fileInputRef = useRef(null);
 
   // Lookup data
   const [warehouses,  setWarehouses]  = useState([]);
@@ -285,7 +301,7 @@ export default function ProductionOrderModule() {
 
   // Item search modal: target = "header" | line._id
   const [itemModal, setItemModal] = useState({ open: false, target: null });
-  
+
   // Customer search modal
   const [customerModal, setCustomerModal] = useState(false);
   const [linkedOrderModal, setLinkedOrderModal] = useState(false);
@@ -391,6 +407,11 @@ export default function ProductionOrderModule() {
       branch: branches[0]?.BPLID != null ? String(branches[0].BPLID) : "",
     });
     setLines([EMPTY_LINE()]);
+    setStages([]);
+    setSummary({});
+    setRelatedDocuments([]);
+    setAttachments([]);
+    setCloseDate(null);
     setTab(0);
     setAlert(null);
     setDocEntry(null);
@@ -411,19 +432,14 @@ export default function ProductionOrderModule() {
 
     if (name === "type" && mode === MODES.ADD) {
       setLines([EMPTY_LINE()]);
+      setStages([]);
     }
-    
-    // When planned_qty changes, recalculate all component planned quantities
-    if (name === 'planned_qty') {
-      const newPlannedQty = Number(value) || 1;
-      setLines((prevLines) =>
-        prevLines.map((line) => ({
-          ...line,
-          planned_qty: parseFloat((((line.base_ratio ?? line.base_qty ?? 1) || 1) * newPlannedQty).toFixed(6)),
-        }))
-      );
+
+    // SAP: row planned qty = base ratio x header planned qty + additional qty.
+    if (name === "planned_qty") {
+      setLines((prevLines) => prevLines.map((line) => recalcPlannedQty(line, value)));
     }
-  }, []);
+  }, [mode]);
 
   const handleUserSelect = useCallback((selected) => {
     setHeader((prev) => ({
@@ -437,7 +453,7 @@ export default function ProductionOrderModule() {
   const handleItemSelect = useCallback(async (item) => {
     const { target } = itemModal;
     setItemModal({ open: false, target: null });
-    
+
     if (target === "header") {
       const isSpecialOrder = header.type === "bopotSpecial";
       const selectedItemCode = item.ItemNo || item.ItemCode || item.TreeCode || item.Code || "";
@@ -461,14 +477,15 @@ export default function ProductionOrderModule() {
 
       if (isSpecialOrder) {
         setLines((prev) => (prev.length ? prev : [EMPTY_LINE()]));
+        setStages([]);
         showAlert("success", `Item selected: ${selectedItemCode}`);
         return;
       }
-      
+
       // Automatically explode BOM for the selected item
       try {
         const bomData = await explodeBOM(selectedItemCode, header.planned_qty || 1);
-        
+
         // Auto-populate warehouse and other header fields from BOM
         setHeader((prev) => ({
           ...prev,
@@ -480,7 +497,8 @@ export default function ProductionOrderModule() {
           distribution_rule: bomData.distribution_rule || prev.distribution_rule,
           project: bomData.project || prev.project,
         }));
-        
+
+        setStages(bomData.stages || []);
         // Load BOM lines as production order components
         if (bomData.lines && bomData.lines.length > 0) {
           setLines(bomData.lines.map((line, idx) => ({
@@ -512,7 +530,7 @@ export default function ProductionOrderModule() {
           showAlert("success", `BOM exploded: ${bomData.lines.length} components loaded.`);
         }
       } catch (err) {
-        showAlert("warning", `Item selected but BOM explosion failed: ${err.message}`);
+        showAlert("error", `Item selected but BOM explosion failed: ${err.message}`);
       }
     } else {
       const currentLine = lines.find((l) => l._id === target);
@@ -604,10 +622,25 @@ export default function ProductionOrderModule() {
             issue_method: "im_Manual",
           };
         }
-        return { ...l, [field]: value };
+        return applyLineEdit(l, field, value, header.planned_qty, header.bom_qty);
       })
     );
-  }, []);
+  }, [header.planned_qty, header.bom_qty]);
+
+  const addStage = useCallback((stageEntry) => {
+    const routeStage = routeStages.find((stage) => String(stage.InternalNumber) === String(stageEntry));
+    if (!routeStage) return;
+    setStages((prev) => {
+      const nextId = prev.reduce((max, stage) => Math.max(max, Number(stage.StageID) || 0), 0) + 1;
+      return [...prev, {
+        StageID: nextId,
+        SequenceNumber: nextId,
+        StageEntry: routeStage.InternalNumber,
+        Name: routeStage.Description || routeStage.Code,
+        StageCode: routeStage.Code,
+      }];
+    });
+  }, [routeStages]);
 
   const addLine    = () => setLines((prev) => [...prev, EMPTY_LINE()]);
   const deleteLine = useCallback((id) => setLines((prev) => prev.filter((l) => l._id !== id)), []);
@@ -620,82 +653,28 @@ export default function ProductionOrderModule() {
     return true;
   };
 
-  // ── Build payload ──────────────────────────────────────────────────────────
-  const buildPayload = () => ({
-    item_code:         header.item_code,
-    planned_qty:       Number(header.planned_qty),
-    due_date:          header.due_date,
-    posting_date:      header.posting_date,
-    start_date:        header.start_date,
-    status:            header.status,
-    type:              header.type,
-    warehouse:         header.warehouse,
-    priority:          Number(header.priority) || 100,
-    distribution_rule: header.distribution_rule,
-    project:           header.project,
-    branch:            header.branch,
-    customer_code:     header.customer_code,
-    linked_to:         header.linked_to,
-    linked_order_entry:header.linked_order_entry,
-    user_id:           header.user_id,
-    journal_remark:    header.journal_remark,
-      remarks:           header.remarks,
-      pick_pack_remarks: header.pick_pack_remarks,
-      series:            header.series,
-    lines: lines
-      .filter((l) =>
-        l.component_type === "pit_Text"
-          ? Boolean((l.line_text || l.item_name || "").trim())
-          : Boolean((l.item_code || "").trim())
-      )
-      .map((l, idx) => ({ ...l, line_num: idx })),
-  });
-
   // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (mode === MODES.FIND) { await handleFind(); return; }
     if (!validate()) return;
     setLoading(true);
     try {
-      const payload = buildPayload();
+      const payload = buildProductionOrderPayload(header, lines, stages);
       if (mode === MODES.ADD) {
         const result = await createProductionOrder(payload);
         showAlert("success", `Production Order #${result.doc_num} created.`);
-        // Load the created order
         if (result.doc_entry) {
           const loaded = await fetchProductionOrderByDocEntry(result.doc_entry);
           _loadOrder(loaded.production_order);
-          setDocEntry(result.doc_entry);
           setMode(MODES.UPDATE);
         }
       } else {
-        // Check if user is trying to close the order via status dropdown
-        if (payload.status === 'boposClosed') {
-          if (!window.confirm("Close this production order?")) {
-            setLoading(false);
-            return;
-          }
-          const result = await closeProductionOrder(docEntry);
-          if (result.production_order) {
-            _loadOrder(result.production_order);
-          }
-          showAlert("success", "Production order closed successfully.");
-        } else if (payload.status === 'boposReleased' && header.status === 'boposPlanned') {
-          // User is trying to release via status dropdown
-          const result = await releaseProductionOrder(docEntry);
-          if (result.production_order) {
-            _loadOrder(result.production_order);
-          }
-          showAlert("success", "Production order released successfully.");
-        } else {
-          // Normal update
-          const result = await updateProductionOrder(docEntry, payload);
-          _loadOrder(result.production_order);
-          showAlert("success", "Production order updated.");
-        }
+        const result = await updateProductionOrder(docEntry, payload);
+        _loadOrder(result.production_order);
+        showAlert("success", "Production order updated.");
       }
     } catch (err) {
-      showAlert("error", err.response?.data?.detail || err.message || "Save failed.");
+      showAlert("error", errorText(err, "Save failed."));
     } finally {
       setLoading(false);
     }
@@ -713,42 +692,108 @@ export default function ProductionOrderModule() {
     setMode(MODES.LIST);
   };
 
-  const handleClose = async () => {
-    if (!docEntry) return;
-    if (!window.confirm("Close this production order?")) return;
+  // Runs a status action (release / close / cancel) and reloads the order it returns.
+  const runAction = async (action, successMsg) => {
     setLoading(true);
     try {
-      const result = await closeProductionOrder(docEntry);
-      if (result.production_order) {
-        _loadOrder(result.production_order);
-      } else {
-        setHeader((prev) => ({ ...prev, status: "boposClosed" }));
-      }
-      showAlert("success", "Production order closed.");
+      const result = await action();
+      if (result.production_order) _loadOrder(result.production_order);
+      showAlert("success", successMsg);
+      return true;
     } catch (err) {
-      showAlert("error", err.response?.data?.message || "Close failed.");
+      showAlert("error", errorText(err, "Action failed."));
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
+  // SAP closes on an actual closing date; leftover WIP posts as variance on it.
+  const handleClose = async () => {
+    if (!docEntry || !closeDate) return;
+    if (await runAction(() => closeProductionOrder(docEntry, closeDate), "Production order closed.")) setCloseDate(null);
+  };
+
   const handleRelease = async () => {
-    if (!docEntry) return;
-    if (!window.confirm("Release this production order?")) return;
+    if (!docEntry || !window.confirm("Release this production order?")) return;
+    await runAction(() => releaseProductionOrder(docEntry), "Production order released.");
+  };
+
+  const handleCancelOrder = async () => {
+    if (!docEntry || !window.confirm("Cancel this production order? This cannot be undone.")) return;
+    await runAction(() => cancelProductionOrder(docEntry), "Production order cancelled.");
+  };
+
+  const handleBrowse = async (direction) => {
     setLoading(true);
     try {
-      const result = await releaseProductionOrder(docEntry);
-      if (result.production_order) {
-        _loadOrder(result.production_order);
-      } else {
-        setHeader((prev) => ({ ...prev, status: "boposReleased" }));
-      }
-      showAlert("success", "Production order released.");
+      const data = await navigateProductionOrder(direction, docEntry || "");
+      _loadOrder(data.production_order);
+      setMode(MODES.UPDATE);
     } catch (err) {
-      showAlert("error", err.response?.data?.message || "Release failed.");
+      showAlert("error", errorText(err, "No more production orders."));
     } finally {
       setLoading(false);
     }
+  };
+
+  // SAP Duplicate: same header and rows as a new Planned order in Add mode.
+  const handleDuplicate = () => {
+    setHeader((prev) => ({
+      ...prev,
+      doc_num: "",
+      status: "boposPlanned",
+      completed_qty: 0,
+      rejected_qty: 0,
+      posting_date: today(),
+      order_date: today(),
+      closing_date: "",
+      origin: "",
+      origin_num: "",
+      series: defaultSeries || getDefaultSeriesValue(series),
+    }));
+    setLines((prev) => prev.map((line) => ({ ...line, _id: Date.now() + Math.random(), issued_qty: 0 })));
+    setSummary({});
+    setRelatedDocuments([]);
+    setAttachments([]);
+    setCloseDate(null);
+    setDocEntry(null);
+    setMode(MODES.ADD);
+    showAlert("success", "Order duplicated. Review it and choose Add.");
+  };
+
+  // ── Attachments (stored once the order is saved) ───────────────────────────
+  const reloadAttachments = (entry) => (
+    fetchProductionOrderAttachments(entry)
+      .then((rows) => setAttachments(Array.isArray(rows) ? rows : []))
+      .catch(() => setAttachments([]))
+  );
+  const handleAttachFiles = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    try {
+      for (const file of files) await uploadProductionOrderAttachment(docEntry, file);
+    } catch (err) {
+      showAlert("error", errorText(err, "Upload failed."));
+    }
+    reloadAttachments(docEntry);
+  };
+  const handleDisplayAttachment = async (attachment) => {
+    try {
+      const url = URL.createObjectURL(await downloadProductionOrderAttachment(docEntry, attachment.id));
+      Object.assign(document.createElement("a"), { href: url, download: attachment.name }).click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      showAlert("error", errorText(err, "Download failed."));
+    }
+  };
+  const handleDeleteAttachment = async (attachment) => {
+    try {
+      await deleteProductionOrderAttachment(docEntry, attachment.id);
+    } catch (err) {
+      showAlert("error", errorText(err, "Delete failed."));
+    }
+    reloadAttachments(docEntry);
   };
 
   // ── Load order from SAP response ───────────────────────────────────────────
@@ -770,8 +815,6 @@ export default function ProductionOrderModule() {
       type:              data.type               || "bopotStandard",
       warehouse:         data.warehouse          || "",
       priority:          data.priority           ?? 100,
-      routing_date_calc: data.routing_date_calc  || "start",
-      procure_items:     Boolean(data.procure_items),
       distribution_rule: data.distribution_rule  || "",
       project:           data.project            || "",
       branch:            data.branch             || "",
@@ -780,16 +823,25 @@ export default function ProductionOrderModule() {
       customer_name:     data.customer_name      || "",
       origin:            data.origin             || "",
       linked_to:         data.linked_to          || "",
-      linked_order:      data.linked_order       || "",
-      linked_order_entry:data.linked_order_entry || "",
+      // linked_order is the origin DocEntry; origin_num is its document number.
+      linked_order:      data.origin_num         || data.linked_order || "",
+      linked_order_entry:data.linked_order       || "",
       user_id:           data.user_id            || "",
       user:              data.user               || "",
       journal_remark:    data.journal_remark     || "",
       remarks:           data.remarks            || "",
-      pick_pack_remarks: data.pick_pack_remarks  || "",
+      pick_remarks:      data.pick_remarks       || "",
       series:            data.series             || "",
       origin_num:        data.origin_num         || "",
+      closing_date:      data.closing_date       || "",
     });
+    setStages(data.stages || []);
+    setSummary(data.summary || {});
+    setRelatedDocuments(data.related_documents || []);
+    if (data.doc_entry) {
+      setDocEntry(data.doc_entry);
+      reloadAttachments(data.doc_entry);
+    }
     setLines(
       (data.lines || []).map((l) => ({
         _id:              Date.now() + Math.random(),
@@ -829,29 +881,23 @@ export default function ProductionOrderModule() {
     }
     setLoading(true);
     try {
-      console.log('[ProductionOrder] Loading order with DocEntry:', de);
       const data = await fetchProductionOrderByDocEntry(de);
-      console.log('[ProductionOrder] Order data received:', data);
       _loadOrder(data.production_order);
-      setDocEntry(de);
       setMode(MODES.UPDATE);
       showAlert("success", `Production Order #${data.production_order.doc_num} loaded.`);
     } catch (err) {
-      console.error('[ProductionOrder] Load error:', err);
-      const errorMsg = err.response?.data?.detail || err.response?.data?.message || err.message || "Load failed.";
-      showAlert("error", errorMsg);
+      showAlert("error", errorText(err, "Load failed."));
     } finally {
       setLoading(false);
     }
   };
 
-  const isReadOnly = header.status === "boposClosed" || header.status === "boposCancelled";
+  // SAP: only Planned orders can be edited; status changes only through the actions.
+  const isReadOnly = header.status !== "boposPlanned";
   const isSpecialType = header.type === "bopotSpecial";
+  const isReleased = mode === MODES.UPDATE && header.status === "boposReleased";
   const statusKey  = STATUS_LABELS[header.status] || header.status;
-  const canEditStatus = mode === MODES.UPDATE && !isReadOnly;
-  const componentCount = lines.filter((line) => line.item_code || line.line_text).length;
   const dueDateValue = header.due_date || "";
-  const actualClosingDate = header.status === "boposClosed" ? (header.due_date || "") : "";
   const overdueDays = (() => {
     if (!header.due_date || header.status === "boposClosed" || header.status === "boposCancelled") return "";
     const due = new Date(header.due_date);
@@ -862,7 +908,6 @@ export default function ProductionOrderModule() {
     if (diffMs <= 0) return "";
     return String(Math.floor(diffMs / 86400000));
   })();
-  const totalRunTime = formatSummaryNumber(componentCount);
   const itemModalLine = itemModal.target === "header"
     ? null
     : lines.find((line) => line._id === itemModal.target);
@@ -922,20 +967,45 @@ export default function ProductionOrderModule() {
           {loading ? "…" : mode === MODES.FIND ? "Find" : mode === MODES.ADD ? "Add" : "Update"}
         </button>
         <button className="im-btn" onClick={() => { setMode(MODES.ADD); resetForm(); }}>New</button>
-<button className="im-btn" data-sap-find-action onClick={openFind}>Find</button>
-        
-        {/* Conditional action buttons based on status */}
+        <button className="im-btn" data-sap-find-action onClick={openFind}>Find</button>
+        <button className="im-btn" onClick={() => handleBrowse("first")} disabled={loading} aria-label="First record">|&lt;</button>
+        <button className="im-btn" onClick={() => handleBrowse("prev")} disabled={loading} aria-label="Previous record">&lt;</button>
+        <button className="im-btn" onClick={() => handleBrowse("next")} disabled={loading} aria-label="Next record">&gt;</button>
+        <button className="im-btn" onClick={() => handleBrowse("last")} disabled={loading} aria-label="Last record">&gt;|</button>
+        {mode === MODES.UPDATE && (
+          <button className="im-btn" onClick={handleDuplicate} disabled={loading}>Duplicate</button>
+        )}
+
+        {/* Status changes only through these actions (SAP B1). */}
         {mode === MODES.UPDATE && header.status === "boposPlanned" && (
           <button className="im-btn" onClick={handleRelease} disabled={loading}>Release</button>
         )}
-        {mode === MODES.UPDATE && header.status === "boposReleased" && (
-          <button className="im-btn" onClick={handleClose} disabled={loading}>Close Order</button>
+        {isReleased && (
+          <>
+            <button className="im-btn" onClick={() => navigate("/issue-for-production", { state: { prodOrderEntry: docEntry } })}>Issue Components</button>
+            <button className="im-btn" onClick={() => navigate("/receipt-from-production", { state: { prodOrderEntry: docEntry } })}>Report Completion</button>
+            <button className="im-btn" onClick={() => setCloseDate(today())} disabled={loading}>Close Order</button>
+          </>
         )}
-        
+        {mode === MODES.UPDATE && (header.status === "boposPlanned" || header.status === "boposReleased") && (
+          <button className="im-btn" onClick={handleCancelOrder} disabled={loading}>Cancel Order</button>
+        )}
+
         <button className="im-btn" onClick={resetForm}>Cancel</button>
       </div>
 
-      {alert && <div className={`im-alert im-alert--${alert.type}`}>{alert.msg}</div>}
+      {alert && <div className={`im-alert im-alert--${alert.type}`} role={alert.type === "error" ? "alert" : undefined}>{alert.msg}</div>}
+
+      {closeDate !== null && (
+        <div className="im-header-card po-close-bar">
+          <label className="im-field">
+            <span className="im-field__label">Actual Closing Date</span>
+            <SapDateInput className="im-field__input" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} style={{ width: 140 }} />
+          </label>
+          <button className="im-btn im-btn--primary" onClick={handleClose} disabled={loading || !closeDate}>Close Order</button>
+          <button className="im-btn" onClick={() => setCloseDate(null)}>Cancel</button>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <div className="im-header-card">
@@ -956,7 +1026,7 @@ export default function ProductionOrderModule() {
             <div className="im-field">
               <label className="im-field__label po-lbl">Status</label>
               <select className="im-field__select" name="status" value={header.status}
-                onChange={handleHeaderChange} disabled={!canEditStatus} style={{ width: 160 }}>
+                disabled title="Status changes through Release, Close Order and Cancel Order" style={{ width: 160 }}>
                 {(prodStatuses.length ? prodStatuses : Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))).map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
@@ -985,7 +1055,7 @@ export default function ProductionOrderModule() {
                 </div>
               ) : (
                 <input className="im-field__input" name="item_name" value={header.item_name}
-                  onChange={handleHeaderChange} style={{ flex: 1 }} />
+                  onChange={handleHeaderChange} readOnly={isReadOnly} style={{ flex: 1 }} />
               )}
             </div>
 
@@ -1027,29 +1097,6 @@ export default function ProductionOrderModule() {
                 readOnly={isReadOnly} style={{ width: 100 }} />
             </div>
 
-            <div className="im-field">
-              <label className="im-field__label po-lbl">Routing Date Calculation</label>
-              <select className="im-field__select" name="routing_date_calc" value={header.routing_date_calc}
-                onChange={handleHeaderChange} disabled={isReadOnly} style={{ width: 160 }}>
-                <option value="start">On Start Date</option>
-                <option value="due">On Due Date</option>
-              </select>
-            </div>
-
-            <div className="im-field">
-              <label className="im-field__label po-lbl"></label>
-              <label className="po-checkline">
-                <input
-                  type="checkbox"
-                  name="procure_items"
-                  checked={header.procure_items}
-                  onChange={handleHeaderChange}
-                  disabled={isReadOnly}
-                />
-                <span>Procure Items</span>
-              </label>
-            </div>
-
           </div>
 
           {/* Right column */}
@@ -1071,27 +1118,27 @@ export default function ProductionOrderModule() {
 
             <div className="im-field">
               <label className="im-field__label po-lbl-r">Order Date</label>
-              <SapDateInput className="im-field__input po-readonly" name="order_date" 
+              <SapDateInput className="im-field__input po-readonly" name="order_date"
                 value={header.order_date} readOnly style={{ width: 140 }} />
             </div>
 
             <div className="im-field">
               <label className="im-field__label po-lbl-r">Start Date</label>
-              <SapDateInput className="im-field__input" name="start_date" 
+              <SapDateInput className="im-field__input" name="start_date"
                 value={header.start_date} onChange={handleHeaderChange}
                 readOnly={isReadOnly} style={{ width: 140 }} />
             </div>
 
             <div className="im-field">
               <label className="im-field__label po-lbl-r">Due Date</label>
-              <SapDateInput className="im-field__input" name="due_date" 
+              <SapDateInput className="im-field__input" name="due_date"
                 value={header.due_date} onChange={handleHeaderChange}
                 readOnly={isReadOnly} style={{ width: 140 }} />
             </div>
 
             <div className="im-field">
               <label className="im-field__label po-lbl-r">Origin</label>
-              <input className="im-field__input po-readonly" name="origin" 
+              <input className="im-field__input po-readonly" name="origin"
                 value={header.origin || "Manual"} readOnly style={{ width: 140 }} />
             </div>
 
@@ -1136,14 +1183,14 @@ export default function ProductionOrderModule() {
             <div className="im-field">
               <label className="im-field__label po-lbl-r">Customer</label>
               <div className="im-lookup-wrap">
-                <input className="im-field__input" name="customer_code" 
+                <input className="im-field__input" name="customer_code"
                   value={header.customer_code} onChange={handleHeaderChange}
                   readOnly={isReadOnly} style={{ width: 100 }} />
                 {!isReadOnly && (
                   <button className="im-lookup-btn" onClick={() => setCustomerModal(true)}>…</button>
                 )}
               </div>
-              <input className="im-field__input po-readonly" 
+              <input className="im-field__input po-readonly"
                 value={header.customer_name} readOnly style={{ flex: 1, marginLeft: 4 }} />
             </div>
 
@@ -1190,14 +1237,17 @@ export default function ProductionOrderModule() {
         {tab === 0 && (
           <ProductionOrderLines
             lines={lines}
+            stages={stages}
             warehouses={branchWarehouses}
             distRules={distRules}
             projects={projects}
             routeStages={routeStages}
             readOnly={isReadOnly}
+            isDisassembly={header.type === "bopotDisassemble"}
             onChange={handleLineChange}
             onAdd={addLine}
             onDelete={deleteLine}
+            onAddStage={addStage}
             onItemSearch={(lineId) => setItemModal({ open: true, target: lineId })}
           />
         )}
@@ -1205,116 +1255,138 @@ export default function ProductionOrderModule() {
           <div className="po-summary-panel">
             <div className="po-summary-columns">
               <div className="po-summary-group">
-                <div className="po-summary-group__title">Costs</div>
-                <div className="po-summary-field">
-                  <label>Actual Item Component Cost</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Actual Resource Component Cost</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Actual Additional Cost</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Actual Product Cost</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Actual By-Product Cost</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Total Variance</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
+                <div className="po-summary-group__title">Actual Costs</div>
+                {[
+                  ["Actual Item Component Cost", summary.actual_component_cost],
+                  ["Actual Resource Component Cost", summary.actual_resource_cost],
+                  ["Actual Additional Cost", summary.actual_additional_cost],
+                  ["Total Actual Cost", summary.total_actual_cost],
+                  ["Actual Product Cost", summary.actual_product_cost],
+                  ["Actual By-Product Cost", summary.by_product_value],
+                  ["WIP Balance", summary.wip_balance],
+                  ["Total Variance", summary.total_variance],
+                ].map(([label, value]) => (
+                  <label key={label} className="po-summary-field">
+                    <span>{label}</span>
+                    <input className="im-field__input po-readonly" value={formatSummaryNumber(value)} readOnly />
+                  </label>
+                ))}
               </div>
 
               <div className="po-summary-group">
                 <div className="po-summary-group__title">Quantities</div>
-                <div className="po-summary-field">
-                  <label>Planned Quantity</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(header.planned_qty)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Completed Quantity</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(header.completed_qty)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Rejected Quantity</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(header.rejected_qty)} readOnly />
-                </div>
+                {[
+                  ["Planned Quantity", header.planned_qty],
+                  ["Completed Quantity", header.completed_qty],
+                  ["Rejected Quantity", header.rejected_qty],
+                ].map(([label, value]) => (
+                  <label key={label} className="po-summary-field">
+                    <span>{label}</span>
+                    <input className="im-field__input po-readonly" value={formatSummaryNumber(value)} readOnly />
+                  </label>
+                ))}
 
                 <div className="po-summary-group__title po-summary-group__title--spaced">Dates</div>
-                <div className="po-summary-field">
-                  <label>Due Date</label>
-                  <input className="im-field__input po-readonly" value={dueDateValue} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Actual Closing Date</label>
-                  <input className="im-field__input po-readonly" value={actualClosingDate} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Overdue</label>
-                  <input className="im-field__input po-readonly" value={overdueDays} readOnly />
-                </div>
+                {[
+                  ["Due Date", dueDateValue],
+                  ["Actual Closing Date", header.closing_date],
+                  ["Overdue (Days)", overdueDays],
+                ].map(([label, value]) => (
+                  <label key={label} className="po-summary-field">
+                    <span>{label}</span>
+                    <input className="im-field__input po-readonly" value={value || ""} readOnly />
+                  </label>
+                ))}
               </div>
 
               <div className="po-summary-group">
-                <div className="po-summary-group__title">Planned Times</div>
-                <div className="po-summary-field">
-                  <label>Total Production Time</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Total Additional Time</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Total Run Time</label>
-                  <input className="im-field__input po-readonly" value={totalRunTime} readOnly />
-                </div>
-
-                <div className="po-summary-group__title po-summary-group__title--spaced">Planned Days</div>
-                <div className="po-summary-field">
-                  <label>Total Required Days</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Total Waiting Days</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
-                <div className="po-summary-field">
-                  <label>Total Days</label>
-                  <input className="im-field__input po-readonly" value={formatSummaryNumber(0)} readOnly />
-                </div>
+                <div className="po-summary-group__title">Planned Costs</div>
+                {[
+                  ["Planned Item Component Cost", summary.planned_component_cost],
+                  ["Planned Resource Cost", summary.planned_resource_cost],
+                  ["Total Planned Cost", summary.total_planned_cost],
+                ].map(([label, value]) => (
+                  <label key={label} className="po-summary-field">
+                    <span>{label}</span>
+                    <input className="im-field__input po-readonly" value={formatSummaryNumber(value)} readOnly />
+                  </label>
+                ))}
               </div>
             </div>
 
             <div className="po-summary-footer">
-              <div className="po-summary-field po-summary-field--wide">
-                <label>Journal Remark</label>
-                <input className="im-field__input po-readonly" value={header.journal_remark || ""} readOnly />
-              </div>
-              <div className="po-summary-field po-summary-field--wide">
-                <label>Referenced Document</label>
+              <label className="po-summary-field po-summary-field--wide">
+                <span>Journal Remark</span>
+                <input className={`im-field__input${isReadOnly ? " po-readonly" : ""}`} name="journal_remark"
+                  value={header.journal_remark || ""} onChange={handleHeaderChange} readOnly={isReadOnly} />
+              </label>
+              <label className="po-summary-field po-summary-field--wide">
+                <span>Referenced Document</span>
                 <input className="im-field__input po-readonly" value={header.linked_order || header.origin_num || ""} readOnly />
-              </div>
+              </label>
+            </div>
+
+            <div className="po-summary-group__title">Related Documents</div>
+            <div className="im-grid-wrap">
+              <table className="im-grid">
+                <thead>
+                  <tr><th>Document</th><th>No.</th><th>Posting Date</th><th>Total</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  {relatedDocuments.map((doc) => (
+                    <tr key={`${doc.type}-${doc.doc_entry}`}>
+                      <td>{doc.type}</td>
+                      <td>
+                        <button type="button" className="po-link-btn"
+                          onClick={() => navigate(doc.type === "Issue for Production" ? "/issue-for-production" : "/receipt-from-production", { state: { docEntry: doc.doc_entry } })}>
+                          {doc.doc_num}
+                        </button>
+                      </td>
+                      <td>{doc.posting_date}</td>
+                      <td className="po-num">{formatSummaryNumber(doc.total)}</td>
+                      <td>{doc.cancelled ? "Cancelled" : "Posted"}</td>
+                    </tr>
+                  ))}
+                  {summary.variance_trans_id && (
+                    <tr>
+                      <td>Journal Entry (Variance)</td>
+                      <td>
+                        <button type="button" className="po-link-btn"
+                          onClick={() => navigate("/journal-entry", { state: { journalEntryTransId: summary.variance_trans_id } })}>
+                          {summary.variance_trans_id}
+                        </button>
+                      </td>
+                      <td>{header.closing_date}</td>
+                      <td className="po-num">{formatSummaryNumber(summary.total_variance)}</td>
+                      <td>Posted</td>
+                    </tr>
+                  )}
+                  {!relatedDocuments.length && !summary.variance_trans_id && (
+                    <tr><td colSpan={5}>No issues or receipts posted yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
         {tab === 2 && (
-          <div className="po-attachments-panel">
-            <input className="im-field__input" type="file" multiple disabled={isReadOnly} />
-          </div>
+          <>
+            {!docEntry && <p className="po-hint">Add the order first, then attach files.</p>}
+            <input ref={fileInputRef} type="file" multiple hidden onChange={handleAttachFiles} aria-label="Attachment files" />
+            <DocumentAttachmentsTab
+              attachments={attachments.map((row) => ({ ...row, fileName: row.fileName || row.name, targetPath: row.type }))}
+              isEditable={Boolean(docEntry)}
+              onBrowseAttachment={docEntry ? () => fileInputRef.current?.click() : undefined}
+              onDisplayAttachment={docEntry ? handleDisplayAttachment : undefined}
+              onDeleteAttachment={docEntry ? handleDeleteAttachment : undefined}
+            />
+          </>
         )}
       </div>
 
       <div className="po-remarks-row">
-        <div className="po-remarks-field">
-          <label className="im-field__label">Remarks</label>
+        <label className="po-remarks-field">
+          <span className="im-field__label">Remarks</span>
           <textarea
             name="remarks"
             value={header.remarks}
@@ -1322,17 +1394,17 @@ export default function ProductionOrderModule() {
             readOnly={isReadOnly}
             rows={2}
           />
-        </div>
-        <div className="po-remarks-field">
-          <label className="im-field__label">Pick and Pack Remarks</label>
+        </label>
+        <label className="po-remarks-field">
+          <span className="im-field__label">Pick and Pack Remarks</span>
           <textarea
-            name="pick_pack_remarks"
-            value={header.pick_pack_remarks}
+            name="pick_remarks"
+            value={header.pick_remarks}
             onChange={handleHeaderChange}
             readOnly={isReadOnly}
             rows={2}
           />
-        </div>
+        </label>
       </div>
 
       {/* Item search modal */}

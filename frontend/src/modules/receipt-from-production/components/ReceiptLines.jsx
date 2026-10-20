@@ -60,7 +60,6 @@ export default function ReceiptLines({
           </thead>
           <tbody>
             {lines.map((line) => {
-              const value = (Number(line.quantity) || 0) * (Number(line.unit_price) || 0);
               const canAllocate =
                 Boolean(line.item_code) &&
                 (line.manage_batch ||
@@ -71,7 +70,7 @@ export default function ReceiptLines({
                   (line.bin_allocations || []).length > 0);
 
               return (
-                <tr key={line._id} className="rfp-grid__row">
+                <tr key={line._id} className={`rfp-grid__row${line.by_product ? " rfp-grid__row--byproduct" : ""}`}>
                   <td className="rfp-grid__cell rfp-grid__cell--readonly">{line.order_no || ""}</td>
                   <td className="rfp-grid__cell rfp-grid__cell--readonly">{line.series_no || ""}</td>
 
@@ -133,20 +132,13 @@ export default function ReceiptLines({
                     />
                   </td>
 
-                  <td className="rfp-grid__cell">
-                    <input
-                      className="rfp-cell-input rfp-cell-input--num"
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={line.unit_price}
-                      readOnly={readOnly}
-                      onChange={(e) => onChange(line._id, "unit_price", e.target.value)}
-                    />
+                  {/* SAP values production receipts on posting (WIP / item cost): price is display only. */}
+                  <td className="rfp-grid__cell rfp-grid__cell--readonly rfp-grid__cell--num">
+                    {readOnly ? Number(line.unit_price || 0).toFixed(2) : <span className="rfp-muted">Valued on posting</span>}
                   </td>
 
                   <td className="rfp-grid__cell rfp-grid__cell--readonly rfp-grid__cell--num">
-                    {value.toFixed(2)}
+                    {readOnly ? Number(line.value || (Number(line.quantity) || 0) * (Number(line.unit_price) || 0)).toFixed(2) : ""}
                   </td>
 
                   <td className="rfp-grid__cell rfp-grid__cell--readonly rfp-grid__cell--num">
@@ -236,12 +228,16 @@ export default function ReceiptLines({
                   </td>
 
                   <td className="rfp-grid__cell rfp-grid__cell--center">
-                    <input
-                      type="checkbox"
-                      checked={line.by_product}
-                      disabled={readOnly}
-                      onChange={(e) => onChange(line._id, "by_product", e.target.checked)}
-                    />
+                    <label className="rfp-byproduct-label">
+                      <input
+                        type="checkbox"
+                        aria-label="By-product"
+                        checked={line.by_product}
+                        disabled={readOnly}
+                        onChange={(e) => onChange(line._id, "by_product", e.target.checked)}
+                      />
+                      {line.by_product && "By-product"}
+                    </label>
                   </td>
 
                   <td className="rfp-grid__cell">

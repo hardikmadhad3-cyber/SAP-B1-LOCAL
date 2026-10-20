@@ -12,7 +12,10 @@ import {
   fetchProductionOrderForIssue,
   fetchIssueByDocEntry,
   createIssue,
+  cancelIssue,
+  navigateIssue,
 } from "../../api/issueForProductionApi";
+import { useLocation, useNavigate } from "react-router-dom";
 import { getSapVisibleDocumentSeries } from "../../utils/seriesDefaults";
 
 const MODES = { ADD: "add", VIEW: "view", LIST: "list" };
@@ -30,6 +33,9 @@ const EMPTY_HEADER = {
   journal_remark: "Issue for Production",
   qr_code_from: "",
   branch: "",
+  doc_entry: null,
+  cancelled: false,
+  trans_id: null,
 };
 
 const pickDefaultSeries = (seriesRows = [], postingDate = today()) =>
@@ -40,7 +46,7 @@ const decorateIssueLine = (line, orderNo = "") => ({
   line_num: line.line_num ?? 0,
   order_no: line.order_no || orderNo || "",
   series_no: line.series_no || "",
-  line_type: line.line_type || "Item",
+  line_type: line.component_type === "pit_Resource" ? "Resource" : (line.line_type || "Item"),
   item_code: line.item_code || "",
   item_name: line.item_name || "",
   planned_qty: line.planned_qty ?? 0,
@@ -71,8 +77,55 @@ const decorateIssueLine = (line, orderNo = "") => ({
   account_code: line.account_code || "",
 });
 
+const orderLineKey = (line) => `${line.base_entry}:${line.base_line}`;
+
+// SAP B1: one issue can draw rows from several released orders; picking another
+// order appends its open rows and skips rows already in the grid.
+export const appendOrderLines = (existing = [], incoming = []) => {
+  const seen = new Set(existing.map(orderLineKey));
+  return [...existing, ...incoming.filter((line) => !seen.has(orderLineKey(line)))];
+};
+
+export const buildIssuePayload = (header, lines) => {
+  const issueLines = lines.filter((line) => line.item_code && Number(line.issue_qty) > 0);
+  return {
+    prod_order_entry: issueLines.find((line) => line.base_entry != null)?.base_entry ?? null,
+    series: header.series,
+    posting_date: header.posting_date,
+    document_date: header.document_date,
+    ref_2: header.ref_2,
+    remarks: header.remarks,
+    journal_remark: header.journal_remark,
+    branch: header.branch,
+    lines: issueLines.map((line) => ({
+      item_code: line.item_code,
+      issue_qty: Number(line.issue_qty),
+      uom: line.uom,
+      warehouse: line.warehouse,
+      distribution_rule: line.distribution_rule,
+      project: line.project,
+      base_entry: line.base_entry,
+      base_line: line.base_line,
+      base_type: 202,
+      manage_batch: line.manage_batch,
+      manage_serial: line.manage_serial,
+      batch_numbers: line.batch_numbers || [],
+      serial_numbers: line.serial_numbers || [],
+      bin_allocations: line.bin_allocations || [],
+      account_code: line.account_code || "",
+    })),
+  };
+};
+
+const queryNumber = (search, key) => {
+  const value = Number(new URLSearchParams(search || "").get(key));
+  return Number.isInteger(value) && value > 0 ? value : null;
+};
+
 export default function IssueForProductionModule() {
   const pageRef = useRef(null);
+  const location = useLocation();
+  const navigate = useNavigate();
   const [mode, setMode] = useState(MODES.ADD);
   const [tab, setTab] = useState(0);
   const [header, setHeader] = useState(EMPTY_HEADER);
@@ -168,7 +221,7 @@ export default function IssueForProductionModule() {
     setHeader((prev) => ({ ...prev, [name]: value }));
   }, []);
 
-  const applyProductionOrderData = useCallback((data, selectedLines = null) => {
+  const applyProductionOrderData = useCallback((data, selectedLines = null, { replace = false } = {}) => {
     setPoInfo({
       doc_entry: data.doc_entry,
       doc_num: data.doc_num,
@@ -188,13 +241,14 @@ export default function IssueForProductionModule() {
     if (data.branch != null && data.branch !== "") {
       setHeader((prev) => ({ ...prev, branch: String(data.branch) }));
     }
-    setLines((selectedLines || data.lines || []).map((line) => {
+    const nextLines = (selectedLines || data.lines || []).map((line) => {
       const decorated = decorateIssueLine(line, data.doc_num);
       return {
         ...decorated,
         issue_qty: decorated.copy_qty ?? decorated.issue_qty ?? decorated.remaining_qty ?? 0,
       };
-    }));
+    });
+    setLines((prev) => (replace ? nextLines : appendOrderLines(prev, nextLines)));
     setTab(0);
   }, []);
 
@@ -205,6 +259,7 @@ export default function IssueForProductionModule() {
 
       if ((data.lines || []).length === 0) {
         showAlert("error", "No manual-issue components found on this production order. All lines may be set to Backflush.");
+        if (lines.length > 0) return;
         setPoInfo({
           doc_entry: data.doc_entry,
           doc_num: data.doc_num,
@@ -215,7 +270,6 @@ export default function IssueForProductionModule() {
           status: data.status,
           type: data.type,
         });
-        setLines([]);
         return;
       }
 
@@ -250,8 +304,12 @@ export default function IssueForProductionModule() {
     setLines((prev) => prev.map((line) => (line._id !== id ? line : { ...line, [field]: value })));
   }, []);
 
+  const handleRemoveLine = useCallback((id) => {
+    setLines((prev) => prev.filter((line) => line._id !== id));
+  }, []);
+
   const validate = () => {
-    if (!poInfo?.doc_entry) {
+    if (!lines.some((line) => line.base_entry != null)) {
       showAlert("error", "Select IV Production Order first.");
       return false;
     }
@@ -271,7 +329,7 @@ export default function IssueForProductionModule() {
         showAlert("error", `Quantity for "${line.item_code}" cannot be negative.`);
         return false;
       }
-      if (!line.warehouse) {
+      if (!line.warehouse && line.line_type !== "Resource") {
         showAlert("error", `Whse is required for "${line.item_code}".`);
         return false;
       }
@@ -285,37 +343,7 @@ export default function IssueForProductionModule() {
     setLoading(true);
 
     try {
-      const payload = {
-        prod_order_entry: poInfo.doc_entry,
-        series: header.series,
-        posting_date: header.posting_date,
-        document_date: header.document_date,
-        ref_2: header.ref_2,
-        remarks: header.remarks,
-        journal_remark: header.journal_remark,
-        branch: header.branch,
-        lines: lines
-          .filter((line) => line.item_code && Number(line.issue_qty) > 0)
-          .map((line) => ({
-            item_code: line.item_code,
-            issue_qty: Number(line.issue_qty),
-            uom: line.uom,
-            warehouse: line.warehouse,
-            distribution_rule: line.distribution_rule,
-            project: line.project,
-            base_entry: line.base_entry,
-            base_line: line.base_line,
-            base_type: 202,
-            manage_batch: line.manage_batch,
-            manage_serial: line.manage_serial,
-            batch_numbers: line.batch_numbers || [],
-            serial_numbers: line.serial_numbers || [],
-            bin_allocations: line.bin_allocations || [],
-            account_code: line.account_code || "",
-          })),
-      };
-
-      const result = await createIssue(payload);
+      const result = await createIssue(buildIssuePayload(header, lines));
       showAlert("success", `Issue for Production #${result.doc_num} posted. Inventory reduced.`);
       resetForm();
     } catch (err) {
@@ -325,39 +353,64 @@ export default function IssueForProductionModule() {
     }
   };
 
-  const handleSelectFromList = async (docEntry) => {
+  const showIssue = useCallback((issue) => {
+    const firstOrderNo = (issue.lines || []).find((line) => line.order_no)?.order_no || "";
+    setHeader({
+      doc_num: issue.doc_num || "",
+      series: issue.series || "",
+      posting_date: issue.posting_date || today(),
+      document_date: issue.document_date || issue.posting_date || today(),
+      ref_2: issue.ref_2 || "",
+      remarks: issue.remarks || "",
+      journal_remark: issue.journal_remark || "Issue for Production",
+      qr_code_from: issue.qr_code_from || "",
+      branch: issue.branch || "",
+      doc_entry: issue.doc_entry ?? null,
+      cancelled: Boolean(issue.cancelled),
+      trans_id: issue.trans_id ?? null,
+    });
+    setPoInfo(issue.prod_order_entry ? { doc_entry: issue.prod_order_entry, doc_num: firstOrderNo } : null);
+    setLines((issue.lines || []).map((line) => decorateIssueLine(line)));
+    setMode(MODES.VIEW);
+    setTab(0);
+  }, []);
+
+  const runLoad = async (request, failMessage) => {
     setLoading(true);
     try {
-      const data = await fetchIssueByDocEntry(docEntry);
-      const issue = data.issue;
-      const firstOrderNo = (issue.lines || []).find((line) => line.order_no)?.order_no || "";
-
-      setHeader({
-        doc_num: issue.doc_num || "",
-        series: issue.series || "",
-        posting_date: issue.posting_date || today(),
-        document_date: issue.document_date || issue.posting_date || today(),
-        ref_2: issue.ref_2 || "",
-        remarks: issue.remarks || "",
-        journal_remark: issue.journal_remark || "Issue for Production",
-        qr_code_from: issue.qr_code_from || "",
-        branch: issue.branch || "",
-      });
-
-      setPoInfo(issue.prod_order_entry ? {
-        doc_entry: issue.prod_order_entry,
-        doc_num: firstOrderNo,
-      } : null);
-      setLines((issue.lines || []).map((line) => decorateIssueLine(line, firstOrderNo)));
-      setMode(MODES.VIEW);
-      setTab(0);
-      showAlert("success", `Issue for Production #${issue.doc_num} loaded.`);
+      const data = await request();
+      if (data?.issue) showIssue(data.issue);
+      return data;
     } catch (err) {
-      showAlert("error", err.response?.data?.detail || "Load failed.");
+      showAlert("error", err.response?.data?.detail || err.message || failMessage);
+      return null;
     } finally {
       setLoading(false);
     }
   };
+
+  const handleSelectFromList = async (docEntry) => {
+    const data = await runLoad(() => fetchIssueByDocEntry(docEntry), "Load failed.");
+    if (data?.issue) showAlert("success", `Issue for Production #${data.issue.doc_num} loaded.`);
+  };
+
+  const handleNavigate = (direction) =>
+    runLoad(() => navigateIssue(direction, header.doc_entry ?? ""), "No more documents.");
+
+  const handleCancelDocument = async () => {
+    if (!header.doc_entry || header.cancelled) return;
+    if (!window.confirm(`Cancel Issue for Production #${header.doc_num}? A cancellation document will be posted.`)) return;
+    const data = await runLoad(() => cancelIssue(header.doc_entry), "Cancel failed.");
+    if (data) showAlert("success", data.message || "Issue for production cancelled.");
+  };
+
+  // Deep links from the Production Order page: state or ?prodOrder= / ?docEntry=.
+  useEffect(() => {
+    const prodOrderEntry = Number(location.state?.prodOrderEntry) || queryNumber(location.search, "prodOrder");
+    const docEntry = Number(location.state?.docEntry) || queryNumber(location.search, "docEntry");
+    if (docEntry) handleSelectFromList(docEntry);
+    else if (prodOrderEntry) loadProductionOrder(prodOrderEntry, { showCopy: false });
+  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (mode === MODES.LIST) return undefined;
@@ -401,15 +454,37 @@ export default function IssueForProductionModule() {
         <span className={`im-mode-badge im-mode-badge--${isView ? "update" : "add"}`}>
           {isView ? "View Mode" : "Add Mode"}
         </span>
+        {isView && header.cancelled && (
+          <span className="im-mode-badge ifp-badge--cancelled">Cancelled</span>
+        )}
 
         {!isView && (
-          <button className="im-btn im-btn--primary" onClick={handlePost} disabled={loading}>
+          <button type="button" className="im-btn im-btn--primary" onClick={handlePost} disabled={loading}>
             {loading ? "..." : "Add"}
           </button>
         )}
-        <button className="im-btn" onClick={resetForm}>Cancel</button>
-        <button className="im-btn" onClick={() => { resetForm(); setMode(MODES.ADD); }}>New</button>
-<button className="im-btn" data-sap-find-action onClick={() => setMode(MODES.LIST)}>Find</button>
+        {!isView && <button type="button" className="im-btn" onClick={resetForm}>Cancel</button>}
+        <button type="button" className="im-btn" onClick={resetForm}>New</button>
+        <button type="button" className="im-btn" data-sap-find-action onClick={() => setMode(MODES.LIST)}>Find</button>
+        {isView && !header.cancelled && header.doc_entry && (
+          <button type="button" className="im-btn" onClick={handleCancelDocument} disabled={loading}>
+            Cancel Document
+          </button>
+        )}
+        {isView && header.trans_id && (
+          <button
+            type="button"
+            className="im-btn"
+            onClick={() => navigate("/journal-entry", { state: { journalEntryTransId: header.trans_id } })}
+          >
+            Journal Entry
+          </button>
+        )}
+        {[["first", "First"], ["prev", "Previous"], ["next", "Next"], ["last", "Last"]].map(([direction, label]) => (
+          <button key={direction} type="button" className="im-btn" onClick={() => handleNavigate(direction)} disabled={loading}>
+            {label}
+          </button>
+        ))}
         <button
           type="button"
           className="im-btn"
@@ -550,10 +625,11 @@ export default function IssueForProductionModule() {
                 projects={projects}
                 readOnly={isView}
                 onChange={handleLineChange}
+                onRemove={handleRemoveLine}
                 onOrderLookup={() => setPoModal({ type: "", title: "List of Production Orders" })}
                 onItemLookup={() => {
                   if (poInfo && lines.length > 0) {
-                    setCopyModal({ order: poInfo, lines, message: null });
+                    setCopyModal({ order: poInfo, lines, message: null, replace: true });
                   } else {
                     setPoModal({ type: "", title: "List of Production Orders" });
                   }
@@ -611,8 +687,9 @@ export default function IssueForProductionModule() {
       <div className="ifp-form-footer">
         <div className="ifp-footer-left">
           <div className="im-field ifp-footer-field">
-            <label className="im-field__label">Remarks</label>
+            <label className="im-field__label" htmlFor="ifp-remarks">Remarks</label>
             <textarea
+              id="ifp-remarks"
               name="remarks"
               value={header.remarks}
               onChange={handleHeaderChange}
@@ -622,8 +699,9 @@ export default function IssueForProductionModule() {
             />
           </div>
           <div className="im-field ifp-footer-field">
-            <label className="im-field__label">Journal Remark</label>
+            <label className="im-field__label" htmlFor="ifp-journal-remark">Journal Remark</label>
             <input
+              id="ifp-journal-remark"
               className="im-field__input ifp-footer-input"
               name="journal_remark"
               value={header.journal_remark}
@@ -635,8 +713,9 @@ export default function IssueForProductionModule() {
 
         <div className="ifp-footer-right">
           <div className="im-field ifp-footer-field">
-            <label className="im-field__label">Create QR Code From</label>
+            <label className="im-field__label" htmlFor="ifp-qr-code-from">Create QR Code From</label>
             <input
+              id="ifp-qr-code-from"
               className="im-field__input ifp-qr-input"
               name="qr_code_from"
               value={header.qr_code_from}
@@ -660,7 +739,7 @@ export default function IssueForProductionModule() {
           order={copyModal.order}
           lines={copyModal.lines}
           onOk={(selectedLines) => {
-            applyProductionOrderData(copyModal.order, selectedLines);
+            applyProductionOrderData(copyModal.order, selectedLines, { replace: Boolean(copyModal.replace) });
             if (copyModal.message) showAlert("success", copyModal.message);
             setCopyModal(null);
           }}
